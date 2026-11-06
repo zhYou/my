@@ -255,7 +255,9 @@ Linux/macOS 的自有进程组清理普通后代并 Wait 直接子进程；未�
 setsid/detach 或交给外部服务的进程不在保证内。Windows 10/Server 2016+ 在创建时绑定私有 Job、
 限制继承句柄，以挂起主线程准备监控后恢复；不支持嵌套 Job 时启动前失败。
 Windows 终止失败先关闭 Job 再等待根进程，返回前验证活动进程清空，异常与超时保留错误。
-WaitDelay 默认 250ms，控制取消终止及根进程退出后的管道排空宽限；永久阻塞的借用 IO 不保证被打断。
+WaitDelay 默认 250ms，控制取消终止及根进程退出后的管道排空宽限。Linux/macOS 在 SIGTERM 宽限耗尽后发送
+SIGKILL，并额外保留一次 WaitDelay 观察进程组退出；确认组不存在时立即结束，未被收养的僵尸仍由 OS 回收。
+永久阻塞的借用 IO 不保证被打断。
 
 库依据：[os/exec](https://pkg.go.dev/os/exec@go1.27.3)、
 [errgroup v0.24.0](https://pkg.go.dev/golang.org/x/sync@v0.24.0/errgroup)、

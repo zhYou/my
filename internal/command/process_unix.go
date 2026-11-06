@@ -34,30 +34,45 @@ func runPlatform(ctx context.Context, program string, args []string, options Exe
 		case <-ctx.Done():
 		case <-waited:
 		}
-		pid := -cmd.Process.Pid
-		// 即使根进程成功退出，也要处理仍在同组运行的后代。
-		if err := syscall.Kill(pid, syscall.SIGTERM); errors.Is(err, syscall.ESRCH) {
-			return
-		}
-		timer := time.NewTimer(options.WaitDelay)
-		defer timer.Stop()
-		ticker := time.NewTicker(10 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-timer.C:
-				//nolint:errcheck // 进程组可能已经退出；此处尽力收尾，根进程结果和取消原因由 Wait 及上层保留。
-				_ = syscall.Kill(pid, syscall.SIGKILL)
-				return
-			case <-ticker.C:
-				if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
-					return
-				}
-			}
-		}
+		terminateProcessGroup(-cmd.Process.Pid, options.WaitDelay, syscall.Kill)
 	}()
 	err := cmd.Wait()
 	close(waited)
 	<-cleaned
 	return err
+}
+
+// terminateProcessGroup 依次发送软终止和强制终止信号，限定自有进程组的收尾窗口。
+func terminateProcessGroup(group int, grace time.Duration, sendSignal func(int, syscall.Signal) error) {
+	// 即使根进程成功退出，也要处理仍在同组运行的后代。
+	if err := sendSignal(group, syscall.SIGTERM); errors.Is(err, syscall.ESRCH) {
+		return
+	}
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+	forced := false
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timer.C:
+			if forced {
+				// 未被收养的僵尸可能保留组号；观察窗口耗尽后交由操作系统回收。
+				return
+			}
+			if err := sendSignal(group, syscall.SIGKILL); errors.Is(err, syscall.ESRCH) {
+				return
+			}
+			// SIGKILL 返回只表示信号已发送；继续观察，给内核时间终止组内后代。
+			forced = true
+			timer.Reset(grace)
+			if errors.Is(sendSignal(group, 0), syscall.ESRCH) {
+				return
+			}
+		case <-ticker.C:
+			if errors.Is(sendSignal(group, 0), syscall.ESRCH) {
+				return
+			}
+		}
+	}
 }

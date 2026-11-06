@@ -80,7 +80,7 @@ jobs:
       - name: 原生进程树、取消与资源所有权验收
         env:
           MY_HOME: ${{ runner.temp }}/native-command-home
-        run: mise exec -- go test -count=1 -timeout=90s ./internal/command -run 'Test(Windows|OwnedDescendants|RootExits|CleanupDoes|CancellationRetains)'
+        run: mise exec -- go test -count=1 -timeout=90s ./internal/command -run 'Test(Windows|OwnedDescendants|RootExits|CleanupDoes|CancellationRetains|TerminateProcessGroup)'
       - run: mise run check
         env:
           GOLANGCI_LINT_CACHE: ${{ runner.temp }}/golangci-lint-cache
@@ -164,7 +164,7 @@ jobs:
       - name: 原生进程树、取消与资源所有权验收
         env:
           MY_HOME: ${{ runner.temp }}/native-command-home
-        run: mise exec -- go test -count=1 -timeout=90s ./internal/command -run 'Test(Windows|OwnedDescendants|RootExits|CleanupDoes|CancellationRetains)'
+        run: mise exec -- go test -count=1 -timeout=90s ./internal/command -run 'Test(Windows|OwnedDescendants|RootExits|CleanupDoes|CancellationRetains|TerminateProcessGroup)'
       - name: 原生模板构建与二进制验收
         env:
           MY_HOME: ${{ runner.temp }}/template-starter-home
