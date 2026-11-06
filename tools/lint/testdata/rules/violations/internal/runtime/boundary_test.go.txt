@@ -1,0 +1,2 @@
+package runtime_test
+import _ "{{MODULE}}/tools/dev" // want depguard

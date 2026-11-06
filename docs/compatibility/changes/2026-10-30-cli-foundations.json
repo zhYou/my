@@ -1,0 +1,22 @@
+{
+  "id": "2026-10-30-cli-foundations",
+  "compatibility": "breaking",
+  "summary": "审查 12 项快照差异：根命令与 completion/greet/help/schema/version 各新增 lang 选项，log-level 默认值各由 warn 改为 info；配置格式与默认日志落盘另作迁移要求。",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli completion/flags/lang",
+    "/schema/commands/contract-cli/commands/contract-cli completion/flags/log-level/default",
+    "/schema/commands/contract-cli/commands/contract-cli greet/flags/lang",
+    "/schema/commands/contract-cli/commands/contract-cli greet/flags/log-level/default",
+    "/schema/commands/contract-cli/commands/contract-cli help/flags/lang",
+    "/schema/commands/contract-cli/commands/contract-cli help/flags/log-level/default",
+    "/schema/commands/contract-cli/commands/contract-cli schema/flags/lang",
+    "/schema/commands/contract-cli/commands/contract-cli schema/flags/log-level/default",
+    "/schema/commands/contract-cli/commands/contract-cli version/flags/lang",
+    "/schema/commands/contract-cli/commands/contract-cli version/flags/log-level/default",
+    "/schema/commands/contract-cli/flags/lang",
+    "/schema/commands/contract-cli/flags/log-level/default"
+  ],
+  "previous_version": "v0.1.0",
+  "target_version": "v0.2.0",
+  "migration": "将 config.yaml 的 log_level 迁移到唯一 config.toml 的 [logging] level；不再自动读取或合并 YAML，也不做字段静默迁移。默认日志为 info/file，写入应用私有 state/logs，需原有行为可显式配置 level=\"warn\"、output=\"stderr\"；output=\"none\" 关闭日志。GO_CLI_STARTER_LOG_LEVEL 兼容入口保留，新增 GO_CLI_STARTER_LOGGING_LEVEL/OUTPUT 与模块环境变量，显式选项 > 非空环境变量 > TOML > 默认值。GO_CLI_STARTER_HOME 指定绝对的应用私有根目录；配置、数据、状态、缓存按平台规则解析。--lang 优先于 GO_CLI_STARTER_LANG，默认 zh-CN，zh 为别名，en 为英语，不从系统区域选择；JSON 字段、命令名、选项名、退出码不翻译，描述及问候正文随语言变化。Trace 默认 none，可选 file 仅写本地，诊断落盘失败告警且继续执行。新增 --lang，无其他新增 CLI 选项；schema_version 保持 1，结果字段和退出码保持。模板版本由 0.2.0 升至 0.3.0；来源记录和初始化事务格式不变，含 format 2 的未完成事务必须先用原版本工具恢复完成后再升级。应用版本 v0.1.0→v0.2.0 是兼容性决策记录，本次不创建标签或发布。"
+}

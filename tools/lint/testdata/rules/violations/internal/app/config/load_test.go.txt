@@ -1,0 +1,6 @@
+package config
+import (
+ "testing"
+ alias "github.com/knadh/koanf/v2" // want depguard
+)
+func TestRead(_ *testing.T) { k:=alias.New("."); _=k.String("x") } // want forbidigo

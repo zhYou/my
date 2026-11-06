@@ -1,0 +1,22 @@
+env MY_LANG=zh-CN
+cli 0 version --config bad.toml --json
+stdout '"version":'
+cli 0 help greet --config bad.toml
+stdout '用法'
+cli 0 schema greet --config bad.toml
+stdout '"result_schema":'
+cli 0 completion bash --config bad.toml
+stdout 'bash completion'
+cli 0 doctor --config bad.toml --json
+stdout '"required_available":true,"checks":\[\]'
+! stderr .
+cli 0 help completion bash --config bad.toml
+stdout 'completion bash'
+stdout '示例'
+! stderr .
+cli 0 schema doctor --config bad.toml
+stdout '"result_schema":'
+stdout '"required_available"'
+! stderr .
+-- bad.toml --
+[broken

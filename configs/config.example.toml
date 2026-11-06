@@ -1,0 +1,20 @@
+# 日志默认写入应用状态目录，stderr 和 none 可显式选择。
+[logging]
+level = "info"
+output = "file"
+
+# 文件大小单位为 MiB；0 可禁用备份数、保留天数或软总量限制。
+[diagnostics]
+max_size_mib = 10
+max_backups = 5
+retention_days = 14
+max_total_size_mib = 200
+
+# Trace 默认关闭；file 仅写本地诊断目录。
+[telemetry]
+exporter = "none"
+queue_size = 2048
+batch_size = 512
+batch_interval = "5s"
+export_timeout = "1s"
+shutdown_timeout = "1s"

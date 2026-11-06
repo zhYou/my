@@ -1,0 +1,16 @@
+package importshadow
+
+import "path"
+
+func Base(input string) string {
+ base := path.Base(input)
+ return base
+}
+
+func Join(parts []string) string {
+ result := path.Join(parts...)
+ for _, part := range parts {
+  result += part
+ }
+ return result
+}

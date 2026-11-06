@@ -1,0 +1,12 @@
+{
+  "id": "2026-10-29-result-schema",
+  "compatibility": "compatible",
+  "summary": "首次建立机器契约基线，并公开可选的结果结构",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli greet/result_schema",
+    "/schema/commands/contract-cli/commands/contract-cli version/result_schema"
+  ],
+  "previous_version": null,
+  "target_version": "v0.1.0",
+  "migration": "消费者忽略新增字段；命令、结果字段和退出码保持兼容。"
+}

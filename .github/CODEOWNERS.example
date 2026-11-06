@@ -1,0 +1,6 @@
+# 维护者填写实际账号或团队后，复制为 .github/CODEOWNERS。
+# 以下均为未启用的占位示例，不能直接作为已配置审查责任的证据。
+# * @your-org/maintainers
+# /internal/app/cli/ @your-org/cli-maintainers
+# /.github/workflows/ @your-org/release-maintainers
+# /SECURITY.md @your-org/security-maintainers

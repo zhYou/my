@@ -1,0 +1,16 @@
+globs:
+  - "**/*.md"
+gitignore: true
+ignores:
+  - ".git/**"
+  - "vendor/**"
+  - "tools/lint/testdata/**"
+config:
+  default: false
+  MD001: true
+  MD024:
+    siblings_only: true
+  MD040: true
+  MD042: true
+  MD052: true
+  MD053: true

@@ -1,0 +1,6 @@
+package unchecked
+import "os"
+func Call(value any) error {
+ if _, ok := value.(string); !ok { return nil }
+ return os.Remove("missing")
+}

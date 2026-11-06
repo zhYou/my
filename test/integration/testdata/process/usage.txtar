@@ -1,0 +1,10 @@
+env MY_LANG=zh-CN
+cli 2 greet
+! stdout .
+stderr '错误：.*--name'
+cli 2 greet --unknown
+! stdout .
+stderr '未知选项'
+cli 2 unknown
+! stdout .
+stderr '未知命令'

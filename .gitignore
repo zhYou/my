@@ -1,0 +1,46 @@
+# 如需允许列表形式的忽略规则，可参考社区模板：
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# 程序和插件的二进制文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# `go test -c` 构建的测试程序
+*.test
+
+# 代码覆盖率文件和其他测试产物
+*.out
+coverage.*
+!coverage.go
+*.coverprofile
+profile.cov
+
+# 依赖目录（取消下一行注释以忽略）
+# vendor/
+
+# Go 工作区文件
+go.work
+go.work.sum
+
+# 环境变量文件
+.env
+
+# 编辑器和 IDE 配置
+.idea/
+# .vscode/
+
+/bin/
+/dist/
+/.superpowers/
+/docs/superpowers/
+/.worktrees/
+/.serena/*
+!/.serena/project.yml
+mise.local.toml
+mise.local.lock
+
+/.template-init/
+/.template-init.lock

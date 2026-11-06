@@ -1,0 +1,43 @@
+cli 0 --lang en greet --name Ada --json
+stdout '"message":"Hello, Ada!"'
+! stderr .
+cli 2 --lang en greet
+! stdout .
+stderr 'Error: --name is required'
+cli 0 --lang en schema greet
+stdout '"description":"Greeting'
+cli 0 --lang en greet --help
+stdout 'Usage:'
+env MY_LANG=zh-CN
+cli 0 greet --name Ada
+stdout '你好，Ada！'
+cli 0 --lang en greet --name Ada
+stdout 'Hello, Ada!'
+cli 0 --lang zh greet --name Ada
+stdout '你好，Ada！'
+env MY_LANG=
+
+cli 0 greet --name --lang=en
+stdout 'Hello, --lang=en!'
+cli 0 __complete greet --lang ''
+stdout 'en'
+stdout 'zh-CN'
+stdout ':4'
+! stderr .
+
+# Cobra 的参数解析诊断不得绕过调用级 stderr。
+cli 0 __complete --unknown ''
+stdout ':5'
+! stderr .
+cli 0 __complete --json=invalid ''
+stdout ':5'
+! stderr .
+cli 0 __complete --unknown=value
+stdout ':5'
+! stderr .
+cli 0 --help=false __complete --lang ''
+stdout ':4'
+! stderr .
+cli 0 --version=false __complete --lang ''
+stdout ':4'
+! stderr .

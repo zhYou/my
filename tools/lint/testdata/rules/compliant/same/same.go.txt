@@ -1,0 +1,7 @@
+package koanf
+// Koanf 与第三方同名，但不属于 koanf 模块。
+type Koanf struct{}
+func (*Koanf) String(string) string { return "ok" }
+func (*Koanf) Get(string) any { return nil }
+func (*Koanf) Raw() map[string]any { return nil }
+func Read() { k:=&Koanf{}; _=k.String("x"); _=k.Get("x");_=k.Raw(); f:=k.String;_=f("x") }

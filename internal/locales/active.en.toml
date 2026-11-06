@@ -1,0 +1,321 @@
+["cli.cancelled"]
+other = "Operation cancelled"
+
+["cli.completion"]
+other = "Generate shell completion scripts"
+
+["cli.config"]
+other = "Read configuration from a TOML file"
+
+["cli.config_failed"]
+other = "Failed to load configuration"
+
+["cli.deadline"]
+other = "Operation timed out"
+
+["cli.error"]
+other = "Error: {{.Message}}"
+
+["cli.greet"]
+other = "Greeting example (removable)"
+
+["cli.greet_example"]
+other = "  {{.Name}} greet --name Codex\n  {{.Name}} greet --name Codex --json"
+
+["cli.greet_log"]
+other = "Greeting generated"
+
+["cli.greet_use"]
+other = "greet --name NAME"
+
+["cli.group"]
+other = "Invalid option group: {{.Flags}} ({{.Rule}})"
+
+["cli.group_exclusive"]
+other = "provide at most one"
+
+["cli.group_one"]
+other = "provide at least one"
+
+["cli.group_together"]
+other = "provide together"
+
+["cli.help"]
+other = "Show command help"
+
+["cli.help_flag"]
+other = "Show help"
+
+["cli.help_use"]
+other = "help [command path...]"
+
+["cli.invalid_flag"]
+other = "Invalid value {{.Value}} for --{{.Flag}}; expected {{.Type}}"
+
+["cli.json"]
+other = "Output results as JSON"
+
+["cli.lang"]
+other = "Language: zh-CN, en (zh is an alias)"
+
+["cli.language"]
+other = "Unsupported language {{.Value}}: choose zh-CN or en"
+
+["cli.log_config"]
+other = "Invalid logging configuration"
+
+["cli.log_level"]
+other = "Log level: debug, info, warn, error"
+
+["cli.name"]
+other = "Name of the person to greet"
+
+["cli.no_args"]
+other = "Unexpected argument or unknown command: {{.Value}}"
+
+["cli.parse"]
+other = "Failed to parse options"
+
+["cli.required"]
+other = "Required options: {{.Flags}}"
+
+["cli.required_flag"]
+other = "Option --{{.Flag}} requires a value"
+
+["cli.root"]
+other = "CLI template for people and automation"
+
+["cli.schema"]
+other = "Describe commands and flags as JSON"
+
+["cli.schema_use"]
+other = "schema [command path...]"
+
+["cli.shell"]
+other = "Unsupported shell {{.Value}}: choose bash, zsh, fish, or powershell"
+
+["cli.shell_count"]
+one = "Expected at most one shell name, received {{.Count}} argument"
+other = "Expected at most one shell name, received {{.Count}} arguments"
+
+["cli.syntax"]
+other = "Invalid option syntax: {{.Value}}"
+
+["cli.unknown_flag"]
+other = "Unknown option {{.Flag}}"
+
+["cli.unknown_path"]
+other = "Unknown command path {{.Value}}"
+
+["cli.version"]
+other = "Show version and build information"
+
+["cli.version_flag"]
+other = "Show version information"
+
+["cli.version_template"]
+other = "{{.Name}} version {{.Version}}"
+
+["cli.version_text"]
+other = "{{.Name}} version {{.Version}} (commit {{.Commit}}, built {{.Date}})"
+
+["cli.warning"]
+other = "Warning: {{.Message}}"
+
+["cli.write"]
+other = "Failed to write result"
+
+["command.argument_required"]
+other = "An argument builder is required"
+
+["command.batch_item_failed"]
+other = "Batch item {{.Index}} failed"
+
+["command.batch_item_incomplete"]
+other = "Batch item {{.Index}} did not complete"
+
+["command.batch_options_invalid"]
+other = "Batch concurrency, timeout and capture limit must not be negative"
+
+["command.capture_limit_invalid"]
+other = "Capture limit must not be negative"
+
+["command.finished"]
+other = "External tool finished"
+
+["command.program_required"]
+other = "An executable program is required"
+
+["command.started"]
+other = "External tool started"
+
+["command.wait_delay_invalid"]
+other = "Process cleanup grace must not be negative"
+
+["command.windows_job_not_empty"]
+other = "Windows Job still has active processes after termination"
+
+["command.windows_suspend_invalid"]
+other = "Unexpected suspend count on the Windows primary thread"
+
+["config.decode"]
+other = "Invalid configuration key or type"
+
+["config.duration"]
+other = "Duration must be a string with a unit"
+
+["config.environment"]
+other = "Invalid environment variable {{.Field}}"
+
+["config.integer"]
+other = "Configuration value must be an integer within range"
+
+["config.invalid"]
+other = "Invalid configuration value"
+
+["config.parse"]
+other = "Failed to parse TOML configuration file {{.Path}}"
+
+["config.path"]
+other = "A configuration path is required"
+
+["config.read"]
+other = "Failed to read configuration file {{.Path}}"
+
+["diagnostics.invalid_directory"]
+other = "Invalid diagnostic directory"
+
+["diagnostics.invalid_maintenance_lock"]
+other = "Invalid diagnostic maintenance lock"
+
+["diagnostics.invalid_metadata"]
+other = "Invalid diagnostic metadata"
+
+["diagnostics.lease_unavailable"]
+other = "Diagnostic lease unavailable"
+
+["diagnostics.unknown_artifact"]
+other = "Unknown diagnostic artifact"
+
+["diagnostics.unknown_content"]
+other = "Unknown diagnostic directory content"
+
+["diagnostics.unrecognized_metadata"]
+other = "Unrecognized diagnostic metadata"
+
+["greeting.message"]
+other = "Hello, {{.Name}}!"
+
+["help.aliases"]
+other = "Aliases:"
+
+["help.command_suffix"]
+other = " [command]"
+
+["help.commands"]
+other = "Available commands:"
+
+["help.default"]
+other = " (default: {{.Value}})"
+
+["help.detail"]
+other = "Use {{.Command}} for detailed command help."
+
+["help.examples"]
+other = "Examples:"
+
+["help.flags"]
+other = "Flags"
+
+["help.flags_suffix"]
+other = " [flags]"
+
+["help.global_flags"]
+other = "Global flags"
+
+["help.required"]
+other = " (required)"
+
+["help.usage"]
+other = "Usage:"
+
+["logging.writer_unavailable"]
+other = "Log writer unavailable"
+
+["paths.absolute"]
+other = "{{.Field}} must provide an absolute path"
+
+["session.diagnostics_failed"]
+other = "Diagnostic files unavailable"
+
+["session.failed"]
+other = "Command failed"
+
+["session.finished"]
+other = "Command finished"
+
+["session.logging_failed"]
+other = "Logging diagnostics unavailable"
+
+["session.started"]
+other = "Command started"
+
+["session.telemetry_failed"]
+other = "Local trace unavailable"
+
+["telemetry.sdk_environment"]
+other = "Malformed SDK environment; local trace disabled"
+
+["telemetry.unknown_exporter"]
+other = "Unknown trace exporter"
+
+["telemetry.writer_unavailable"]
+other = "Trace writer unavailable"
+
+["validation.definition"]
+other = "Invalid validation definition"
+
+["validation.notblank"]
+other = "{{.Field}} must not be blank"
+
+["validation.oneof"]
+other = "{{.Field}} must be one of {{.Param}}"
+
+["validation.required"]
+other = "{{.Field}} is required"
+
+["validation.rule"]
+other = "{{.Field}} must satisfy {{.Rule}} {{.Param}}"
+
+["cli.root_example"]
+other = "  {{.Name}} --help\n  {{.Name}} schema\n  {{.Name}} greet --name Codex --json"
+
+["cli.help_example"]
+other = "  {{.Name}} help\n  {{.Name}} help completion bash"
+
+["cli.version_example"]
+other = "  {{.Name}} version\n  {{.Name}} version --json"
+
+["cli.schema_example"]
+other = "  {{.Name}} schema\n  {{.Name}} schema greet"
+
+["cli.completion_example"]
+other = "  {{.Name}} completion bash\n  {{.Name}} help completion powershell"
+
+["cli.completion_shell"]
+other = "Generate {{.Shell}} completion scripts"
+
+["cli.completion_shell_example"]
+other = "  {{.Name}} completion {{.Shell}} > {{.File}}"
+
+["cli.doctor"]
+other = "Report application checks (empty extension point)"
+
+["cli.doctor_example"]
+other = "  {{.Name}} doctor\n  {{.Name}} doctor --json"
+
+["doctor.empty"]
+other = "No checks configured."
+
+["doctor.check"]
+other = "{{.Name}} {{.Status}} {{.Detail}}"

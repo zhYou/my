@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "template": "github.com/zhYou/go-cli-starter",
+  "template_version": "0.3.0",
+  "source_commit": "88c55dc68019e220368e063dae487017ea8b939c",
+  "module": "github.com/zhYou/my",
+  "name": "my"
+}

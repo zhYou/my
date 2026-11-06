@@ -1,0 +1,13 @@
+{
+  "id": "2026-11-02-cli-discovery-doctor",
+  "compatibility": "review-required",
+  "summary": "新增 doctor 空报告与四个 completion shell 子命令，原有脚本生成调用保留。",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli completion/commands",
+    "/schema/commands/contract-cli/commands/contract-cli doctor",
+    "/results/doctor"
+  ],
+  "previous_version": "v0.3.0",
+  "target_version": "v0.3.1",
+  "migration": "检查新增命令路径及 doctor 结果结构；completion <shell> 调用保持。doctor 默认空报告并返回 0，已完成必需检查失败时完整报告伴随退出 1，执行或渲染失败仍为空 stdout。命令容器由空数组变为子命令映射，需人工审查。该版本仅为兼容决策，不创建标签；模板版本仍为 0.3.0。"
+}

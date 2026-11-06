@@ -1,0 +1,34 @@
+project_name: "my"
+language_servers:
+  - go
+  - typescript
+  - json
+  - yaml
+  - toml
+  - markdown
+language_backend: LSP
+agent_interface: tools
+encoding: utf-8
+line_ending: lf
+ls_workspace_folders:
+  - "."
+ignore_all_files_in_gitignore: true
+ignored_paths: []
+initial_prompt: >-
+  遵守根目录 AGENTS.md。创建或切换 worktree 后先用绝对路径 activate_project，
+  核对返回的项目根目录。文本检索覆盖非代码文件；Go 专用能力使用当前 checkout 的 gopls CLI。
+default_modes:
+added_modes:
+included_apis: []
+excluded_apis: []
+excluded_tools: []
+included_optional_tools: []
+fixed_tools: []
+symbol_info_budget:
+read_only_memory_patterns: []
+ignored_memory_patterns: []
+ls_specific_settings: {}
+ls_additional_workspace_folders: []
+read_only: false
+activation_command:
+activation_command_timeout: 180.0

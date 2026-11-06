@@ -1,0 +1,8 @@
+# 在 Codex 中信任此仓库后加载项目配置。
+# 先运行 `mise run setup` 准备依赖，再从仓库启动 Codex。
+[mcp_servers.serena]
+command = "mise"
+args = ["run", "--quiet", "mcp:serve"]
+startup_timeout_sec = 300
+tool_timeout_sec = 180
+required = false

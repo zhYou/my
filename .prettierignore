@@ -1,0 +1,6 @@
+# Git 忽略规则由 Prettier 自动读取；以下内容保留生成器或故障夹具的格式。
+/.git/
+/vendor/
+/test/testdata/contracts/
+/.template-origin.json
+/tools/lint/testdata/

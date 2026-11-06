@@ -1,0 +1,2 @@
+package architecture
+import _ "{{MODULE}}/internal/base/logging" // 仅验证此位置允许导入该包，不依赖运行时副作用。

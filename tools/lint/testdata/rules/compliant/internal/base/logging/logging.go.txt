@@ -1,0 +1,10 @@
+package logging
+import "go.uber.org/zap"
+func New() *zap.Logger { return zap.NewNop() }
+
+type Logger struct{}
+func (*Logger) Infow(string, ...any) {}
+func (*Logger) Errorw(string, ...any) {}
+func (*Logger) Debugw(string, ...any) {}
+func (*Logger) Warnw(string, ...any) {}
+func (l *Logger) With(...any) *Logger { return l }

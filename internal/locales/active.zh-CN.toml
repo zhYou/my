@@ -1,0 +1,320 @@
+["cli.cancelled"]
+other = "操作已取消"
+
+["cli.completion"]
+other = "生成 Shell 补全脚本"
+
+["cli.config"]
+other = "从指定的 TOML 文件读取配置"
+
+["cli.config_failed"]
+other = "读取配置失败"
+
+["cli.deadline"]
+other = "操作已超时"
+
+["cli.error"]
+other = "错误：{{.Message}}"
+
+["cli.greet"]
+other = "输出问候语（可移除的示例）"
+
+["cli.greet_example"]
+other = "  {{.Name}} greet --name Codex\n  {{.Name}} greet --name Codex --json"
+
+["cli.greet_log"]
+other = "已生成问候语"
+
+["cli.greet_use"]
+other = "greet --name 姓名"
+
+["cli.group"]
+other = "选项组合无效：{{.Flags}}（{{.Rule}}）"
+
+["cli.group_exclusive"]
+other = "只能提供一项"
+
+["cli.group_one"]
+other = "至少提供一项"
+
+["cli.group_together"]
+other = "须一起提供"
+
+["cli.help"]
+other = "显示命令帮助"
+
+["cli.help_flag"]
+other = "显示帮助"
+
+["cli.help_use"]
+other = "help [命令路径...]"
+
+["cli.invalid_flag"]
+other = "选项 --{{.Flag}} 的值 {{.Value}} 无效，要求类型为 {{.Type}}"
+
+["cli.json"]
+other = "以 JSON 格式输出结果"
+
+["cli.lang"]
+other = "显示语言：zh-CN、en（zh 为别名）"
+
+["cli.language"]
+other = "不支持的语言 {{.Value}}：请选择 zh-CN 或 en"
+
+["cli.log_config"]
+other = "日志配置无效"
+
+["cli.log_level"]
+other = "日志级别：debug、info、warn、error"
+
+["cli.name"]
+other = "问候对象的姓名"
+
+["cli.no_args"]
+other = "不接受位置参数或未知命令：{{.Value}}"
+
+["cli.parse"]
+other = "解析选项失败"
+
+["cli.required"]
+other = "必须提供选项 {{.Flags}}"
+
+["cli.required_flag"]
+other = "选项 --{{.Flag}} 需要一个值"
+
+["cli.root"]
+other = "供用户和自动化工具使用的 CLI 模板"
+
+["cli.schema"]
+other = "以 JSON 格式描述命令和选项"
+
+["cli.schema_use"]
+other = "schema [命令路径...]"
+
+["cli.shell"]
+other = "不支持的 Shell {{.Value}}：请选择 bash、zsh、fish 或 powershell"
+
+["cli.shell_count"]
+other = "最多接受一个 Shell 名称，实际收到 {{.Count}} 个参数"
+
+["cli.syntax"]
+other = "选项语法错误：{{.Value}}"
+
+["cli.unknown_flag"]
+other = "未知选项 {{.Flag}}"
+
+["cli.unknown_path"]
+other = "未知的命令路径 {{.Value}}"
+
+["cli.version"]
+other = "显示版本和构建信息"
+
+["cli.version_flag"]
+other = "显示版本信息"
+
+["cli.version_template"]
+other = "{{.Name}} 版本 {{.Version}}"
+
+["cli.version_text"]
+other = "{{.Name}} 版本 {{.Version}}（提交 {{.Commit}}，构建时间 {{.Date}}）"
+
+["cli.warning"]
+other = "警告：{{.Message}}"
+
+["cli.write"]
+other = "写入结果失败"
+
+["command.argument_required"]
+other = "参数构造函数不能为空"
+
+["command.batch_item_failed"]
+other = "第 {{.Index}} 项执行失败"
+
+["command.batch_item_incomplete"]
+other = "第 {{.Index}} 项执行未完成"
+
+["command.batch_options_invalid"]
+other = "批量并发数、超时和捕获上限不能为负数"
+
+["command.capture_limit_invalid"]
+other = "捕获上限不能为负数"
+
+["command.finished"]
+other = "外部工具执行结束"
+
+["command.program_required"]
+other = "必须指定执行程序"
+
+["command.started"]
+other = "开始执行外部工具"
+
+["command.wait_delay_invalid"]
+other = "进程收尾宽限不能为负数"
+
+["command.windows_job_not_empty"]
+other = "Windows Job 终止后仍有活动进程"
+
+["command.windows_suspend_invalid"]
+other = "Windows 主线程挂起计数异常"
+
+["config.decode"]
+other = "配置项或类型无效"
+
+["config.duration"]
+other = "时长必须为带单位的字符串"
+
+["config.environment"]
+other = "环境变量 {{.Field}} 无效"
+
+["config.integer"]
+other = "配置项必须为范围内的整数"
+
+["config.invalid"]
+other = "配置值无效"
+
+["config.parse"]
+other = "解析 TOML 配置文件 {{.Path}} 失败"
+
+["config.path"]
+other = "必须提供配置文件路径"
+
+["config.read"]
+other = "读取配置文件 {{.Path}} 失败"
+
+["diagnostics.invalid_directory"]
+other = "诊断目录无效"
+
+["diagnostics.invalid_maintenance_lock"]
+other = "诊断维护锁无效"
+
+["diagnostics.invalid_metadata"]
+other = "诊断元数据无效"
+
+["diagnostics.lease_unavailable"]
+other = "诊断存活锁不可用"
+
+["diagnostics.unknown_artifact"]
+other = "未知诊断文件"
+
+["diagnostics.unknown_content"]
+other = "诊断目录包含未知内容"
+
+["diagnostics.unrecognized_metadata"]
+other = "无法识别诊断元数据"
+
+["greeting.message"]
+other = "你好，{{.Name}}！"
+
+["help.aliases"]
+other = "别名："
+
+["help.command_suffix"]
+other = " [命令]"
+
+["help.commands"]
+other = "可用命令："
+
+["help.default"]
+other = "（默认值：{{.Value}}）"
+
+["help.detail"]
+other = "使用 {{.Command}} 查看命令的详细帮助。"
+
+["help.examples"]
+other = "示例："
+
+["help.flags"]
+other = "选项"
+
+["help.flags_suffix"]
+other = " [选项]"
+
+["help.global_flags"]
+other = "全局选项"
+
+["help.required"]
+other = "（必填）"
+
+["help.usage"]
+other = "用法："
+
+["logging.writer_unavailable"]
+other = "日志写入器不可用"
+
+["paths.absolute"]
+other = "{{.Field}} 必须提供绝对路径"
+
+["session.diagnostics_failed"]
+other = "诊断文件不可用"
+
+["session.failed"]
+other = "命令失败"
+
+["session.finished"]
+other = "命令结束"
+
+["session.logging_failed"]
+other = "日志诊断不可用"
+
+["session.started"]
+other = "命令开始"
+
+["session.telemetry_failed"]
+other = "本地 Trace 不可用"
+
+["telemetry.sdk_environment"]
+other = "SDK 环境变量格式无效，已禁用本地 Trace"
+
+["telemetry.unknown_exporter"]
+other = "未知 Trace 导出器"
+
+["telemetry.writer_unavailable"]
+other = "Trace 写入器不可用"
+
+["validation.definition"]
+other = "校验定义无效"
+
+["validation.notblank"]
+other = "{{.Field}} 不能为空白"
+
+["validation.oneof"]
+other = "{{.Field}} 必须为 {{.Param}}"
+
+["validation.required"]
+other = "{{.Field}} 必须提供"
+
+["validation.rule"]
+other = "{{.Field}} 不满足校验规则 {{.Rule}} {{.Param}}"
+
+["cli.root_example"]
+other = "  {{.Name}} --help\n  {{.Name}} schema\n  {{.Name}} greet --name Codex --json"
+
+["cli.help_example"]
+other = "  {{.Name}} help\n  {{.Name}} help completion bash"
+
+["cli.version_example"]
+other = "  {{.Name}} version\n  {{.Name}} version --json"
+
+["cli.schema_example"]
+other = "  {{.Name}} schema\n  {{.Name}} schema greet"
+
+["cli.completion_example"]
+other = "  {{.Name}} completion bash\n  {{.Name}} help completion powershell"
+
+["cli.completion_shell"]
+other = "生成 {{.Shell}} 自动补全脚本"
+
+["cli.completion_shell_example"]
+other = "  {{.Name}} completion {{.Shell}} > {{.File}}"
+
+["cli.doctor"]
+other = "报告应用检查结果（待扩展入口）"
+
+["cli.doctor_example"]
+other = "  {{.Name}} doctor\n  {{.Name}} doctor --json"
+
+["doctor.empty"]
+other = "尚未配置检查。"
+
+["doctor.check"]
+other = "{{.Name}} {{.Status}} {{.Detail}}"

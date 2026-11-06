@@ -1,0 +1,2 @@
+package example
+const Value = 1

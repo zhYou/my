@@ -1,0 +1,175 @@
+min_version = "2026.10.21"
+
+[settings]
+lockfile = false
+auto_install = false
+exec_auto_install = false
+task.run_auto_install = false
+
+[env]
+GOTOOLCHAIN = "local"
+
+[tools]
+go = "1.27.3"
+"go:golang.org/x/tools/gopls" = "0.24.0"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
+golangci-lint = "2.15.0"
+actionlint = "1.7.12"
+goreleaser = "2.19.0"
+syft = "1.55.0"
+node = "26.13.0"
+python = "3.15.2"
+uv = "0.13.7"
+taplo = "0.10.0"
+
+[vars]
+# renovate: datasource=npm depName=prettier
+prettier_version = "3.9.10"
+# renovate: datasource=npm depName=@prettier/plugin-xml
+xml_plugin_version = "3.4.2"
+# renovate: datasource=npm depName=prettier-plugin-toml
+toml_plugin_version = "4.1.0"
+# renovate: datasource=npm depName=markdownlint-cli2
+markdownlint_version = "0.24.0"
+# renovate: datasource=pypi depName=yamllint
+yamllint_version = "1.38.0"
+# renovate: datasource=pypi depName=pre-commit-hooks
+pre_commit_hooks_version = "6.0.0"
+# renovate: datasource=pypi depName=serena-agent
+serena_version = "2.1.0"
+serena_python_version = "3.14.10"
+
+# mise 工具由 setup 显式安装；npx/uvx 工具允许在外部缓存按需准备。
+[tasks.setup]
+description = "安装固定版本的开发工具并下载 Go 依赖"
+run = [
+  "mise install go golangci-lint actionlint goreleaser go:golang.org/x/vuln/cmd/govulncheck syft go:golang.org/x/tools/gopls node python uv taplo",
+  "go mod download"
+]
+
+[tasks.doctor]
+description = "检查已安装工具的固定版本，报告用户工具状态"
+run = "go run ./tools/doctor"
+
+[tasks.build]
+description = "构建包含版本信息的本地程序"
+run = "go run ./tools/build"
+
+# lint 检查当前源码、资源和声明；lint:test 验证规则自身，只纳入 check。
+[tasks.lint]
+description = "只读检查格式、源码、双语资源、配置、包文档和版本声明"
+depends = ["lint:i18n", "lint:config", "lint:doc", "lint:style", "lint:versions", "lint:text", "lint:workflow"]
+run = ["golangci-lint fmt --diff --color=never", "golangci-lint run --allow-serial-runners"]
+
+[tasks."lint:i18n"]
+description = "检查双语消息、模板和参数一致性"
+run = "go run ./tools/lint i18n"
+
+[tasks."lint:config"]
+description = "检查受管应用配置"
+run = "go run ./tools/lint config"
+
+[tasks."lint:doc"]
+description = "检查各平台正式 Go 包的 doc.go 布局与有效包说明"
+run = "go run ./tools/lint doc"
+
+[tasks."lint:style"]
+description = "检查结构体字段逐项声明"
+run = "go run ./tools/lint style"
+
+[tasks."lint:versions"]
+description = "检查工具、模块、CI 和文档的版本声明一致性"
+run = "go run ./tools/lint versions"
+
+[tasks."lint:test"]
+description = "用违规和合规 fixture 验证静态规则自身是否生效"
+run = "go run ./tools/lint test"
+
+# 完整源码检查包含生成项目验收；MCP、发布和安全扫描独立运行。
+[tasks.check]
+description = "运行完整源码检查、测试、构建和模板验收"
+depends = ["lint", "build", "template:check", "contract:check", "lint:test"]
+run = ["go mod tidy -diff", "go test ./...", "go vet ./..."]
+
+[tasks."contract:check"]
+description = "检查机器契约和兼容变更记录，不修改快照"
+run = "go run ./tools/contract check"
+
+[tasks."contract:update"]
+description = "显式更新机器契约快照，须另写兼容变更记录"
+run = "go run ./tools/contract update"
+
+[tasks."template:init"]
+description = "初始化模板身份：--module github.com/acme/mycli --name mycli"
+run = "go run ./tools/template init"
+
+[tasks."template:check"]
+description = "在临时副本中验收初始化、lint、测试、构建和安装"
+run = "go run ./tools/template check"
+
+[tasks."mcp:check"]
+description = "验收真实 Serena、六类后台服务和同连接 worktree 切换"
+run = "go run ./tools/mcp"
+
+[tasks."mcp:serve"]
+description = "通过 uvx 启动可动态切换项目的 Serena MCP"
+run = "uvx --isolated --python {{vars.serena_python_version}} --from serena-agent=={{vars.serena_version}} serena start-mcp-server --context codex --language-backend LSP --agent-interface tools --project-from-cwd --enable-web-dashboard false --open-web-dashboard false --enable-gui-log-window false"
+
+[tasks."release:verify"]
+description = "验证六目标归档、SPDX、SHA-256，并隔离安装宿主归档"
+run = "go run ./tools/release"
+
+# 格式化显式改写；普通 lint 和 check 不调用这些任务。
+[tasks.fmt]
+description = "格式化 Go 与受检文本文件"
+run = [{ task = "fmt:go" }, { task = "fmt:text" }]
+
+[tasks."fmt:go"]
+description = "格式化 Go，可追加指定文件或目录"
+run = "golangci-lint fmt --color=never"
+
+[tasks."fmt:text"]
+description = "格式化文本，可指定文件或目录；默认覆盖全部受检文本"
+usage = 'arg "[paths]" var=#true'
+shell = "{{ os(windows='powershell -NoProfile -Command', linux='sh -eu -c', macos='sh -eu -c') }}"
+run = """
+npx --yes --package=prettier@{{vars.prettier_version}} --package=@prettier/plugin-xml@{{vars.xml_plugin_version}} --package=prettier-plugin-toml@{{vars.toml_plugin_version}} prettier --write {% if usage.paths | length > 0 %}{% for path in usage.paths %}{% if os() == 'windows' %}'{{ path | replace(from="'", to="''") }}'{% else %}{{ path | quote }}{% endif %} {% endfor %}{% else %}"**/*.{json,xml,toml,md,yaml,yml}" .prettierrc.cjs{% endif %}
+"""
+
+[tasks."lint:text"]
+description = "只读检查五类文本的格式、语法及 Markdown/YAML 规则"
+run = [
+  'npx --yes --package=prettier@{{vars.prettier_version}} --package=@prettier/plugin-xml@{{vars.xml_plugin_version}} --package=prettier-plugin-toml@{{vars.toml_plugin_version}} prettier --check "**/*.{json,xml,toml,md,yaml,yml}" .prettierrc.cjs',
+  "npx --yes --package=markdownlint-cli2@{{vars.markdownlint_version}} markdownlint-cli2 --config .markdownlint-cli2.yaml",
+  "uvx --python python --from yamllint=={{vars.yamllint_version}} yamllint -c .yamllint.yaml .",
+  { task = "lint:syntax" },
+]
+
+[tasks."lint:workflow"]
+description = "检查 GitHub Actions 工作流语义，不调用可选脚本检查器"
+run = "actionlint -shellcheck= -pyflakes="
+
+[tasks."lint:syntax"]
+description = "用现成 CLI 检查 JSON、XML、TOML 语法"
+shell = "{{ os(windows='powershell -NoProfile -Command', linux='sh -eu -c', macos='sh -eu -c') }}"
+run = '''
+files=$(mktemp)
+trap 'rm -f "$files"' EXIT HUP INT TERM
+for kind in json xml toml; do
+  git ls-files --cached --others --exclude-standard --deduplicate -z -- "*.$kind" ':(exclude)tools/lint/testdata/**' ':(exclude)vendor/**' > "$files"
+  xargs -0 uvx --python python --from pre-commit-hooks=={{vars.pre_commit_hooks_version}} "check-$kind" -- < "$files"
+done
+'''
+run_windows = '''
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+foreach ($kind in @('json', 'xml', 'toml')) {
+  $listed = git ls-files --cached --others --exclude-standard --deduplicate -z -- "*.$kind" ':(exclude)tools/lint/testdata/**' ':(exclude)vendor/**'
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  $files = @(($listed -join "`n") -split [char]0 | Where-Object { $_ })
+  if ($files.Count -gt 0) {
+    & uvx --python python --from pre-commit-hooks=={{vars.pre_commit_hooks_version}} "check-$kind" -- @files
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  }
+}
+'''

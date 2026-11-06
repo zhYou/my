@@ -1,0 +1,3 @@
+package config
+import k "github.com/knadh/koanf/v2"
+func Decode() error { var cfg struct{ Value string }; return k.New(".").Unmarshal("", &cfg) }

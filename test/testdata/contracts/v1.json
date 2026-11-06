@@ -1,0 +1,580 @@
+{
+  "results": {
+    "doctor": {
+      "checks": "array",
+      "required_available": "boolean"
+    },
+    "greet": {
+      "message": "string"
+    },
+    "version": {
+      "commit": "string",
+      "date": "string",
+      "name": "string",
+      "version": "string"
+    }
+  },
+  "schema": {
+    "commands": {
+      "contract-cli": {
+        "commands": {
+          "contract-cli completion": {
+            "commands": {
+              "contract-cli completion bash": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli completion bash"
+              },
+              "contract-cli completion fish": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli completion fish"
+              },
+              "contract-cli completion powershell": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli completion powershell"
+              },
+              "contract-cli completion zsh": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli completion zsh"
+              }
+            },
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli completion"
+          },
+          "contract-cli doctor": {
+            "commands": [],
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli doctor",
+            "result_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": true,
+              "properties": {
+                "checks": {
+                  "items": {
+                    "additionalProperties": true,
+                    "properties": {
+                      "detail": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "status",
+                      "required"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "required_available": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "required_available",
+                "checks"
+              ],
+              "type": "object"
+            }
+          },
+          "contract-cli greet": {
+            "commands": [],
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              },
+              "name": {
+                "default": "",
+                "inherited": false,
+                "name": "name",
+                "required": true,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli greet",
+            "result_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": true,
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "contract-cli help": {
+            "commands": [],
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli help"
+          },
+          "contract-cli schema": {
+            "commands": [],
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli schema"
+          },
+          "contract-cli version": {
+            "commands": [],
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli version",
+            "result_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": true,
+              "properties": {
+                "commit": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "commit",
+                "date"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "flags": {
+          "config": {
+            "default": "",
+            "inherited": false,
+            "name": "config",
+            "required": false,
+            "type": "string"
+          },
+          "help": {
+            "default": "false",
+            "inherited": false,
+            "name": "help",
+            "required": false,
+            "type": "bool"
+          },
+          "json": {
+            "default": "false",
+            "inherited": false,
+            "name": "json",
+            "required": false,
+            "type": "bool"
+          },
+          "lang": {
+            "default": "en",
+            "inherited": false,
+            "name": "lang",
+            "required": false,
+            "type": "string"
+          },
+          "log-level": {
+            "default": "info",
+            "inherited": false,
+            "name": "log-level",
+            "required": false,
+            "type": "string"
+          },
+          "version": {
+            "default": "false",
+            "inherited": false,
+            "name": "version",
+            "required": false,
+            "type": "bool"
+          }
+        },
+        "path": "contract-cli"
+      }
+    },
+    "exit_codes": {
+      "cancelled": 130,
+      "runtime": 1,
+      "success": 0,
+      "usage": 2
+    },
+    "output_formats": [
+      "text",
+      "json"
+    ],
+    "schema_version": 1
+  }
+}

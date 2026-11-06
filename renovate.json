@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "enabledManagers": ["gomod", "github-actions", "mise", "custom.regex"],
+  "rangeStrategy": "pin",
+  "ignoreUnstable": true,
+  "automerge": false,
+  "packageRules": [
+    {
+      "matchManagers": ["mise"],
+      "groupName": "开发工具链"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go", "toolchain"],
+      "groupName": "Go 工具链"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^mise\\.toml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>npm|pypi) depName=(?<depName>[^\\s]+)\\s+[a-z_]+ = \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+      ]
+    }
+  ]
+}

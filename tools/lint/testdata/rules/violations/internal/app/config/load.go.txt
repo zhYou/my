@@ -1,0 +1,56 @@
+package config
+import alias "github.com/knadh/koanf/v2"
+type Alias = alias.Koanf
+func Read(k *Alias) {
+ _ = k.Int64 // want forbidigo
+ _ = k.MustInt64 // want forbidigo
+ _ = k.Int64s // want forbidigo
+ _ = k.MustInt64s // want forbidigo
+ _ = k.Int64Map // want forbidigo
+ _ = k.MustInt64Map // want forbidigo
+ _ = k.Int // want forbidigo
+ _ = k.MustInt // want forbidigo
+ _ = k.Ints // want forbidigo
+ _ = k.MustInts // want forbidigo
+ _ = k.IntMap // want forbidigo
+ _ = k.MustIntMap // want forbidigo
+ _ = k.Float64 // want forbidigo
+ _ = k.MustFloat64 // want forbidigo
+ _ = k.Float64s // want forbidigo
+ _ = k.MustFloat64s // want forbidigo
+ _ = k.Float64Map // want forbidigo
+ _ = k.MustFloat64Map // want forbidigo
+ _ = k.Duration // want forbidigo
+ _ = k.MustDuration // want forbidigo
+ _ = k.Time // want forbidigo
+ _ = k.MustTime // want forbidigo
+ _ = k.String // want forbidigo
+ _ = k.MustString // want forbidigo
+ _ = k.Strings // want forbidigo
+ _ = k.MustStrings // want forbidigo
+ _ = k.StringMap // want forbidigo
+ _ = k.MustStringMap // want forbidigo
+ _ = k.StringsMap // want forbidigo
+ _ = k.MustStringsMap // want forbidigo
+ _ = k.Bytes // want forbidigo
+ _ = k.MustBytes // want forbidigo
+ _ = k.Bool // want forbidigo
+ _ = k.Bools // want forbidigo
+ _ = k.MustBools // want forbidigo
+ _ = k.BoolMap // want forbidigo
+ _ = k.MustBoolMap // want forbidigo
+ _ = k.Get // want forbidigo
+ _ = k.Raw // want forbidigo
+ _ = k.All // want forbidigo
+ _ = k.Keys // want forbidigo
+ _ = k.KeyMap // want forbidigo
+ _ = k.Sprint // want forbidigo
+ _ = k.Print // want forbidigo
+ _ = k.Cut // want forbidigo
+ _ = k.Copy // want forbidigo
+ _ = k.Marshal // want forbidigo
+ _ = k.Slices // want forbidigo
+ _ = k.Exists // want forbidigo
+ _ = k.MapKeys // want forbidigo
+ _ = (*Alias).String // want forbidigo
+}

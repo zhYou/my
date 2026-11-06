@@ -1,0 +1,7 @@
+package architecture
+import (
+ _ "{{MODULE}}/internal/app/example" // want depguard
+ _ "{{MODULE}}/internal/command" // want depguard
+ _ "github.com/spf13/cobra" // want depguard
+ _ "{{MODULE}}/tools/dev" // want depguard
+)

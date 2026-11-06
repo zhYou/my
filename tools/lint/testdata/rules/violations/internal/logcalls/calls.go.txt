@@ -1,0 +1,9 @@
+package logcalls
+import "{{MODULE}}/internal/base/logging"
+func Calls(l *logging.Logger) {
+ l.Infow("message", "key") // want loggercheck
+ l.Errorw("message", 1, "value") // want loggercheck
+ l.Debugw("message", "key") // want loggercheck
+ l.Warnw("message", "key") // want loggercheck
+ l.With("key") // want loggercheck
+}

@@ -1,0 +1,28 @@
+env MY_LANG=zh-CN
+cli 1 greet --name Codex --config bad.toml
+! stdout .
+stderr '解析 TOML 配置'
+cli 0 greet --name Codex --config valid.toml --log-level debug
+stdout '你好，Codex！'
+stderr '"level":"debug"'
+cli 1 greet --name Codex --config legacy.yaml
+! stdout .
+stderr 'TOML'
+cli 2 greet --name Codex --log-level noisy --config missing.toml
+! stdout .
+stderr 'log-level'
+cli 1 greet --name Codex --config duplicate.toml
+! stdout .
+stderr 'TOML'
+-- bad.toml --
+[broken
+-- valid.toml --
+[logging]
+level = "info"
+output = "stderr"
+-- legacy.yaml --
+log_level: debug
+-- duplicate.toml --
+[logging]
+level = "info"
+level = "debug"

@@ -1,0 +1,6 @@
+package telemetry
+import (
+ "go.opentelemetry.io/otel/sdk/trace"
+ "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+)
+func New() (*trace.TracerProvider,error) { exp,err:=stdouttrace.New();if err!=nil{return nil,err};return trace.NewTracerProvider(trace.WithBatcher(exp)),nil }

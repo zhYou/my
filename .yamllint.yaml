@@ -1,0 +1,11 @@
+ignore-from-file:
+  - .gitignore
+  - .prettierignore
+rules:
+  key-duplicates: enable
+  anchors:
+    forbid-undeclared-aliases: true
+    forbid-duplicated-anchors: true
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false

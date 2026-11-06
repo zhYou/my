@@ -1,0 +1,2 @@
+package config
+import _ "github.com/knadh/koanf/v2" // want depguard

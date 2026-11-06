@@ -1,0 +1,7 @@
+package unchecked
+import "os"
+func Call(value any) {
+ _ = os.Remove("missing") // want errcheck
+ _ = value.(string) // want errcheck
+ os.Remove("missing") // want errcheck
+}

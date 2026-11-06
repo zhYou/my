@@ -1,0 +1,188 @@
+version: "2"
+
+run:
+  relative-path-mode: gomod
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - errorlint
+    - gosec
+    - godoclint
+    - contextcheck
+    - nilnesserr
+    - durationcheck
+    - nolintlint
+    - thelper
+    - usetesting
+    - goconst
+    - depguard
+    - forbidigo
+    - asasalint
+    - bidichk
+    - gocheckcompilerdirectives
+    - makezero
+    - unconvert
+    - predeclared
+    - testifylint
+    - revive
+    - funcorder
+    - gocritic
+    - fatcontext
+    - loggercheck
+    - recvcheck
+    - errname
+    - modernize
+    - containedctx
+  exclusions:
+    rules:
+      # GoDoc 约束生产代码；测试名称已描述各自场景。
+      - path: _test\.go$
+        linters:
+          - godoclint
+  settings:
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+    govet:
+      enable:
+        - nilness
+        - deepequalerrors
+        - reflectvaluecompare
+    testifylint:
+      # JSON 整数码和计数解码为 float64，继续精确比较。
+      disable:
+        - float-compare
+    funcorder:
+      constructor: true
+      struct-method: true
+      function: true
+      alphabetical: false
+    modernize:
+      # 不改变 JSON 零值、nil 与空容器的省略语义。
+      disable:
+        - omitzero
+    loggercheck:
+      require-string-key: true
+      rules:
+        - "(*github.com/zhYou/my/internal/base/logging.Logger).Infow"
+        - "(*github.com/zhYou/my/internal/base/logging.Logger).Errorw"
+        - "(*github.com/zhYou/my/internal/base/logging.Logger).Debugw"
+        - "(*github.com/zhYou/my/internal/base/logging.Logger).Warnw"
+        - "(*github.com/zhYou/my/internal/base/logging.Logger).With"
+    revive:
+      enable-default-rules: false
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: import-shadowing
+        - name: increment-decrement
+        - name: indent-error-flow
+          arguments: [preserve-scope]
+        - name: range
+        - name: receiver-naming
+        - name: unexported-return
+        - name: unused-parameter
+        - name: var-naming
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      ignore-tests: true
+      ignore-calls: false
+      match-constant: true
+      numbers: false
+      # 同值不同语义可以分别声明常量，不按值强制合并。
+      find-duplicates: false
+    depguard:
+      rules:
+        base-boundary:
+          files:
+            - "${base-path}/internal/base/**/*.go"
+          deny:
+            - pkg: github.com/zhYou/my/internal/app
+              desc: base 不得反向依赖 app
+            - pkg: github.com/zhYou/my/internal/command
+              desc: base 不得反向依赖 command
+            - pkg: github.com/zhYou/my/tools
+              desc: base 不得依赖开发工具包
+            - pkg: github.com/spf13/cobra
+              desc: base 不得依赖 CLI 框架
+        runtime-tools-boundary:
+          files:
+            - "$all"
+            - "!${base-path}/tools/**/*.go"
+          deny:
+            - pkg: github.com/zhYou/my/tools
+              desc: 运行时代码及测试不得依赖开发工具包
+        koanf-boundary:
+          # 仅豁免精确配置加载文件，同名文件与测试不能绕过边界。
+          files:
+            - "$all"
+            - "!${base-path}/internal/app/config/load.go"
+          deny:
+            - pkg: github.com/knadh/koanf/v2$
+              desc: 仅允许登记的配置加载文件引入 koanf
+        zap-boundary:
+          files:
+            - "$all"
+            - "!${base-path}/internal/base/logging/*.go"
+          deny:
+            - pkg: go.uber.org/zap
+              desc: zap 后端与编码仅允许在 logging 包内使用
+        telemetry-boundary:
+          files:
+            - "$all"
+            - "!${base-path}/internal/base/telemetry/*.go"
+          deny:
+            - pkg: go.opentelemetry.io/otel/sdk
+              desc: OTel SDK 生命周期仅允许在 telemetry 包内管理
+            - pkg: go.opentelemetry.io/otel/exporters
+              desc: OTel 出口仅允许在 telemetry 包内创建
+    forbidigo:
+      analyze-types: true
+      forbid:
+        # 覆盖锁定 koanf 的 typed/Must getter、容器导出和逐键检查；仅允许整体解码。
+        - pattern: '^koanf\.Koanf\.(Must.*|Int.*|Float.*|String.*|Bool.*|Bytes|Duration|Time|Get|Raw|All|Keys|KeyMap|Sprint|Print|Cut|Copy|Marshal|Slices|Exists|MapKeys)$'
+          pkg: '^github\.com/knadh/koanf/v2$'
+          msg: 配置必须统一解码到强类型结构体，禁止逐键读取或导出配置容器
+    godoclint:
+      default: basic
+      enable:
+        - require-pkg-doc
+        - require-doc
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    thelper:
+      test:
+        first: false
+        name: true
+      benchmark:
+        first: false
+        name: true
+      tb:
+        first: false
+        name: true
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+    - golines
+  settings:
+    golines:
+      max-len: 120
+      tab-len: 4
+      shorten-comments: false
+      reformat-tags: false

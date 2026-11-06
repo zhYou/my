@@ -1,0 +1,16 @@
+{
+  "id": "2026-11-02-i18n-config",
+  "compatibility": "breaking",
+  "summary": "根命令与 completion、greet、help、schema、version 的 lang 默认值由 zh-CN 改为 en，共六项快照变化。",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli completion/flags/lang/default",
+    "/schema/commands/contract-cli/commands/contract-cli greet/flags/lang/default",
+    "/schema/commands/contract-cli/commands/contract-cli help/flags/lang/default",
+    "/schema/commands/contract-cli/commands/contract-cli schema/flags/lang/default",
+    "/schema/commands/contract-cli/commands/contract-cli version/flags/lang/default",
+    "/schema/commands/contract-cli/flags/lang/default"
+  ],
+  "previous_version": "v0.2.0",
+  "target_version": "v0.3.0",
+  "migration": "需要中文的调用显式使用 --lang zh-CN 或 <PREFIX>_LANG=zh-CN；--lang 优先于环境变量，zh 仍为别名。默认帮助及问候正文改为英文，schema 的 lang.default 同步变更；机器字段和退出码不变。将分散 JSON 消息迁入集中双语 TOML 并通过 LoadBundle 加载；应用配置继续使用受管 TOML。应用版本变化是兼容性决策记录，不创建标签或发布；模板版本独立，仍为 0.3.0。"
+}
