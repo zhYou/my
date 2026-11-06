@@ -67,12 +67,15 @@ func TestTerminateProcessGroupWaitsAfterKill(t *testing.T) {
 func TestTerminateProcessGroupBoundsForcedKillObservation(t *testing.T) {
 	done := make(chan struct{})
 	kills, observations := 0, 0
+	var forcedAt time.Time
+	const grace = 20 * time.Millisecond
 	sendSignal := func(group int, sig syscall.Signal) error {
 		if group != -42 {
 			t.Errorf("信号目标不是自有进程组: %d", group)
 		}
 		if sig == syscall.SIGKILL {
 			kills++
+			forcedAt = time.Now()
 		}
 		if sig == 0 && kills > 0 {
 			observations++
@@ -81,7 +84,7 @@ func TestTerminateProcessGroupBoundsForcedKillObservation(t *testing.T) {
 		return nil
 	}
 	go func() {
-		terminateProcessGroup(-42, 20*time.Millisecond, sendSignal)
+		terminateProcessGroup(-42, grace, sendSignal)
 		close(done)
 	}()
 	select {
@@ -91,5 +94,8 @@ func TestTerminateProcessGroupBoundsForcedKillObservation(t *testing.T) {
 	}
 	if kills != 1 || observations == 0 {
 		t.Fatalf("未完成一次强制终止及后续观察: kills=%d observations=%d", kills, observations)
+	}
+	if elapsed := time.Since(forcedAt); elapsed < grace {
+		t.Fatalf("进程组仍存在时提前结束强制终止观察: %s < %s", elapsed, grace)
 	}
 }
