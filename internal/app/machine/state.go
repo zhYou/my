@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -127,7 +128,7 @@ func (s *FileState) Write(binding Binding) error {
 		return err
 	}
 	if exists {
-		if current == binding {
+		if sameBinding(current, binding) {
 			return nil
 		}
 		return problem(codeBindingConflict, phaseBindingWrite, nil, []string{}, recoverLocal)
@@ -163,7 +164,7 @@ func (s *FileState) Clear(expected Binding) error {
 	if err != nil || !exists {
 		return err
 	}
-	if current != expected {
+	if !sameBinding(current, expected) {
 		return problem(codeBindingConflict, phaseBindingClear, nil, []string{}, recoverLocal)
 	}
 	return os.Remove(filepath.Join(s.directory, bindingFile))
@@ -214,4 +215,12 @@ func regularPrivate(path string) error {
 		return problem(codeStateInvalid, phaseBindingRead, nil, []string{}, recoverLocal)
 	}
 	return nil
+}
+
+// sameBinding 将 GitHub 仓名按大小写不敏感比较，其余身份字段严格比较。
+func sameBinding(a, b Binding) bool {
+	return a.SchemaVersion == b.SchemaVersion && strings.EqualFold(a.Repository, b.Repository) &&
+		a.RepositoryID == b.RepositoryID &&
+		a.Branch == b.Branch &&
+		a.MachineID == b.MachineID
 }

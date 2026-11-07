@@ -42,6 +42,9 @@ func (s *Service) observe(
 						}
 					}
 				}
+				if d.Phase == effectCommit && len(d.CompletedEffects) == 0 {
+					metadata.Commit = ""
+				}
 				if d.CompletedEffects == nil {
 					outcome = "unknown"
 				} else if len(d.CompletedEffects) > 0 {

@@ -140,7 +140,7 @@ source ./my.bash
 ## 配置、语言和诊断
 
 只读取一个 `config.toml`，示例见 [configs/config.example.toml](configs/config.example.toml)。
-`--config` 指定显式文件，否则使用应用私有配置目录。默认文件缺失可继续，显式文件缺失、未知键、类型或范围错误会失败。
+`--config` 指定显式文件，否则使用应用私有配置目录。默认文件缺失可继续，显式文件缺失、非普通文件、未知键、类型或范围错误会失败；指向普通文件的符号链接仍可使用。
 配置优先级为显式 flag > 非空环境变量 > TOML > 默认值，不自动读取或合并 YAML。
 
 ```toml
@@ -200,7 +200,7 @@ kind 为 laptop、desktop、server、vm；os/arch 由当前平台取得，note �
 
 相同 active 资料重复登记不提交新版本，并可补齐本机绑定；资料不同或已退役则拒绝登记。
 `bind` 保留原 kind、note 和登记时间；退役机器要求 `--reactivate`，平台变化要求 `--update-platform`。
-两个条件同时存在时须同时给出。绑定保存仓名、仓数字 ID、分支与机器 ID，不覆盖其他身份。
+两个条件同时存在时须同时给出。绑定保存仓名、仓数字 ID、分支与机器 ID，不覆盖其他身份。仓名比较忽略大小写，其余身份字段严格比较。
 `current` 只读本机，其他查询读取固定远端 HEAD；退役只清除精确匹配的本机绑定。
 
 远端变更以 expectedHeadOid 作 CAS，不自动重试。并发 HEAD 变化先重新查询；提交结果未知时，

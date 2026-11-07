@@ -6,3 +6,5 @@ const (
 	decodeProblem      = "decode"
 	environmentProblem = "environment"
 )
+
+const pathParameter = "Path"

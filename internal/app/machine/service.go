@@ -320,7 +320,7 @@ func (s *Service) Retire(ctx context.Context, id string) (result ChangeResult, e
 		if readErr != nil {
 			return ChangeResult{}, bindingFailure(phaseBindingClear, readErr, effects, snapshot.Metadata)
 		}
-		if bound && local == expected {
+		if bound && sameBinding(local, expected) {
 			ctx, span := s.options.Tracer.Start(ctx, phaseBindingClear)
 			err = s.options.State.Clear(expected)
 			if err != nil {
@@ -337,7 +337,7 @@ func (s *Service) Retire(ctx context.Context, id string) (result ChangeResult, e
 			Machine:  record,
 			Snapshot: snapshot.Metadata,
 			Changed:  changed,
-			Bound:    bound && local == expected,
+			Bound:    bound && sameBinding(local, expected),
 		}, nil
 	})
 }
@@ -430,7 +430,7 @@ func (s *Service) checkIdentity(metadata datarepo.Metadata, id string) error {
 	if err != nil {
 		return problem(codeStateInvalid, phaseBindingRead, err, []string{}, recoverLocal)
 	}
-	if exists && current != bindingFor(metadata, id) {
+	if exists && !sameBinding(current, bindingFor(metadata, id)) {
 		return problem(codeBindingConflict, phaseValidate, nil, []string{}, recoverLocal)
 	}
 	return nil

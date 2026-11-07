@@ -582,3 +582,6 @@ other = "绑定机器处于 active 状态，并与本机平台及仓库身份匹
 
 ["doctor.remedy.binding.remote"]
 other = "使用 machine show 核对记录，确认身份后再用显式 bind 选项恢复。"
+
+["config.file_type"]
+other = "配置目标必须为普通文件：{{.Path}}。"

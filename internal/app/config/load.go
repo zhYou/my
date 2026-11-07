@@ -113,16 +113,27 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 	if err := layer(defaults); err != nil {
 		return cfg, problem(decodeProblem, err, nil)
 	}
-	//nolint:gosec // G304：配置路径由用户明确选择；加载器必须支持任意显式配置文件。
-	data, err := os.ReadFile(file)
+	// 跟随配置符号链接，但拒绝 FIFO、设备等非普通目标，避免同步读取无限等待。
+	info, err := os.Stat(file)
+	var data []byte
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return cfg, problem("file_type", nil, fault.Params{pathParameter: file})
+		}
+		if err := ctx.Err(); err != nil {
+			return cfg, err
+		}
+		//nolint:gosec // G304：用户选择的普通配置文件；不接受特殊文件。
+		data, err = os.ReadFile(file)
+	}
 	if err != nil {
 		if opts.Explicit || opts.Path != "" || !errors.Is(err, os.ErrNotExist) {
-			return cfg, problem("read", err, fault.Params{"Path": file})
+			return cfg, problem("read", err, fault.Params{pathParameter: file})
 		}
 	} else {
 		var values map[string]any
 		if err := toml.Unmarshal(data, &values); err != nil {
-			return cfg, problem("parse", err, fault.Params{"Path": file})
+			return cfg, problem("parse", err, fault.Params{pathParameter: file})
 		}
 		// 先校验 TOML 的原始嵌套结构，禁止字面点号键被解释为路径。
 		var typed Config

@@ -583,3 +583,6 @@ other = "The bound machine is active and matches this platform and repository id
 
 ["doctor.remedy.binding.remote"]
 other = "Inspect the record with machine show; restore with explicit bind flags only after verifying identity."
+
+["config.file_type"]
+other = "Configuration must be a regular file: {{.Path}}."

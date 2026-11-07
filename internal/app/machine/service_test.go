@@ -1,7 +1,9 @@
 package machine
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/zhYou/my/internal/base/fault"
+	"github.com/zhYou/my/internal/base/logging"
 	"github.com/zhYou/my/internal/datarepo"
 )
 
@@ -218,6 +221,80 @@ func TestStateRejectsSymlinkAndMalformedBindingWithoutChangingIt(t *testing.T) {
 	data, err := os.ReadFile(target) // #nosec G304 -- 仅测试创建的临时目标。
 	require.NoError(t, err)
 	require.Equal(t, "private-marker", string(data))
+}
+
+func TestUnknownInitializationDoesNotReportBaseAsCommitted(t *testing.T) {
+	r := newMemoryRepository()
+	r.lost = true
+	s := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	var output bytes.Buffer
+	s.options.Logger = logging.New(logging.RunInfo{}, logging.Options{Config: logging.Defaults(), Writer: &output}, nil)
+	_, err := s.Initialize(t.Context())
+	require.Error(t, err)
+	var event map[string]any
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(output.Bytes()), &event))
+	require.Equal(t, "unknown", event["outcome"])
+	require.Empty(t, event["commit"], "未知提交不得把读取基线标记为确认提交")
+}
+
+func TestRetireSameRepositoryCaseClearsBinding(t *testing.T) {
+	r := newMemoryRepository()
+	state := NewFileState(filepath.Join(t.TempDir(), "state"))
+	s := serviceFixture(t, r, state)
+	_, err := s.Initialize(t.Context())
+	require.NoError(t, err)
+	_, err = s.Register(t.Context(), RegisterOptions{ID: "fixture", Kind: "vm", Note: "fixture"})
+	require.NoError(t, err)
+	s.options.Config.Repository = strings.ToUpper(s.options.Config.Repository)
+	r.snapshot.Metadata.Repository = s.options.Config.Repository
+	result, err := s.Retire(t.Context(), "fixture")
+	require.NoError(t, err)
+	require.False(t, result.Bound)
+	_, exists, err := state.Read()
+	require.NoError(t, err)
+	require.False(t, exists, "同仓数字ID与机器退役成功后不得残留绑定")
+}
+
+func TestBindSameRepositoryCaseRemainsIdempotent(t *testing.T) {
+	r := newMemoryRepository()
+	state := NewFileState(filepath.Join(t.TempDir(), "state"))
+	s := serviceFixture(t, r, state)
+	_, err := s.Initialize(t.Context())
+	require.NoError(t, err)
+	_, err = s.Register(t.Context(), RegisterOptions{ID: "fixture", Kind: "vm", Note: "fixture"})
+	require.NoError(t, err)
+	s.options.Config.Repository = strings.ToUpper(s.options.Config.Repository)
+	r.snapshot.Metadata.Repository = s.options.Config.Repository
+	_, err = s.Bind(t.Context(), BindOptions{ID: "fixture"})
+	require.NoError(t, err)
+}
+
+func TestFileStateUsesCaseInsensitiveRepositoryIdentity(t *testing.T) {
+	state := NewFileState(filepath.Join(t.TempDir(), "state"))
+	release, err := state.Lock(t.Context())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, release()) }()
+	binding := Binding{
+		SchemaVersion: 1,
+		Repository:    "owner/data",
+		RepositoryID:  42,
+		Branch:        "main",
+		MachineID:     "fixture",
+	}
+	require.NoError(t, state.Write(binding))
+	uppercase := binding
+	uppercase.Repository = "OWNER/DATA"
+	require.NoError(t, state.Write(uppercase))
+	for _, change := range []func(*Binding){func(b *Binding) { b.RepositoryID++ }, func(b *Binding) { b.Branch = "MAIN" }, func(b *Binding) { b.MachineID = "other" }} {
+		other := uppercase
+		change(&other)
+		require.Error(t, state.Write(other))
+		require.Error(t, state.Clear(other))
+	}
+	require.NoError(t, state.Clear(uppercase))
+	_, exists, err := state.Read()
+	require.NoError(t, err)
+	require.False(t, exists)
 }
 
 func newMemoryRepository() *memoryRepository {
