@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/zhYou/my/internal/app/cli"
+	"github.com/zhYou/my/internal/app/doctor"
 	"github.com/zhYou/my/internal/base/paths"
 	"github.com/zhYou/my/tools/internal/contract"
 )
@@ -35,7 +36,10 @@ func captureContract(ctx context.Context) (_ []byte, resultErr error) {
 	} {
 		var out, errOut bytes.Buffer
 		code := cli.Run(ctx, args, cli.Options{
-			Name:        "contract-cli",
+			Name: "contract-cli",
+			Dependencies: &cli.Dependencies{Doctor: func(context.Context, doctor.Options) (doctor.Result, error) {
+				return doctor.Result{RequiredAvailable: true, Checks: []doctor.Check{}}, nil
+			}},
 			Version:     "1.0.0",
 			Commit:      "abc",
 			Date:        "2000-01-01",
@@ -60,6 +64,11 @@ func captureContract(ctx context.Context) (_ []byte, resultErr error) {
 			shapes[key] = shape(value)
 		}
 	}
+	diagnostics, err := captureDiagnostics(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	shapes["diagnostics"] = diagnostics
 	data, err := json.Marshal(results)
 	if err != nil {
 		return nil, err
@@ -169,4 +178,43 @@ func updateContract(ctx context.Context) error {
 	}
 	//nolint:gosec // G306：这是公开构建产物或机器契约文件的既定权限，不包含凭据。
 	return os.WriteFile(contractFile, append(data, '\n'), 0o644)
+}
+
+func captureDiagnostics(ctx context.Context, dir string) (map[string]any, error) {
+	var out, stderr bytes.Buffer
+	blocked := filepath.Join(dir, "blocked-state")
+	opts := cli.Options{
+		Name:        "contract-cli",
+		ConfigDir:   dir,
+		Directories: &paths.Directories{State: blocked},
+		Out:         &out,
+		ErrOut:      &stderr,
+		LookupEnv:   func(string) (string, bool) { return "", false },
+	}
+	code := cli.Run(
+		ctx,
+		[]string{greetCommand, nameFlag, "fixture", jsonFlag, "--config", filepath.Join(dir, "missing.toml")},
+		opts,
+	)
+	if code != 1 {
+		return nil, fmt.Errorf("错误诊断捕获退出码=%d", code)
+	}
+	var failure any
+	if err := json.Unmarshal(stderr.Bytes(), &failure); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(blocked, []byte("blocked"), 0o600); err != nil {
+		return nil, err
+	}
+	out.Reset()
+	stderr.Reset()
+	code = cli.Run(ctx, []string{greetCommand, nameFlag, "fixture", jsonFlag}, opts)
+	if code != 0 {
+		return nil, fmt.Errorf("告警诊断捕获退出码=%d", code)
+	}
+	var warning any
+	if err := json.NewDecoder(&stderr).Decode(&warning); err != nil {
+		return nil, err
+	}
+	return map[string]any{"error": shape(failure), "warning": shape(warning)}, nil
 }

@@ -1,0 +1,9 @@
+{
+  "id": "2026-11-07-my-diagnostic-contract",
+  "compatibility": "breaking",
+  "summary": "my 显式 --json 的 stderr 从文本改为 JSONL；接入阶段、副作用、恢复说明和敏感原因保护。",
+  "paths": ["/schema/diagnostic_schema", "/results/diagnostics"],
+  "previous_version": "v0.3.1",
+  "target_version": "v0.4.0",
+  "migration": "以 my 7850e92 的已提交契约为 Git 基线。v0.3.1 是继承的兼容决策，非 my 历史发布；v0.4.0 是本轮尚未发布的应用目标。逐行读取 stderr，以 type=error/warning 识别诊断；日志仍保留 event 结构。completed_effects=null 表示未知，[] 表示确认没有业务副作用；未知时先核实状态。成功 stdout 和 doctor 完整负向报告契约保持，schema_version 保持1。模板独立升级为0.4.0并记录准确来源，不运行template:init。"
+}

@@ -34,7 +34,8 @@ func TestInvalidArgumentsFailWithoutOutputOrPrompt(t *testing.T) {
 		{"help", "greet", "unknown"},
 	} {
 		code, out, errOut := invoke(t, args...)
-		if code != 2 || out != "" || strings.Count(errOut, "Error:") != 1 {
+		if code != 2 || out != "" ||
+			(strings.Count(errOut, "Error:") != 1 && strings.Count(errOut, `"type":"error"`) != 1) {
 			t.Errorf("args=%v code=%d stdout=%q stderr=%q", args, code, out, errOut)
 		}
 	}
@@ -68,7 +69,7 @@ func TestDebugLogsDoNotPolluteJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, out, errOut := invoke(t, "greet", "--name", "Codex", "--json", "--log-level", "debug", "--config", path)
-	if code != 0 || !json.Valid([]byte(out)) || !strings.Contains(errOut, `"level":"debug"`) {
+	if code != 0 || !json.Valid([]byte(out)) || !strings.Contains(errOut, `"event":"greeting_finished"`) {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, out, errOut)
 	}
 }

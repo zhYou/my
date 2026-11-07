@@ -1,3 +1,9 @@
+# 数据业务需要明确选择私有仓；空值不阻塞发现命令和 greet。
+[data]
+repository = ""
+branch = "main"
+request_timeout = "30s"
+
 # 日志默认写入应用状态目录，stderr 和 none 可显式选择。
 [logging]
 level = "info"

@@ -318,3 +318,270 @@ other = "尚未配置检查。"
 
 ["doctor.check"]
 other = "{{.Name}} {{.Status}} {{.Detail}}"
+
+["config.recover"]
+other = "检查字段名、类型、值域及文件、环境、flag 覆盖，修正配置后重试。"
+
+["config.recover_environment"]
+other = "修正或取消设置 {{.Field}}，然后重试。"
+
+["cli.failure_phase"]
+other = "；失败阶段：{{.Phase}}"
+
+["cli.completed_effects"]
+other = "；已确认副作用：[{{.Effects}}]"
+
+["cli.recovery"]
+other = "；恢复建议：{{.Advice}}"
+
+["cli.bootstrap"]
+other = "命令消息初始化失败"
+
+["cli.usage"]
+other = "命令调用无效"
+
+["cli.runtime"]
+other = "命令执行失败"
+
+["cli.recover_output"]
+other = "检查输出目标并确认业务状态后再决定是否重试。"
+
+["command.failed"]
+other = "外部工具执行失败"
+
+["cli.recover_usage"]
+other = "使用 --help 查看可用命令和选项，修正调用后重试。"
+
+["cli.greet_failed_log"]
+other = "问候生成失败"
+
+["paths.layout"]
+other = "不支持的目录布局。"
+
+["data.configuration"]
+other = "请配置合法的 data.repository、branch 和正数 request_timeout。"
+
+["data.authentication"]
+other = "无法读取 GitHub 凭据。"
+
+["data.access"]
+other = "无法读取数据仓。"
+
+["data.private_required"]
+other = "数据仓必须是私有仓库。"
+
+["data.branch"]
+other = "配置的分支不可用。"
+
+["data.format"]
+other = "数据仓格式无效或不受支持。"
+
+["data.commit_unknown"]
+other = "远端提交结果未知，尚未写入本机绑定。"
+
+["data.commit_rejected"]
+other = "GitHub 拒绝了提交。"
+
+["data.commit_conflict"]
+other = "提交前远端 HEAD 已变化。"
+
+["data.recover_config"]
+other = "检查 config.toml 的 [data] 或 MY_DATA_* 覆盖值，选择已存在的私有仓库和分支。"
+
+["data.recover_auth"]
+other = "检查 gh 安装与认证，需要时手动运行 gh auth login 后重试。"
+
+["data.recover_access"]
+other = "使用 my doctor --remote 检查网络及仓库访问后重试。"
+
+["data.recover_format"]
+other = "检查对应提交的版本标记与机器记录，不要覆盖未知格式。"
+
+["data.recover_verify"]
+other = "先用 my doctor --remote 与 machine show 核实远端状态，再重跑原命令；已符合预期的状态会被复用。"
+
+["data.operation_event"]
+other = "数据操作 {{.Operation}} 已结束。"
+
+["data.init_result"]
+other = "数据仓 {{.Repository}}（{{.Branch}}），提交 {{.Commit}}；changed={{.Changed}}。"
+
+["machine.invalid_input"]
+other = "机器 ID 须为 1–32 字符的小写 ASCII slug；类型须受支持，备注须为非空单行文本。"
+
+["machine.not_initialized"]
+other = "数据仓尚未初始化。"
+
+["machine.record_invalid"]
+other = "机器记录或数据目录结构无效。"
+
+["machine.record_conflict"]
+other = "该机器 ID 已有不同资料或处于退役状态。"
+
+["machine.not_found"]
+other = "机器记录不存在。"
+
+["machine.not_bound"]
+other = "当前设备尚无本机绑定。"
+
+["machine.state_invalid"]
+other = "本机状态或锁不可用，或其路径不安全。"
+
+["machine.binding_conflict"]
+other = "本机绑定属于其他仓库、分支或机器。"
+
+["machine.binding_failed"]
+other = "已确认远端快照 {{.Commit}}，但无法更新本机绑定。"
+
+["machine.reactivate_required"]
+other = "记录已退役，需要显式指定 --reactivate。"
+
+["machine.platform_required"]
+other = "平台信息不同，需要显式指定 --update-platform。"
+
+["machine.recover_init"]
+other = "登记或查询机器前先运行 my data init。"
+
+["machine.recover_record"]
+other = "使用 machine show 核对记录，修正冲突数据后重试。"
+
+["machine.recover_local"]
+other = "核实本机绑定、HOME 路径、权限和空间；修复原因后重跑原命令补齐本机状态，远端提交会被保留。"
+
+["machine.recover_bind"]
+other = "登记当前设备，或使用 machine bind 恢复已有机器 ID。"
+
+["machine.recover_reactivate"]
+other = "如需复用此身份，使用 machine bind --reactivate。"
+
+["machine.recover_platform"]
+other = "核实身份后，可使用 machine bind --update-platform 采用当前系统和架构。"
+
+["machine.operation_event"]
+other = "机器操作 {{.Operation}} 已结束。"
+
+["machine.list_header"]
+other = "机器ID\t状态\t系统\t架构\t类型\t备注"
+
+["machine.record_result"]
+other = "机器：{{.ID}}\n类型：{{.Kind}}\n系统：{{.OS}}\n架构：{{.Arch}}\n备注：{{.Note}}\n登记时间：{{.RegisteredAt}}\n状态：{{.Status}}\n提交：{{.Commit}}"
+
+["machine.current_result"]
+other = "本机绑定：{{.ID}}，{{.Repository}}（{{.Branch}}）"
+
+["cli.data"]
+other = "管理私有数据仓。"
+
+["cli.data_init"]
+other = "初始化配置的私有数据仓。"
+
+["cli.machine"]
+other = "管理机器登记及当前设备身份。"
+
+["cli.machine_register"]
+other = "登记并绑定当前设备。"
+
+["cli.machine_list"]
+other = "在线列出全部机器记录。"
+
+["cli.machine_show"]
+other = "显示机器详情及快照版本。"
+
+["cli.machine_current"]
+other = "显示本机绑定，不访问 GitHub。"
+
+["cli.machine_bind"]
+other = "在当前设备恢复已有机器身份。"
+
+["cli.machine_retire"]
+other = "退役机器记录并清除匹配的本机绑定。"
+
+["cli.machine_kind"]
+other = "机器类型：laptop、desktop、server 或 vm。"
+
+["cli.machine_note"]
+other = "非空单行备注，不进入诊断输出。"
+
+["cli.machine_reactivate"]
+other = "显式重新激活退役记录。"
+
+["cli.machine_update_platform"]
+other = "显式采用当前系统和架构。"
+
+["doctor.invalid_timeout"]
+other = "每项检查的超时必须为正数。"
+
+["doctor.check_available"]
+other = "可用。"
+
+["doctor.check_failed"]
+other = "检查失败。"
+
+["doctor.blocked"]
+other = "因必要前置检查失败而未执行；修复前置问题后重跑 doctor。"
+
+["doctor.unbound"]
+other = "尚无本机绑定；此检查不要求先登记设备。"
+
+["cli.doctor_remote"]
+other = "显式启用配置的 GitHub 数据仓只读检查。"
+
+["cli.doctor_timeout"]
+other = "每项检查的正数超时，默认 10s。"
+
+["doctor.detail.paths"]
+other = "应用路径已解析，未创建缺失目录。"
+
+["doctor.remedy.paths"]
+other = "检查 HOME/MY_HOME，以及已有目录的类型和权限。"
+
+["doctor.detail.config"]
+other = "配置及数据仓选择有效。"
+
+["doctor.remedy.config"]
+other = "检查 config.toml 与 MY_DATA_* 覆盖值后重跑 doctor。"
+
+["doctor.detail.gh"]
+other = "gh 可执行程序可用。"
+
+["doctor.remedy.gh"]
+other = "手动安装或修复 gh，并检查 PATH。"
+
+["doctor.detail.auth.local"]
+other = "可在不刷新凭据的情况下读取认证信息；尚未验证远端有效性。"
+
+["doctor.remedy.auth.local"]
+other = "手动检查 gh 认证后重跑 doctor。"
+
+["doctor.detail.binding.local"]
+other = "本机绑定有效，与配置的仓库及分支匹配。"
+
+["doctor.remedy.binding.local"]
+other = "检查本机 machine.json、权限及所选仓库，不要覆盖其他身份。"
+
+["doctor.detail.data.repository"]
+other = "所选仓库可访问且为私有仓，未尝试写入。"
+
+["doctor.remedy.data.repository"]
+other = "检查仓库可见性、token 有效性、访问权限和网络。"
+
+["doctor.detail.data.branch"]
+other = "所选分支已解析到提交。"
+
+["doctor.remedy.data.branch"]
+other = "检查配置的分支是否存在且可读。"
+
+["doctor.detail.data.format"]
+other = "检查提交中的版本标记与机器记录有效。"
+
+["doctor.remedy.data.format"]
+other = "未初始化时运行 data init，否则检查版本标记与机器记录。"
+
+["doctor.detail.binding.remote"]
+other = "绑定机器处于 active 状态，并与本机平台及仓库身份匹配。"
+
+["doctor.remedy.binding.remote"]
+other = "使用 machine show 核对记录，确认身份后再用显式 bind 选项恢复。"
+
+["config.file_type"]
+other = "配置目标必须为普通文件：{{.Path}}。"

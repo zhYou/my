@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/zhYou/my/internal/base/telemetry"
+
 	"github.com/zhYou/my/internal/base/logging"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -52,7 +54,7 @@ func observe(ctx context.Context, call Invocation, options Execution) (context.C
 			span.SetAttributes(attribute.String("outcome", outcome), attribute.Int("exit_code", exit))
 			if err != nil {
 				span.SetStatus(codes.Error, outcome)
-				span.RecordError(err)
+				telemetry.RecordError(span, err)
 			}
 			span.End()
 		}

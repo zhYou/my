@@ -39,12 +39,17 @@ func newSchemaCommand(root *cobra.Command, registry *resultRegistry) *cobra.Comm
 			return err
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			diagnostic, err := diagnosticSchema()
+			if err != nil {
+				return err
+			}
 			return writeJSON(cmd.OutOrStdout(), struct {
-				SchemaVersion int             `json:"schema_version"`
-				OutputFormats []string        `json:"output_formats"`
-				ExitCodes     map[string]int  `json:"exit_codes"`
-				Commands      []commandSchema `json:"commands"`
-			}{1, []string{"text", outputJSON}, map[string]int{"success": 0, "runtime": 1, "usage": 2, "cancelled": 130}, []commandSchema{describeCommand(target, registry)}})
+				SchemaVersion    int             `json:"schema_version"`
+				OutputFormats    []string        `json:"output_formats"`
+				ExitCodes        map[string]int  `json:"exit_codes"`
+				Commands         []commandSchema `json:"commands"`
+				DiagnosticSchema json.RawMessage `json:"diagnostic_schema"`
+			}{1, []string{"text", outputJSON}, map[string]int{"success": 0, "runtime": 1, "usage": 2, "cancelled": 130}, []commandSchema{describeCommand(target, registry)}, diagnostic})
 		},
 	}
 }

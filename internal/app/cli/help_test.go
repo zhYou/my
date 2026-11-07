@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -42,7 +43,7 @@ func TestCorruptCatalogStopsBeforeHelpOutput(t *testing.T) {
 				return messages.NewBundle(fstest.MapFS{"active.en.toml": {Data: []byte(data)}})
 			}
 			_, _, err := buildRoot(defaults(Options{LookupEnv: noFixtureEnv}), loader)
-			require.ErrorContains(t, err, "active.en.toml")
+			require.ErrorContains(t, errors.Unwrap(err), "active.en.toml")
 			var out, stderr bytes.Buffer
 			code := run(
 				context.Background(),
@@ -52,7 +53,7 @@ func TestCorruptCatalogStopsBeforeHelpOutput(t *testing.T) {
 			)
 			require.Equal(t, 1, code, stderr.String())
 			require.Empty(t, out.String())
-			require.Contains(t, stderr.String(), "active.en.toml")
+			require.Contains(t, stderr.String(), "cli.bootstrap")
 		})
 	}
 }

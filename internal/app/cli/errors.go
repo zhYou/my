@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zhYou/my/internal/base/fault"
+	"github.com/zhYou/my/internal/datarepo"
 )
 
 func exitCode(err error) int {
@@ -21,14 +22,54 @@ func exitCode(err error) int {
 	return 1
 }
 
-func classifyExecutionError(err error) error {
+func classifyExecutionError(err error, phase string) error {
 	if err == nil {
 		return nil
 	}
-	if _, ok := errors.AsType[*fault.Error](err); ok {
+	details := fault.Details(err)
+	normalized := make([]*fault.Error, 0, len(details))
+	changed := false
+	_, typed := errors.AsType[*fault.Error](err)
+	for _, problem := range details {
+		if problem.Code != "" {
+			normalized = append(normalized, problem)
+			continue
+		}
+		kind := problem.Kind
+		if phase == phaseArguments && !typed {
+			kind = fault.Usage
+		}
+		code := codeUsage
+		if kind != fault.Usage {
+			code = codeRuntime
+		}
+		if errors.Is(problem, context.Canceled) {
+			code = codeCancelled
+			kind = fault.Runtime
+		}
+		if errors.Is(problem, context.DeadlineExceeded) {
+			code = codeDeadline
+			kind = fault.Runtime
+		}
+		d, known := fault.DiagnosticOf(problem)
+		if d.Phase == "" {
+			d.Phase = phase
+		}
+		if !known && phase == phaseArguments {
+			d.CompletedEffects = []string{}
+		}
+		if kind == fault.Usage && d.Recovery == nil {
+			d.Recovery = &fault.Recovery{Code: "cli.recover_usage"}
+		}
+		classified := (fault.Definition{Code: fault.Code(code), Kind: kind}).New(fault.WithDiagnostic(d))
+		classified.Cause = problem
+		normalized = append(normalized, classified)
+		changed = true
+	}
+	if !changed {
 		return err
 	}
-	return fault.Wrap(fault.Usage, "", err)
+	return (fault.Definition{Kind: fault.KindOf(err)}).Wrap(err, fault.WithDetails(normalized))
 }
 
 func wrapRun(run func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
@@ -65,4 +106,14 @@ func protectCommand(cmd *cobra.Command) {
 	for _, child := range cmd.Commands() {
 		protectCommand(child)
 	}
+}
+
+func operationExitCode(ctx context.Context, err error) int {
+	if ctx.Err() != nil {
+		return 130
+	}
+	if _, ok := errors.AsType[*datarepo.RequestTimeoutError](err); ok {
+		return 1
+	}
+	return exitCode(err)
 }

@@ -174,13 +174,14 @@ func (l *Localizer) Render(err error) string {
 		} else {
 			text = detail.Message
 		}
-		if detail.Cause != nil && !strings.HasPrefix(string(detail.Code), "validation.") {
+		if causeError := detail.DisplayCause(); causeError != nil &&
+			!strings.HasPrefix(string(detail.Code), "validation.") {
 			cause := ""
 			// 未分类叶子错误保留系统或第三方诊断。
-			if _, ok := errors.AsType[*fault.Error](detail.Cause); ok {
-				cause = l.Render(detail.Cause)
+			if _, ok := errors.AsType[*fault.Error](causeError); ok {
+				cause = l.Render(causeError)
 			} else {
-				cause = fmt.Sprint(detail.Cause)
+				cause = fmt.Sprint(causeError)
 			}
 			if text != "" {
 				text += ": "

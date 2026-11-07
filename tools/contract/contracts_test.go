@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,4 +30,18 @@ func TestBaselineRefreshStillRequiresChangeRecord(t *testing.T) {
 	record.Paths = []string{"/result_schema"}
 	record.TargetVersion = "v1.3.0"
 	require.NoError(t, validateContract(old, added, added, []contract.Record{record}, false))
+}
+
+func TestCaptureIncludesDiagnosticShapes(t *testing.T) {
+	data, err := captureContract(t.Context())
+	require.NoError(t, err)
+	var captured struct {
+		Results struct {
+			Diagnostics map[string]map[string]any `json:"diagnostics"`
+		} `json:"results"`
+	}
+	require.NoError(t, json.Unmarshal(data, &captured))
+	require.NotEmpty(t, captured.Results.Diagnostics)
+	require.Equal(t, "number", captured.Results.Diagnostics["error"]["exit_code"])
+	require.Equal(t, "array", captured.Results.Diagnostics["warning"]["diagnostics"])
 }

@@ -4,8 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/zhYou/my/internal/base/fault"
+	"github.com/zhYou/my/internal/locales"
 
 	"github.com/stretchr/testify/require"
 )
@@ -272,4 +276,94 @@ func TestCanceledLoadReturnsBeforeReadingEnvironmentOrFile(t *testing.T) {
 	})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, Defaults(), cfg)
+}
+
+// 配置解析原因必须可遍历，但输入值不能进入可显示的错误。
+func TestInvalidInputDoesNotLeakValues(t *testing.T) {
+	bundle, err := locales.LoadBundle()
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name    string
+		content string
+		key     string
+	}{
+		{"integer_env", "", "TESTCLI_DIAGNOSTICS_MAX_BACKUPS"},
+		{"duration_env", "", "TESTCLI_TELEMETRY_EXPORT_TIMEOUT"},
+		{"duration_file", "[telemetry]\nexport_timeout = \"fake-private-marker\"\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.toml")
+			require.NoError(t, os.WriteFile(file, []byte(tc.content), 0o600))
+			_, err := Load(
+				t.Context(),
+				Options{
+					AppName:   "testcli",
+					Path:      file,
+					LookupEnv: func(key string) (string, bool) { return "fake-private-marker", tc.key != "" && key == tc.key },
+				},
+			)
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), "fake-private-marker")
+			if tc.key != "" {
+				diagnostic, ok := fault.DiagnosticOf(err)
+				require.True(t, ok)
+				require.Equal(t, "config.environment", diagnostic.Phase)
+			}
+			for _, lang := range []string{"en", "zh-CN"} {
+				require.NotContains(t, bundle.Localizer(lang).Render(err), "fake-private-marker")
+			}
+			if tc.name == "integer_env" {
+				var numeric *strconv.NumError
+				require.ErrorAs(t, err, &numeric)
+			}
+		})
+	}
+}
+
+func TestDataConfigurationPrecedenceAndValidation(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(
+		t,
+		os.WriteFile(
+			file,
+			[]byte("[data]\nrepository='owner/file'\nbranch='from-file'\nrequest_timeout='3s'\n"),
+			0o600,
+		),
+	)
+	env := map[string]string{}
+	load := func() (Config, error) {
+		return Load(
+			t.Context(),
+			Options{
+				AppName:   "my",
+				Path:      file,
+				LookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok },
+			},
+		)
+	}
+	cfg, err := load()
+	require.NoError(t, err)
+	require.Equal(t, "owner/file", cfg.Data.Repository)
+	require.Equal(t, 3*time.Second, cfg.Data.RequestTimeout)
+	env["MY_DATA_REPOSITORY"] = "owner/env"
+	env["MY_DATA_BRANCH"] = "from-env"
+	env["MY_DATA_REQUEST_TIMEOUT"] = "750ms"
+	cfg, err = load()
+	require.NoError(t, err)
+	require.Equal(t, "owner/env", cfg.Data.Repository)
+	require.Equal(t, "from-env", cfg.Data.Branch)
+	require.Equal(t, 750*time.Millisecond, cfg.Data.RequestTimeout)
+	env["MY_DATA_REPOSITORY"] = ""
+	cfg, err = load()
+	require.NoError(t, err)
+	require.Equal(t, "owner/file", cfg.Data.Repository)
+	for key, values := range map[string][]string{"MY_DATA_REPOSITORY": {"../private-marker", "https://github.com/owner/data"}, "MY_DATA_BRANCH": {"../private-marker", "a.lock/b", "a?b"}, "MY_DATA_REQUEST_TIMEOUT": {"0s", "-1s", "private-marker"}} {
+		for _, value := range values {
+			env[key] = value
+			_, err = load()
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), "private-marker")
+			delete(env, key)
+		}
+	}
 }

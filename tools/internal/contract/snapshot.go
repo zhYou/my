@@ -191,7 +191,7 @@ func normalizeCommand(command map[string]any) any {
 				}
 				return entry
 			})
-		case "result_schema":
+		case "result_schema", "diagnostic_schema":
 			out[key] = normalizeSchema(value)
 		default:
 			out[key] = value

@@ -90,6 +90,31 @@ func (w warningWriter) Write(data []byte) (int, error) {
 // errorFields 保留稳定错误标识、参数和原始原因。
 func errorFields(err error) []zap.Field {
 	fields := []zap.Field{zap.Error(err)}
+	if err == nil {
+		return fields
+	}
+	type diagnosticDetail struct {
+		Code             fault.Code `json:"code"`
+		Kind             fault.Kind `json:"kind"`
+		Phase            string     `json:"phase"`
+		CompletedEffects []string   `json:"completed_effects"`
+		RecoveryCode     string     `json:"recovery_code,omitempty"`
+	}
+	var diagnostics []diagnosticDetail
+	for _, detail := range fault.Details(err) {
+		d, _ := fault.DiagnosticOf(detail)
+		row := diagnosticDetail{
+			Code:             detail.Code,
+			Kind:             detail.Kind,
+			Phase:            d.Phase,
+			CompletedEffects: d.CompletedEffects,
+		}
+		if d.Recovery != nil {
+			row.RecoveryCode = d.Recovery.Code
+		}
+		diagnostics = append(diagnostics, row)
+	}
+	fields = append(fields, zap.Any("error_details", diagnostics))
 	details := fault.Details(err)
 	if len(details) > 0 {
 		codes := make([]string, 0, len(details))

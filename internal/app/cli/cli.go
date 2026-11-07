@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -23,14 +22,15 @@ import (
 
 // Options 提供进程依赖；每次调用均创建新的命令树。
 type Options struct {
-	Name      string
-	Version   string
-	Commit    string
-	Date      string
-	In        io.Reader
-	Out       io.Writer
-	ErrOut    io.Writer
-	ConfigDir string
+	PathLayout paths.Layout
+	Name       string
+	Version    string
+	Commit     string
+	Date       string
+	In         io.Reader
+	Out        io.Writer
+	ErrOut     io.Writer
+	ConfigDir  string
 	// Directories 显式覆写应用目录，供嵌入调用及测试隔离；ConfigDir 仅选择配置目录。
 	Directories  *paths.Directories
 	Language     string
@@ -54,11 +54,6 @@ func run(ctx context.Context, args []string, opts Options, loadBundle func() (*m
 	opts.Out = sink
 	//nolint:contextcheck // Cobra 构造阶段不执行请求，下面 ExecuteContextC 才注入调用者 ctx。
 	root, call, err := buildRoot(opts, loadBundle, args...)
-	if root == nil {
-		//nolint:errcheck // 已在报告启动失败；stderr 再失败无法递归报告，保留失败退出码。
-		_, _ = fmt.Fprintf(opts.ErrOut, "Error: %v\n", err)
-		return 1
-	}
 	defer func() {
 		if call.session != nil {
 			call.session.Finish(
@@ -66,7 +61,14 @@ func run(ctx context.Context, args []string, opts Options, loadBundle func() (*m
 				logging.CommandResult{ExitCode: code, Duration: time.Since(started), Err: executionErr},
 			)
 		}
+		if executionErr != nil {
+			call.reportDiagnostic(opts.ErrOut, diagnosticError, executionErr, code)
+		}
 	}()
+	if root == nil {
+		executionErr = err
+		return 1
+	}
 	if err == nil {
 		err = ctx.Err()
 	}
@@ -108,29 +110,18 @@ func run(ctx context.Context, args []string, opts Options, loadBundle func() (*m
 	if err == nil && sink.Err() != nil {
 		err = (fault.Definition{Code: "cli.write", Kind: fault.Runtime}).Wrap(sink.Err())
 	}
-	err = classifyExecutionError(err)
+	err = classifyExecutionError(err, call.phase)
 	executionErr = err
 	if err == nil {
 		return call.reportExitCode
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		message := call.localizer.Text("cli.cancelled", nil)
-		if errors.Is(err, context.DeadlineExceeded) {
-			message = call.localizer.Text("cli.deadline", nil)
-		}
-		//nolint:errcheck // 错误输出失败不能覆盖原始业务错误或取消退出码。
-		_, _ = fmt.Fprintln(opts.ErrOut, call.localizer.Text("cli.error", map[string]any{paramMessage: message}))
-		return 130
-	}
-	//nolint:errcheck // 错误出口失败不能覆盖已确定的业务退出码，也不能递归报告。
-	_, _ = fmt.Fprintln(
-		opts.ErrOut,
-		call.localizer.Text("cli.error", map[string]any{paramMessage: call.localizer.Render(err)}),
-	)
-	return exitCode(err)
+	return operationExitCode(ctx, err)
 }
 
 func defaults(opts Options) Options {
+	if opts.PathLayout == "" {
+		opts.PathLayout = paths.HomeLayout
+	}
 	if opts.Name == "" {
 		opts.Name = "my"
 	}
@@ -154,12 +145,17 @@ func buildRoot(
 	args ...string,
 ) (*cobra.Command, *invocation, error) {
 	call := newInvocation(opts.Dependencies)
-	bundle, err := loadBundle()
-	if err != nil {
-		return nil, call, err
+	call.options = opts
+	bundle, bootstrapErr := loadBundle()
+	if bundle == nil && bootstrapErr == nil {
+		bootstrapErr = fmt.Errorf("message bundle is nil")
 	}
-	if bundle == nil {
-		return nil, call, fmt.Errorf("message bundle is nil")
+	if bootstrapErr != nil {
+		var err error
+		bundle, err = messages.NewBundle()
+		if err != nil {
+			return nil, call, err
+		}
 	}
 	call.bundle = bundle
 	call.localizer = bundle.Localizer(languageEnglish)
@@ -192,16 +188,19 @@ func buildRoot(
 			return err
 		}
 		if skipsConfig(cmd, root) {
+			call.setPhase("execute")
 			return nil
 		}
 		var override *string
 		if cmd.Flags().Changed(flagLogLevel) {
 			override = &call.logLevel
 		}
+		call.setPhase("configuration")
 		cfg, err := call.deps.LoadConfig(
 			cmd.Context(),
 			config.Options{
 				AppName:       opts.Name,
+				Layout:        opts.PathLayout,
 				Path:          call.configPath,
 				Explicit:      cmd.Flags().Changed(flagConfig),
 				UserConfigDir: opts.ConfigDir,
@@ -213,6 +212,23 @@ func buildRoot(
 		if err != nil {
 			return (fault.Definition{Code: "cli.config_failed", Kind: fault.Configuration}).Wrap(err)
 		}
+		if cmd.Annotations[annotationNeedsData] == annotationEnabled {
+			if err := cfg.Data.Validate(); err != nil {
+				return err
+			}
+		}
+		call.config = cfg
+		if opts.Directories != nil {
+			call.directories = *opts.Directories
+		} else if cmd.Annotations[annotationNeedsData] == annotationEnabled || cmd.Annotations[annotationNeedsPaths] == annotationEnabled {
+			dirs, pathErr := paths.Resolve(
+				paths.Options{AppName: opts.Name, LookupEnv: opts.LookupEnv, Layout: opts.PathLayout},
+			)
+			if pathErr != nil {
+				return pathErr
+			}
+			call.directories = dirs
+		}
 		ctx, owned := session.Begin(
 			cmd.Context(),
 			cfg,
@@ -223,22 +239,16 @@ func buildRoot(
 				Commit:    opts.Commit,
 			},
 			session.Options{
-				Paths:          paths.Options{AppName: opts.Name, LookupEnv: opts.LookupEnv},
+				Paths:          paths.Options{AppName: opts.Name, LookupEnv: opts.LookupEnv, Layout: opts.PathLayout},
 				Directories:    opts.Directories,
 				Stderr:         opts.ErrOut,
 				ExternalLogger: call.deps.Logger,
 				NewLogger:      call.deps.NewLogger,
 				Localizer:      call.localizer,
 			},
-			func(err error) {
-				//nolint:errcheck // 警告出口不可用时不能递归告警，也不改变业务结果。
-				_, _ = fmt.Fprintln(
-					opts.ErrOut,
-					call.localizer.Text("cli.warning", map[string]any{paramMessage: call.localizer.Render(err)}),
-				)
-			},
+			func(err error) { call.reportDiagnostic(opts.ErrOut, diagnosticWarning, err, 0) },
 		)
-		call.session = owned
+		call.setSession(owned)
 		call.logger = owned.Logger
 		cmd.SetContext(ctx)
 		return nil
@@ -251,7 +261,7 @@ func buildRoot(
 	schema := newSchemaCommand(root, &call.results)
 	completion := newCompletionCommand(root, call, opts.Name)
 	doctorCommand := newDoctorCommand(call)
-	root.AddCommand(greet, version, schema, completion, doctorCommand)
+	root.AddCommand(greet, version, schema, completion, doctorCommand, newDataCommand(call), newMachineCommand(call))
 	call.bindCommand(doctorCommand, commandTexts{
 		short: message("cli.doctor"),
 		example: textMessage{
@@ -330,6 +340,14 @@ func buildRoot(
 	if selected == "" {
 		selected = languageEnvironment(opts)
 	}
+	call.jsonDiagnostics = selectJSON(root, args)
+	if bootstrapErr != nil {
+		return root, call, (fault.Definition{Code: "cli.bootstrap", Kind: fault.Runtime}).Wrap(
+			bootstrapErr,
+			fault.WithSensitiveCause(),
+			fault.WithDiagnostic(fault.Diagnostic{Phase: "bootstrap", CompletedEffects: []string{}}),
+		)
+	}
 	lang, selectionErr := selectLanguage(root, args, selected)
 	call.localizer = bundle.Localizer(lang)
 	if err := call.localizeTree(root, lang); err != nil {
@@ -375,7 +393,7 @@ func validateFlags(cmd *cobra.Command, call *invocation) error {
 		}
 	})
 	if len(missing) > 0 {
-		return usageProblem("required", fault.Params{"Flags": strings.Join(missing, ", ")})
+		return usageProblem(schemaRequiredKey, fault.Params{"Flags": strings.Join(missing, ", ")})
 	}
 	rules := []struct {
 		annotation string

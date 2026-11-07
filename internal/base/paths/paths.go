@@ -20,6 +20,7 @@ type Directories struct {
 
 // Options 声明本次调用的显式依赖与覆盖选项。
 type Options struct {
+	Layout    Layout
 	AppName   string
 	GOOS      string
 	LookupEnv func(string) (string, bool)
@@ -51,7 +52,7 @@ func Resolve(opts Options) (Directories, error) {
 	absolute := func(s string) bool {
 		return strings.HasPrefix(s, "/")
 	}
-	if platform == "windows" {
+	if platform == platformWindows {
 		join = func(parts ...string) string {
 			for i := range parts {
 				parts[i] = strings.ReplaceAll(parts[i], string(rune(92)), "/")
@@ -91,7 +92,22 @@ func Resolve(opts Options) (Directories, error) {
 		home = join(home)
 		return Directories{home, join(home, dataDirectory), join(home, stateDirectory), join(home, cacheDirectory)}, nil
 	}
-	if platform == "windows" {
+	if opts.Layout == HomeLayout {
+		key := homeEnvironment
+		if platform == platformWindows {
+			key = "USERPROFILE"
+		}
+		home := env(key)
+		if !absolute(home) {
+			return fail(key)
+		}
+		root := join(home, "."+opts.AppName)
+		return Directories{root, join(root, dataDirectory), join(root, stateDirectory), join(root, cacheDirectory)}, nil
+	}
+	if opts.Layout != "" && opts.Layout != PlatformLayout {
+		return Directories{}, (fault.Definition{Code: "paths.layout", Kind: fault.Configuration}).New()
+	}
+	if platform == platformWindows {
 		roaming, local := env("APPDATA"), env("LOCALAPPDATA")
 		if !absolute(roaming) {
 			return fail("APPDATA")

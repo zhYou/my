@@ -319,3 +319,270 @@ other = "No checks configured."
 
 ["doctor.check"]
 other = "{{.Name}} {{.Status}} {{.Detail}}"
+
+["config.recover"]
+other = "Check field names, types, ranges and file/environment/flag overrides; correct the configuration and retry."
+
+["config.recover_environment"]
+other = "Correct or unset {{.Field}}, then retry."
+
+["cli.failure_phase"]
+other = "; phase: {{.Phase}}"
+
+["cli.completed_effects"]
+other = "; confirmed effects: [{{.Effects}}]"
+
+["cli.recovery"]
+other = "; recovery: {{.Advice}}"
+
+["cli.bootstrap"]
+other = "Failed to initialize command messages"
+
+["cli.usage"]
+other = "Invalid command invocation"
+
+["cli.runtime"]
+other = "Command failed"
+
+["cli.recover_output"]
+other = "Check the output destination and verify operation state before retrying."
+
+["command.failed"]
+other = "External tool failed"
+
+["cli.recover_usage"]
+other = "Use --help to inspect accepted commands and options, then correct the invocation."
+
+["cli.greet_failed_log"]
+other = "Greeting failed"
+
+["paths.layout"]
+other = "Unsupported directory layout."
+
+["data.configuration"]
+other = "Configure a valid data.repository, branch and positive request_timeout."
+
+["data.authentication"]
+other = "GitHub credentials could not be read."
+
+["data.access"]
+other = "The data repository could not be read."
+
+["data.private_required"]
+other = "The data repository must be private."
+
+["data.branch"]
+other = "The configured branch is unavailable."
+
+["data.format"]
+other = "The data repository format is invalid or unsupported."
+
+["data.commit_unknown"]
+other = "The remote commit result is unknown. No local binding was written."
+
+["data.commit_rejected"]
+other = "GitHub rejected the commit."
+
+["data.commit_conflict"]
+other = "The remote HEAD changed before the commit."
+
+["data.recover_config"]
+other = "Check [data] in config.toml or MY_DATA_* overrides; select an existing private repository and branch."
+
+["data.recover_auth"]
+other = "Check gh installation and authentication; run gh auth login manually if needed, then retry."
+
+["data.recover_access"]
+other = "Check connectivity and repository access with my doctor --remote, then retry."
+
+["data.recover_format"]
+other = "Inspect the version marker and machine records at the reported commit; do not overwrite unknown formats."
+
+["data.recover_verify"]
+other = "First run my doctor --remote and machine show to verify remote state, then rerun the original command; unchanged state is reused."
+
+["data.operation_event"]
+other = "Data operation {{.Operation}} finished."
+
+["data.init_result"]
+other = "Repository {{.Repository}} ({{.Branch}}), commit {{.Commit}}; changed={{.Changed}}."
+
+["machine.invalid_input"]
+other = "Use a 1–32 character lowercase ASCII machine ID, a supported kind and a nonempty single-line note."
+
+["machine.not_initialized"]
+other = "The data repository has not been initialized."
+
+["machine.record_invalid"]
+other = "A machine record or the data namespace is invalid."
+
+["machine.record_conflict"]
+other = "The machine ID already has different details or is retired."
+
+["machine.not_found"]
+other = "The machine record does not exist."
+
+["machine.not_bound"]
+other = "This device has no local machine binding."
+
+["machine.state_invalid"]
+other = "Local machine state or its lock is unavailable or unsafe."
+
+["machine.binding_conflict"]
+other = "The local binding belongs to another repository, branch or machine."
+
+["machine.binding_failed"]
+other = "Remote snapshot {{.Commit}} is known, but the local binding could not be updated."
+
+["machine.reactivate_required"]
+other = "The record is retired; explicit --reactivate is required."
+
+["machine.platform_required"]
+other = "The platform differs; explicit --update-platform is required."
+
+["machine.recover_init"]
+other = "Run my data init before registering or querying machines."
+
+["machine.recover_record"]
+other = "Inspect the record with machine show and correct conflicting data before retrying."
+
+["machine.recover_local"]
+other = "Verify local binding, HOME path, permissions and space; fix the cause, then rerun the original command to complete local state. The remote commit is preserved."
+
+["machine.recover_bind"]
+other = "Register this device, or use machine bind with an existing machine ID."
+
+["machine.recover_reactivate"]
+other = "To reuse this identity, rerun machine bind with --reactivate."
+
+["machine.recover_platform"]
+other = "Verify the identity; use machine bind --update-platform to adopt the current OS and architecture."
+
+["machine.operation_event"]
+other = "Machine operation {{.Operation}} finished."
+
+["machine.list_header"]
+other = "ID\tSTATUS\tOS\tARCH\tKIND\tNOTE"
+
+["machine.record_result"]
+other = "Machine: {{.ID}}\nKind: {{.Kind}}\nOS: {{.OS}}\nArchitecture: {{.Arch}}\nNote: {{.Note}}\nRegistered: {{.RegisteredAt}}\nStatus: {{.Status}}\nCommit: {{.Commit}}"
+
+["machine.current_result"]
+other = "Local binding: {{.ID}} — {{.Repository}} ({{.Branch}})"
+
+["cli.data"]
+other = "Manage the private data repository."
+
+["cli.data_init"]
+other = "Initialize the configured private data repository."
+
+["cli.machine"]
+other = "Manage machine records and this device identity."
+
+["cli.machine_register"]
+other = "Register and bind this device."
+
+["cli.machine_list"]
+other = "List all machine records from the remote repository."
+
+["cli.machine_show"]
+other = "Show a machine record and its snapshot version."
+
+["cli.machine_current"]
+other = "Show the local binding without contacting GitHub."
+
+["cli.machine_bind"]
+other = "Restore an existing machine identity on this device."
+
+["cli.machine_retire"]
+other = "Retire a record and clear a matching local binding."
+
+["cli.machine_kind"]
+other = "Machine kind: laptop, desktop, server or vm."
+
+["cli.machine_note"]
+other = "Nonempty single-line description; kept out of diagnostics."
+
+["cli.machine_reactivate"]
+other = "Explicitly reactivate a retired record."
+
+["cli.machine_update_platform"]
+other = "Explicitly adopt the current OS and architecture."
+
+["doctor.invalid_timeout"]
+other = "Each check timeout must be positive."
+
+["doctor.check_available"]
+other = "Available."
+
+["doctor.check_failed"]
+other = "Check failed."
+
+["doctor.blocked"]
+other = "Not checked because a required prerequisite failed; fix it and rerun doctor."
+
+["doctor.unbound"]
+other = "No local machine binding; registration is optional for this check."
+
+["cli.doctor_remote"]
+other = "Explicitly enable read-only checks of the configured GitHub repository."
+
+["cli.doctor_timeout"]
+other = "Positive timeout for each check (default 10s)."
+
+["doctor.detail.paths"]
+other = "Application paths are resolved; missing directories are left untouched."
+
+["doctor.remedy.paths"]
+other = "Check HOME/MY_HOME and existing directory types and permissions."
+
+["doctor.detail.config"]
+other = "Configuration and data repository selection are valid."
+
+["doctor.remedy.config"]
+other = "Check config.toml and MY_DATA_* overrides, then rerun doctor."
+
+["doctor.detail.gh"]
+other = "The gh executable is available."
+
+["doctor.remedy.gh"]
+other = "Install or repair gh manually and check PATH."
+
+["doctor.detail.auth.local"]
+other = "Stored credentials can be read without refresh; remote validity is not checked."
+
+["doctor.remedy.auth.local"]
+other = "Check gh authentication manually, then rerun doctor."
+
+["doctor.detail.binding.local"]
+other = "The local binding is valid for the configured repository and branch."
+
+["doctor.remedy.binding.local"]
+other = "Inspect local machine.json, its permissions and selected repository; do not overwrite another identity."
+
+["doctor.detail.data.repository"]
+other = "The selected repository is accessible and private; no write was attempted."
+
+["doctor.remedy.data.repository"]
+other = "Check repository visibility, token validity, access permissions and connectivity."
+
+["doctor.detail.data.branch"]
+other = "The selected branch resolves to a commit."
+
+["doctor.remedy.data.branch"]
+other = "Check that the configured branch exists and is readable."
+
+["doctor.detail.data.format"]
+other = "The version marker and machine records are valid at the inspected commit."
+
+["doctor.remedy.data.format"]
+other = "Run data init if uninitialized, or inspect the version marker and machine records."
+
+["doctor.detail.binding.remote"]
+other = "The bound machine is active and matches this platform and repository identity."
+
+["doctor.remedy.binding.remote"]
+other = "Inspect the record with machine show; restore with explicit bind flags only after verifying identity."
+
+["config.file_type"]
+other = "Configuration must be a regular file: {{.Path}}."

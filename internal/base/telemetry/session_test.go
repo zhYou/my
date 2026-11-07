@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zhYou/my/internal/base/fault"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
@@ -185,4 +187,32 @@ func (e *contextExporter) ExportSpans(ctx context.Context, _ []sdktrace.ReadOnly
 
 func (*contextExporter) Shutdown(context.Context) error {
 	return nil
+}
+
+func TestErrorSpansContainSafeDiagnosticMetadata(t *testing.T) {
+	var out bytes.Buffer
+	cfg := Defaults()
+	cfg.Exporter = File
+	session := Start(t.Context(), cfg, Info{RunID: "fixture-run"}, &out, nil)
+	_, span := session.Tracer.Start(t.Context(), "fixture")
+	cause := errors.New("private-fixture-token")
+	err := (fault.Definition{Code: "fixture.partial", Kind: fault.Runtime}).Wrap(
+		cause,
+		fault.WithSensitiveCause(),
+		fault.WithDiagnostic(
+			fault.Diagnostic{
+				Phase:            "fixture.publish",
+				CompletedEffects: []string{"fixture.saved"},
+				Recovery:         &fault.Recovery{Code: "config.recover"},
+			},
+		),
+	)
+	RecordError(span, err)
+	span.End()
+	require.NoError(t, session.Close(t.Context()))
+	require.NotContains(t, out.String(), "private-fixture-token")
+	require.Contains(t, out.String(), "error.phase")
+	require.Contains(t, out.String(), "fixture.publish")
+	require.Contains(t, out.String(), "fixture.saved")
+	require.Contains(t, out.String(), "config.recover")
 }

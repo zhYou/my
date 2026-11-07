@@ -24,3 +24,12 @@ const (
 
 	flagLogLevel = "log-level"
 )
+
+const (
+	phaseArguments = "arguments"
+	codeUsage      = "cli.usage"
+	codeRuntime    = "cli.runtime"
+	codeCancelled  = "cli.cancelled"
+	codeDeadline   = "cli.deadline"
+	phaseGreeting  = "greeting.run"
+)

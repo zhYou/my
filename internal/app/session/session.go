@@ -37,6 +37,8 @@ type Options struct {
 
 // Session 唯一持有自建资源；业务只使用 Logger、Tracer 和 Go 注册工作。
 type Session struct {
+	// RunID 关联本次调用的诊断文件、日志及 Trace。
+	RunID       string
 	Logger      *logging.Logger
 	Tracer      trace.Tracer
 	files       *diagnostics.Run
@@ -99,6 +101,7 @@ func Begin(
 			id = s.files.ID
 		}
 	}
+	s.RunID = id
 	var logWriter io.Writer
 	if s.ownsLogger {
 		switch config.Logging.Output {
@@ -166,7 +169,7 @@ func (s *Session) Finish(ctx context.Context, result logging.CommandResult) {
 		if result.ExitCode != 0 || result.Err != nil {
 			s.span.SetStatus(codes.Error, diagnosticText(s.localizer, "session.failed"))
 			if result.Err != nil {
-				s.span.RecordError(result.Err)
+				telemetry.RecordError(s.span, result.Err)
 			}
 		}
 		s.span.End()

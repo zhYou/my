@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	executionFailure      = fault.Definition{Code: "command.failed", Kind: fault.Runtime}
 	windowsSuspendInvalid = fault.Definition{Code: "command.windows_suspend_invalid", Kind: fault.Runtime}
 	windowsJobNotEmpty    = fault.Definition{Code: "command.windows_job_not_empty", Kind: fault.Runtime}
 	programRequired       = fault.Definition{Code: "command.program_required", Kind: fault.Runtime}

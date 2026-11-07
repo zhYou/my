@@ -20,10 +20,12 @@ import (
 	"github.com/zhYou/my/internal/base/paths"
 	"github.com/zhYou/my/internal/base/telemetry"
 	"github.com/zhYou/my/internal/base/validation"
+	"github.com/zhYou/my/internal/datarepo"
 )
 
 // Config 保存模块组合后的强类型配置。
 type Config struct {
+	Data        datarepo.Config    `mapstructure:"data"`
 	Logging     logging.Config     `mapstructure:"logging"`
 	Diagnostics diagnostics.Config `mapstructure:"diagnostics"`
 	Telemetry   telemetry.Config   `mapstructure:"telemetry"`
@@ -31,6 +33,7 @@ type Config struct {
 
 // Options 声明本次调用的显式依赖与覆盖选项。
 type Options struct {
+	Layout        paths.Layout
 	AppName       string
 	Path          string
 	UserConfigDir string
@@ -42,12 +45,20 @@ type Options struct {
 
 // Defaults 返回本模块的默认配置。
 func Defaults() Config {
-	return Config{Logging: logging.Defaults(), Diagnostics: diagnostics.Defaults(), Telemetry: telemetry.Defaults()}
+	return Config{
+		Data:        datarepo.Defaults(),
+		Logging:     logging.Defaults(),
+		Diagnostics: diagnostics.Defaults(),
+		Telemetry:   telemetry.Defaults(),
+	}
 }
 
 // Load 按显式选项 > 非空环境变量 > 唯一 TOML 文件 > 默认值解析。
 func Load(ctx context.Context, opts Options) (Config, error) {
 	cfg := Defaults()
+	if opts.Layout == "" {
+		opts.Layout = paths.HomeLayout
+	}
 	if err := ctx.Err(); err != nil {
 		return cfg, err
 	}
@@ -68,7 +79,7 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		home = ""
 	}
 	if home != "" || file == "" && opts.UserConfigDir == "" {
-		dirs, err := paths.Resolve(paths.Options{AppName: opts.AppName, LookupEnv: lookup})
+		dirs, err := paths.Resolve(paths.Options{AppName: opts.AppName, LookupEnv: lookup, Layout: opts.Layout})
 		if err != nil {
 			return cfg, err
 		}
@@ -79,6 +90,9 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		file = filepath.Join(opts.UserConfigDir, opts.AppName, "config.toml")
 	}
 	defaults := map[string]any{
+		"data.repository":                cfg.Data.Repository,
+		"data.branch":                    cfg.Data.Branch,
+		"data.request_timeout":           cfg.Data.RequestTimeout,
 		loggingLevelKey:                  cfg.Logging.Level,
 		"logging.output":                 cfg.Logging.Output,
 		"diagnostics.max_size_mib":       cfg.Diagnostics.MaxSizeMiB,
@@ -99,16 +113,27 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 	if err := layer(defaults); err != nil {
 		return cfg, problem(decodeProblem, err, nil)
 	}
-	//nolint:gosec // G304：配置路径由用户明确选择；加载器必须支持任意显式配置文件。
-	data, err := os.ReadFile(file)
+	// 跟随配置符号链接，但拒绝 FIFO、设备等非普通目标，避免同步读取无限等待。
+	info, err := os.Stat(file)
+	var data []byte
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return cfg, problem("file_type", nil, fault.Params{pathParameter: file})
+		}
+		if err := ctx.Err(); err != nil {
+			return cfg, err
+		}
+		//nolint:gosec // G304：用户选择的普通配置文件；不接受特殊文件。
+		data, err = os.ReadFile(file)
+	}
 	if err != nil {
 		if opts.Explicit || opts.Path != "" || !errors.Is(err, os.ErrNotExist) {
-			return cfg, problem("read", err, fault.Params{"Path": file})
+			return cfg, problem("read", err, fault.Params{pathParameter: file})
 		}
 	} else {
 		var values map[string]any
 		if err := toml.Unmarshal(data, &values); err != nil {
-			return cfg, problem("parse", err, fault.Params{"Path": file})
+			return cfg, problem("parse", err, fault.Params{pathParameter: file})
 		}
 		// 先校验 TOML 的原始嵌套结构，禁止字面点号键被解释为路径。
 		var typed Config
@@ -137,9 +162,16 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		if _, ok := def.(int); ok {
 			number, err := strconv.Atoi(value)
 			if err != nil {
-				return cfg, problem("environment", err, fault.Params{"Field": env})
+				return cfg, problem(environmentProblem, err, fault.Params{"Field": env})
 			}
 			typed = number
+		}
+		if _, ok := def.(time.Duration); ok {
+			duration, err := time.ParseDuration(value)
+			if err != nil {
+				return cfg, problem(environmentProblem, err, fault.Params{"Field": env})
+			}
+			typed = duration
 		}
 		if err := layer(map[string]any{key: typed}); err != nil {
 			return cfg, problem(decodeProblem, err, nil)
@@ -163,6 +195,9 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		v = validation.New()
 	}
 	if err := v.Struct(ctx, cfg); err != nil {
+		return cfg, problem("invalid", err, nil)
+	}
+	if err := cfg.Data.ValidateOptional(); err != nil {
 		return cfg, problem("invalid", err, nil)
 	}
 	return cfg, ctx.Err()
@@ -209,7 +244,19 @@ func strictHook(from, to reflect.Type, value any) (any, error) {
 func problem(code string, cause error, params fault.Params) error {
 	d := fault.Definition{Code: fault.Code("config." + code), Kind: fault.Configuration}
 	if cause != nil {
-		return d.Wrap(cause, fault.WithParams(params))
+		options := []fault.Option{fault.WithParams(params), fault.WithDiagnostic(configDiagnostic(code, params))}
+		if code == "parse" || code == decodeProblem || code == environmentProblem {
+			options = append(options, fault.WithSensitiveCause())
+		}
+		return d.Wrap(cause, options...)
 	}
-	return d.New(fault.WithParams(params))
+	return d.New(fault.WithParams(params), fault.WithDiagnostic(configDiagnostic(code, params)))
+}
+
+func configDiagnostic(code string, params fault.Params) fault.Diagnostic {
+	recovery := &fault.Recovery{Code: "config.recover"}
+	if code == environmentProblem {
+		recovery = &fault.Recovery{Code: "config.recover_environment", Params: params}
+	}
+	return fault.Diagnostic{Phase: "config." + code, CompletedEffects: []string{}, Recovery: recovery}
 }

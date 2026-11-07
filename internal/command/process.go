@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/zhYou/my/internal/base/fault"
 	"github.com/zhYou/my/internal/base/iostreams"
 	"github.com/zhYou/my/internal/base/logging"
 	"github.com/zhYou/my/internal/base/messages"
@@ -59,13 +60,16 @@ func Run(ctx context.Context, call Invocation, options Execution) (result error)
 
 	path, err := resolve(call.Program, options.Dir, options.Env)
 	if err != nil {
-		return err
+		return executionFailure.Wrap(
+			err,
+			fault.WithDiagnostic(fault.Diagnostic{Phase: "command.resolve", CompletedEffects: []string{}}),
+		)
 	}
 	err = runPlatform(ctx, path, call.Args, options)
 	if ctx.Err() != nil {
-		return errors.Join(err, contextError(ctx))
+		err = errors.Join(err, contextError(ctx))
 	}
-	return err
+	return executionFailure.Wrap(err, fault.WithDiagnostic(fault.Diagnostic{Phase: "command.execute"}))
 }
 
 // WithEnv 独立复制环境，再追加覆盖变量；父配置不变。

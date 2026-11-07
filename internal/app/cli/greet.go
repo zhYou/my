@@ -3,6 +3,10 @@ package cli
 import (
 	"fmt"
 	"io"
+	"time"
+
+	"github.com/zhYou/my/internal/base/logging"
+	"github.com/zhYou/my/internal/base/telemetry"
 
 	"github.com/spf13/cobra"
 	"github.com/zhYou/my/internal/app/greeting"
@@ -24,17 +28,24 @@ func newGreetCommand(call *invocation) *cobra.Command {
 			)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx, span := call.session.Tracer.Start(cmd.Context(), "greeting.run")
+			ctx, span := call.session.Tracer.Start(cmd.Context(), phaseGreeting)
 			defer span.End()
 
+			started := time.Now()
 			result, err := call.deps.Greet(ctx, greeting.Options{Name: name, Localizer: call.localizer})
+			err = classifyExecutionError(err, phaseGreeting)
+			eventMessage := call.localizer.Text("cli.greet_log", nil)
 			if err != nil {
-				span.RecordError(err)
+				eventMessage = call.localizer.Text("cli.greet_failed_log", nil)
+			}
+			call.logger.WithContext(ctx).
+				Record(greetingFinished{message: eventMessage, duration: time.Since(started), failed: err != nil})
+			if err != nil {
+				telemetry.RecordError(span, err)
 				span.SetStatus(codes.Error, call.localizer.Text("session.failed", nil))
 				return err
 			}
 
-			call.logger.WithContext(ctx).Debugw(call.localizer.Text("cli.greet_log", nil), "event", "greeting_finished")
 			if call.asJSON {
 				return writeJSON(cmd.OutOrStdout(), result)
 			}
@@ -53,4 +64,23 @@ func newGreetCommand(call *invocation) *cobra.Command {
 		panic(err)
 	}
 	return greet
+}
+
+type greetingFinished struct {
+	message  string
+	duration time.Duration
+	failed   bool
+}
+
+func (e greetingFinished) Emit(logger *logging.Logger) {
+	outcome := "success"
+	if e.failed {
+		outcome = "failed"
+	}
+	fields := []any{"event", "greeting_finished", "phase", phaseGreeting, "outcome", outcome, "duration", e.duration}
+	if e.failed {
+		logger.Errorw(e.message, fields...)
+		return
+	}
+	logger.Infow(e.message, fields...)
 }

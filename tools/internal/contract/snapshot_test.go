@@ -109,3 +109,26 @@ func TestExitCodeChangeRequiresBreakingVersion(t *testing.T) {
 	record.TargetVersion = "v2.0.0"
 	require.NoError(t, ValidateRecords(changes, []Record{record}, false))
 }
+
+func TestDiagnosticSchemaAnnotationsDoNotChangeContract(t *testing.T) {
+	before, err := Normalize(
+		[]byte(
+			`{"schema":{"diagnostic_schema":{"type":"object","description":"English","properties":{"description":{"type":"string"},"message":{"type":"string","description":"before"}}}}}`,
+		),
+	)
+	require.NoError(t, err)
+	after, err := Normalize(
+		[]byte(
+			`{"schema":{"diagnostic_schema":{"type":"object","description":"中文","properties":{"description":{"type":"string"},"message":{"type":"string","description":"after"}}}}}`,
+		),
+	)
+	require.NoError(t, err)
+	require.JSONEq(t, string(before), string(after))
+	var document struct {
+		Schema struct {
+			Diagnostic struct{ Properties map[string]any } `json:"diagnostic_schema"`
+		}
+	}
+	require.NoError(t, json.Unmarshal(after, &document))
+	require.Contains(t, document.Schema.Diagnostic.Properties, "description")
+}

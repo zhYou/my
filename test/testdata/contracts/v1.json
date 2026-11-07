@@ -1,5 +1,18 @@
 {
   "results": {
+    "diagnostics": {
+      "error": {
+        "diagnostics": "array",
+        "exit_code": "number",
+        "schema_version": "number",
+        "type": "string"
+      },
+      "warning": {
+        "diagnostics": "array",
+        "schema_version": "number",
+        "type": "string"
+      }
+    },
     "doctor": {
       "checks": "array",
       "required_available": "boolean"
@@ -224,8 +237,88 @@
             },
             "path": "contract-cli completion"
           },
-          "contract-cli doctor": {
-            "commands": [],
+          "contract-cli data": {
+            "commands": {
+              "contract-cli data init": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli data init",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "changed",
+                    "snapshot"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
             "flags": {
               "config": {
                 "default": "",
@@ -263,6 +356,61 @@
                 "type": "string"
               }
             },
+            "path": "contract-cli data"
+          },
+          "contract-cli doctor": {
+            "commands": [],
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              },
+              "remote": {
+                "default": "false",
+                "inherited": false,
+                "name": "remote",
+                "required": false,
+                "type": "bool"
+              },
+              "timeout": {
+                "default": "10s",
+                "inherited": false,
+                "name": "timeout",
+                "required": false,
+                "type": "duration"
+              }
+            },
             "path": "contract-cli doctor",
             "result_schema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -272,8 +420,14 @@
                   "items": {
                     "additionalProperties": true,
                     "properties": {
+                      "code": {
+                        "type": "string"
+                      },
                       "detail": {
                         "type": "string"
+                      },
+                      "duration_ms": {
+                        "type": "integer"
                       },
                       "name": {
                         "type": "string"
@@ -288,7 +442,8 @@
                     "required": [
                       "name",
                       "status",
-                      "required"
+                      "required",
+                      "duration_ms"
                     ],
                     "type": "object"
                   },
@@ -409,6 +564,863 @@
               }
             },
             "path": "contract-cli help"
+          },
+          "contract-cli machine": {
+            "commands": {
+              "contract-cli machine bind": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "reactivate": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "reactivate",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "update-platform": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "update-platform",
+                    "required": false,
+                    "type": "bool"
+                  }
+                },
+                "path": "contract-cli machine bind",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "bound": {
+                      "type": "boolean"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "machine": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "arch": {
+                          "enum": [
+                            "amd64",
+                            "arm64"
+                          ]
+                        },
+                        "kind": {
+                          "enum": [
+                            "laptop",
+                            "desktop",
+                            "server",
+                            "vm"
+                          ]
+                        },
+                        "machine_id": {
+                          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "os": {
+                          "enum": [
+                            "linux",
+                            "darwin",
+                            "windows"
+                          ]
+                        },
+                        "registered_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "retired_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "schema_version": {
+                          "const": 1
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "retired"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "schema_version",
+                        "machine_id",
+                        "kind",
+                        "os",
+                        "arch",
+                        "note",
+                        "registered_at",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "machine",
+                    "changed",
+                    "bound"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli machine current": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli machine current",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "branch": {
+                      "type": "string"
+                    },
+                    "machine_id": {
+                      "type": "string"
+                    },
+                    "repository": {
+                      "type": "string"
+                    },
+                    "repository_id": {
+                      "type": "integer"
+                    },
+                    "schema_version": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "repository",
+                    "repository_id",
+                    "branch",
+                    "machine_id"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli machine list": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli machine list",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "machines": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "arch": {
+                            "enum": [
+                              "amd64",
+                              "arm64"
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "laptop",
+                              "desktop",
+                              "server",
+                              "vm"
+                            ]
+                          },
+                          "machine_id": {
+                            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "os": {
+                            "enum": [
+                              "linux",
+                              "darwin",
+                              "windows"
+                            ]
+                          },
+                          "registered_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "retired_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "schema_version": {
+                            "const": 1
+                          },
+                          "status": {
+                            "enum": [
+                              "active",
+                              "retired"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "machine_id",
+                          "kind",
+                          "os",
+                          "arch",
+                          "note",
+                          "registered_at",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "machines"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli machine register": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "kind": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "kind",
+                    "required": true,
+                    "type": "string"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "note": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "note",
+                    "required": true,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli machine register",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "bound": {
+                      "type": "boolean"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "machine": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "arch": {
+                          "enum": [
+                            "amd64",
+                            "arm64"
+                          ]
+                        },
+                        "kind": {
+                          "enum": [
+                            "laptop",
+                            "desktop",
+                            "server",
+                            "vm"
+                          ]
+                        },
+                        "machine_id": {
+                          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "os": {
+                          "enum": [
+                            "linux",
+                            "darwin",
+                            "windows"
+                          ]
+                        },
+                        "registered_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "retired_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "schema_version": {
+                          "const": 1
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "retired"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "schema_version",
+                        "machine_id",
+                        "kind",
+                        "os",
+                        "arch",
+                        "note",
+                        "registered_at",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "machine",
+                    "changed",
+                    "bound"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli machine retire": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli machine retire",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "bound": {
+                      "type": "boolean"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "machine": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "arch": {
+                          "enum": [
+                            "amd64",
+                            "arm64"
+                          ]
+                        },
+                        "kind": {
+                          "enum": [
+                            "laptop",
+                            "desktop",
+                            "server",
+                            "vm"
+                          ]
+                        },
+                        "machine_id": {
+                          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "os": {
+                          "enum": [
+                            "linux",
+                            "darwin",
+                            "windows"
+                          ]
+                        },
+                        "registered_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "retired_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "schema_version": {
+                          "const": 1
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "retired"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "schema_version",
+                        "machine_id",
+                        "kind",
+                        "os",
+                        "arch",
+                        "note",
+                        "registered_at",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "machine",
+                    "changed",
+                    "bound"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli machine show": {
+                "commands": [],
+                "flags": {
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli machine show",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "machine": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "arch": {
+                          "enum": [
+                            "amd64",
+                            "arm64"
+                          ]
+                        },
+                        "kind": {
+                          "enum": [
+                            "laptop",
+                            "desktop",
+                            "server",
+                            "vm"
+                          ]
+                        },
+                        "machine_id": {
+                          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "os": {
+                          "enum": [
+                            "linux",
+                            "darwin",
+                            "windows"
+                          ]
+                        },
+                        "registered_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "retired_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "schema_version": {
+                          "const": 1
+                        },
+                        "status": {
+                          "enum": [
+                            "active",
+                            "retired"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "schema_version",
+                        "machine_id",
+                        "kind",
+                        "os",
+                        "arch",
+                        "note",
+                        "registered_at",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "machine"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli machine"
           },
           "contract-cli schema": {
             "commands": [],
@@ -564,6 +1576,119 @@
         },
         "path": "contract-cli"
       }
+    },
+    "diagnostic_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": true,
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "exit_code"
+          ]
+        },
+        {
+          "not": {
+            "required": [
+              "exit_code"
+            ]
+          },
+          "properties": {
+            "type": {
+              "const": "warning"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "diagnostics": {
+          "items": {
+            "additionalProperties": true,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "completed_effects": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "phase": {
+                "type": "string"
+              },
+              "recovery": {
+                "additionalProperties": true,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "kind",
+              "message",
+              "phase",
+              "completed_effects"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "exit_code": {
+          "enum": [
+            1,
+            2,
+            130
+          ],
+          "type": "integer"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "type": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "schema_version",
+        "diagnostics"
+      ],
+      "type": "object"
     },
     "exit_codes": {
       "cancelled": 130,
