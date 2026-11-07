@@ -22,14 +22,15 @@ import (
 
 // Options 提供进程依赖；每次调用均创建新的命令树。
 type Options struct {
-	Name      string
-	Version   string
-	Commit    string
-	Date      string
-	In        io.Reader
-	Out       io.Writer
-	ErrOut    io.Writer
-	ConfigDir string
+	PathLayout paths.Layout
+	Name       string
+	Version    string
+	Commit     string
+	Date       string
+	In         io.Reader
+	Out        io.Writer
+	ErrOut     io.Writer
+	ConfigDir  string
 	// Directories 显式覆写应用目录，供嵌入调用及测试隔离；ConfigDir 仅选择配置目录。
 	Directories  *paths.Directories
 	Language     string
@@ -114,10 +115,13 @@ func run(ctx context.Context, args []string, opts Options, loadBundle func() (*m
 	if err == nil {
 		return call.reportExitCode
 	}
-	return exitCode(err)
+	return operationExitCode(ctx, err)
 }
 
 func defaults(opts Options) Options {
+	if opts.PathLayout == "" {
+		opts.PathLayout = paths.HomeLayout
+	}
 	if opts.Name == "" {
 		opts.Name = "my"
 	}
@@ -141,6 +145,7 @@ func buildRoot(
 	args ...string,
 ) (*cobra.Command, *invocation, error) {
 	call := newInvocation(opts.Dependencies)
+	call.options = opts
 	bundle, bootstrapErr := loadBundle()
 	if bundle == nil && bootstrapErr == nil {
 		bootstrapErr = fmt.Errorf("message bundle is nil")
@@ -195,6 +200,7 @@ func buildRoot(
 			cmd.Context(),
 			config.Options{
 				AppName:       opts.Name,
+				Layout:        opts.PathLayout,
 				Path:          call.configPath,
 				Explicit:      cmd.Flags().Changed(flagConfig),
 				UserConfigDir: opts.ConfigDir,
@@ -206,6 +212,23 @@ func buildRoot(
 		if err != nil {
 			return (fault.Definition{Code: "cli.config_failed", Kind: fault.Configuration}).Wrap(err)
 		}
+		if cmd.Annotations[annotationNeedsData] == annotationEnabled {
+			if err := cfg.Data.Validate(); err != nil {
+				return err
+			}
+		}
+		call.config = cfg
+		if opts.Directories != nil {
+			call.directories = *opts.Directories
+		} else if cmd.Annotations[annotationNeedsData] == annotationEnabled || cmd.Annotations[annotationNeedsPaths] == annotationEnabled {
+			dirs, pathErr := paths.Resolve(
+				paths.Options{AppName: opts.Name, LookupEnv: opts.LookupEnv, Layout: opts.PathLayout},
+			)
+			if pathErr != nil {
+				return pathErr
+			}
+			call.directories = dirs
+		}
 		ctx, owned := session.Begin(
 			cmd.Context(),
 			cfg,
@@ -216,7 +239,7 @@ func buildRoot(
 				Commit:    opts.Commit,
 			},
 			session.Options{
-				Paths:          paths.Options{AppName: opts.Name, LookupEnv: opts.LookupEnv},
+				Paths:          paths.Options{AppName: opts.Name, LookupEnv: opts.LookupEnv, Layout: opts.PathLayout},
 				Directories:    opts.Directories,
 				Stderr:         opts.ErrOut,
 				ExternalLogger: call.deps.Logger,
@@ -238,7 +261,7 @@ func buildRoot(
 	schema := newSchemaCommand(root, &call.results)
 	completion := newCompletionCommand(root, call, opts.Name)
 	doctorCommand := newDoctorCommand(call)
-	root.AddCommand(greet, version, schema, completion, doctorCommand)
+	root.AddCommand(greet, version, schema, completion, doctorCommand, newDataCommand(call), newMachineCommand(call))
 	call.bindCommand(doctorCommand, commandTexts{
 		short: message("cli.doctor"),
 		example: textMessage{
@@ -370,7 +393,7 @@ func validateFlags(cmd *cobra.Command, call *invocation) error {
 		}
 	})
 	if len(missing) > 0 {
-		return usageProblem("required", fault.Params{"Flags": strings.Join(missing, ", ")})
+		return usageProblem(schemaRequiredKey, fault.Params{"Flags": strings.Join(missing, ", ")})
 	}
 	rules := []struct {
 		annotation string

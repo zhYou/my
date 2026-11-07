@@ -71,12 +71,12 @@ Cobra 提供命令与元数据；前置顺序、schema 输出及退出码是项�
 
 要增加运行参数时，先在所属模块定义有类型 Config，组合到 `internal/app/config.Config`，
 再扩展 defaults、环境映射、TOML 示例和校验测试。不要只加一个字符串 getter 或隐含环境开关。
-通用执行器的 Dir、Env、捕获及并行选项保持有类型 API；doctor 的探测限额属于开发工具，
-无需为填充模板配置而新增产品选项。
+通用执行器的 Dir、Env、捕获及并行选项保持有类型 API；产品 doctor 的检查预算通过显式 --timeout 传入。
 
 每个实际新增配置项须说明类型、默认值、允许来源、覆盖关系、范围及组合约束；默认值由模块的 Defaults 提供，
 经统一加载入口组合。先校验参数和完整配置，再创建资源或执行业务副作用；直接业务调用也校验输入。
-本次诊断能力不新增业务配置或隐藏环境开关。
+数据仓配置为 [data] repository、branch、request_timeout；默认与环境变量见 README。
+my 配置、Session 与业务状态默认共用 HOME 布局，MY_HOME 统一覆盖，--config 不改变状态根。
 
 凭据由具体业务声明来源，优先通过调用级依赖、注入的 LookupEnv 或受控凭据提供者取得；不预建凭据配置框架。
 需要文件、环境或 flag 输入时，明确读取时机和优先级，不用日志证明凭据存在，不把凭据写入配置示例。
@@ -326,18 +326,18 @@ Serena 与 Go CLI 补充、应用 HOME 隔离和验证选择统一见[开发说�
 
 ## 扩展 doctor
 
-`internal/app/doctor.Run` 是空检查入口，CLI 通过 `Dependencies.Doctor` 注入。
+`internal/app/doctor.Run` 执行数据仓与本机绑定检查，CLI 通过 `Dependencies.Doctor` 保留受控注入边界。
 添加检查时维护有类型的 Options 和 Check，校验在副作用前完成；不要把开发工具清单作为产品依赖。
-当前空实现不加载配置或创建诊断资源。需要这些资源的真实检查须按 Session 所有权规则显式接入。
+doctor 自行严格加载配置，将错误归入报告；不创建 Session 诊断资源。
 
 检查须只读：不安装依赖、不修复状态、不登录或刷新凭据、不修改业务配置和数据。
-默认离线；真实联网检查须由派生项目显式选择，说明访问目标、请求内容、是否使用凭据及关闭方式，不能由隐式调试环境触发。
+默认离线；联网由 --remote 显式选择，说明访问目标、请求内容、是否使用凭据及关闭方式，不能由隐式调试环境触发。
 每项明确必需或可选、独立超时、输出捕获和并发上限；外部程序复用 command，网络调用传递检查 Context。
 检查超时或依赖不可用形成 status=failed 的完成报告，继续收集其余检查；父调用取消或无法形成报告则返回 error。
 不要把部分检查误报成完整成功，也不要以检查超时替代整个调用的取消语义。
 Detail 只给安全解释和可执行建议，不输出响应体、原始 stderr 或凭据。
 接入示例见 [doctor 脱敏夹具](../internal/app/cli/doctor_test.go)：使用 Dependencies.Doctor、只读临时文件和本地 HTTP 服务，
-演示联网选择、必需/可选超时及取消。模板不为示例增加生产检查或通用调度器。
+演示联网选择、必需/可选超时及取消。实际业务检查使用本地路径、gh、认证与固定 HEAD 快照，不增加通用调度器。
 
 Result 的 checks 始终编码为数组。RequiredAvailable 表示所有必需检查均可用；可选失败不能将它改为 false。
 检查项的 name、status、required 是机器接口，detail 提供当前语言说明。已完成的负向报告返回 Result、nil，
@@ -352,3 +352,23 @@ Result 的 checks 始终编码为数组。RequiredAvailable 表示所有必需�
 补全在独立命令树预解析已完成参数，避免第三方解析错误绕过调用级 stderr；无法解析时返回
 标准错误且禁止文件回退的 directive `:5`，退出 0，不输出诊断文本。预解析不改变实际候选树的值或 Changed 状态，
 不替换全局 IO。取消仍返回 130。保留 `completion -- <shell>` 的历史位置参数调用。
+
+## 数据仓业务接入
+
+业务输入和完整配置先校验；凭据仅通过 command 层调用 gh auth token 捕获，不回显，不刷新。
+go-gh 的 Host、APIHost、AuthToken、Transport、Timeout 显式设置，LogIgnoreEnv=true、EnableCache=false，禁止重定向携带凭据。
+读取只消费格式标记与机器文件，严格 TOML、固定 HEAD、限长响应；不得把响应体或备注放入诊断字段。
+
+业务 span 为 data.init、machine.register、machine.bind、machine.retire；子阶段为 data.read、data.commit、machine.binding.write/clear。
+所属模块事件记录 phase、outcome、duration、error_code 和必要版本；data.commit 区分 base_commit 与确认成功的 commit。
+Session 负责 run_id 与日志、Trace 出口和降级；业务复用 telemetry.RecordError，禁止直接记录原始 error 字符串。
+stdout 输出成功结果；stderr 在 --json 下逐行区分 error/warning，普通日志保留 event。
+
+失败通过 Diagnostic 表达 phase、completed_effects 与 Recovery。远端提交未确认时保留 nil，禁止推断无副作用或自动重发；
+确认成功后本机失败列 data.commit，并给出提交版本与 bind 恢复步骤。并发 HEAD 变化先重新读取和确认资料，禁止覆盖提交。
+本机状态锁覆盖预检查到最后落盘；临界区重读绑定，不替换其他机器、仓数字 ID 或分支。状态目录0700、文件0600，拒绝符号链接。
+父目录允许0755但拒绝组或其他用户写入。Windows 使用同样的类型校验，不将 Unix mode 位当作 ACL 证明。
+
+产品 doctor 串行，每项默认10s：paths、config、gh、auth.local、binding.local 为本地必需项；
+--remote 追加 data.repository、data.branch、data.format，已绑定时 binding.remote 必需，未绑定时为可选 skipped。
+前置失败导致 required skipped，整体失败；每项超时形成 failed，父取消终止报告。只读检查不证明写权限。

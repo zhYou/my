@@ -3,9 +3,9 @@
 `my` 是个人数据与资源管理 CLI，面向机器、配置文件、私有账号、云厂商和云服务的管理与同步。
 代码仓公开，实际数据位于独立私有仓库；敏感数据使用 age 加密，唯一解密凭据由用户在仓外保管。
 
-当前完成工程初始化：默认文本输出、`--json`、双语消息、严格 TOML 配置、命令 Schema、shell 补全、
-日志、测试与跨平台发布流程。`greet` 是用于验证这些能力的模板示例，`doctor` 尚未接入业务检查。
-机器登记、配置同步、账号管理和云服务适配尚未实现。
+当前支持私有数据仓初始化、机器登记与查询、本机绑定、退役，以及只读 doctor 检查。
+CLI 提供文本和 JSON 输出、双语消息、严格 TOML 配置、Schema、shell 补全、日志和 Trace。
+`greet` 保留为模板验收示例；配置同步、账号和云服务管理留待后续模块实现。
 
 ## 项目定位与数据边界
 
@@ -18,7 +18,7 @@
 
 后续配置管理采用 GitOps 的声明式期望状态和版本追踪思路；账号等资料采用版本化记录。
 配置按字段声明管理范围并进行结构校验，保留应用自行维护及本机专属的字段。
-远端数据计划通过 GitHub API 访问，本地保存必要状态和缓存，不维护完整数据仓 Git 工作树。
+远端数据通过 GitHub API 访问，本地保存必要状态和缓存，不维护完整数据仓 Git 工作树。
 具体同步协议在配置模块实施前单独设计。
 
 完整边界见[架构说明](docs/architecture.md)。软件升级和应用环境变量注入不属于业务范围。
@@ -108,7 +108,7 @@ MY_HOME="$(mktemp -d)" ./bin/my greet --name Codex --json
 
 - 默认文本，`--json` 不由终端、配置或环境隐式开启；缺少必需参数立即失败，不交互询问。
 - 成功结果写 stdout，错误和告警写 stderr；`--json` 时诊断为带 type 的 JSONL，日志使用独立出口。执行或序列化失败时 stdout 为空；底层写入失败可能留下部分字节，须先检查退出码。
-- `schema [命令路径...]` 始终输出 JSON，包含命令树、参数、默认值和退出码；greet、version、doctor 提供 Draft 2020-12 结果结构。结果允许新增字段，配置文件仍拒绝未知键；diagnostic_schema 描述结构化错误和告警。
+- `schema [命令路径...]` 始终输出 JSON，包含命令树、参数、默认值和退出码；各业务命令及 greet、version、doctor 提供 Draft 2020-12 结果结构。结果允许新增字段，配置文件仍拒绝未知键；diagnostic_schema 描述结构化错误和告警。
 - 帮助是文本，补全是原生 shell 脚本，不受 `--json` 影响。验证真实退出码请用构建后的程序，`go run` 会包装非零退出码。
 
 | 退出码 | 含义                |
@@ -120,10 +120,14 @@ MY_HOME="$(mktemp -d)" ./bin/my greet --name Codex --json
 
 ## doctor 与 shell 补全
 
-`mise run doctor` 检查开发环境；产品 CLI 的 `doctor` 当前是待业务扩展的空检查入口：
-默认文本说明尚未配置检查，JSON 为 `{"checks":[],"required_available":true}`，退出 0。
-空入口不读取配置或创建诊断资源；[扩展方式](docs/design-guidelines.md#扩展-doctor)见设计指南。
-已完成的报告中，必需项失败时仍输出完整报告并退出 1，可选失败不改变成功状态；执行或渲染失败保持空 stdout。
+`mise run doctor` 检查开发环境；产品 CLI 的 `doctor` 默认离线、只读，检查路径、配置、gh、
+本地凭据可读性和本机绑定。`doctor --remote` 显式访问配置的数据仓，追加私有仓、分支、数据格式与远端绑定检查。
+`--timeout` 为每项检查的限时，默认 10s，须为正 duration。检查串行执行，不登录、刷新凭据、初始化或修复，
+也不创建 Session 日志、Trace、缓存或状态锁。`auth.local` 只证明本地凭据可读；联网只读检查不证明写权限。
+
+检查状态为 available、failed、skipped；未启用的远端项不出现在离线报告中。前置条件不足时 skipped，
+未绑定机器属于合法状态。必需项失败或被阻断时输出完整报告并退出 1，可选项不改变结果；
+父调用取消保持空 stdout、退出 130。报告的 code 为安全稳定标识，duration_ms 为耗时；不输出原始错误正文。
 
 支持 `completion bash`、`zsh`、`fish`、`powershell`，可对具体 shell 请求 help 或 schema；`completion <shell>` 调用保持可用。
 Bash 先加载系统已有的 bash-completion；其他 shell 按其要求加载依赖。CLI 只生成脚本，不安装或修改 shell 配置：
@@ -155,15 +159,55 @@ exporter = "none" # none、file
 帮助、schema 描述、结果、错误及日志使用所选语言；命令、选项、JSON 字段、枚举和退出码保持稳定，第三方诊断可保留原文。
 帮助、version、completion、schema 不读取配置或创建诊断目录，坏配置下仍可发现命令。不支持运行时翻译覆盖或 `[i18n]` 配置。
 
-<!-- prettier-ignore -->
-| 平台 | 配置目录 | 数据 / 状态 / 缓存 |
-| --- | --- | --- |
-| Linux | `$XDG_CONFIG_HOME/my`，默认 `~/.config/my` | 对应 XDG 根；默认 `~/.local/share`、`~/.local/state`、`~/.cache` 下的应用目录 |
-| macOS | `~/Library/Application Support/my` | 配置目录下 data、state；`~/Library/Caches/my` |
-| Windows | `%APPDATA%/my` | `%LOCALAPPDATA%/my` 下 data、state、cache |
+所有平台默认采用统一 HOME 布局：Linux/macOS 为 `~/.my`，Windows 为 `%USERPROFILE%\.my`。
+根下 `config.toml`、`data/`、`state/`、`cache/` 使用同一路径策略；非空 `MY_HOME` 可覆盖为绝对根目录。
+`--config` 仅改变配置文件位置。相对 MY_HOME 会报错；不再自动使用系统 XDG、Application Support 或 AppData 路径。
+旧路径中的配置和状态须由用户按[兼容迁移](docs/compatibility.md)明确处理，不自动迁移旧 machine-config 数据。
 
-`MY_HOME` 可指定绝对私有根：配置文件位于根下，数据、状态和缓存分别位于 data、state、cache。
-改名为 mycli 后使用 `MYCLI_HOME`。相对应用 HOME 会报错；Linux 相对 XDG 变量回退到 HOME。此目录与程序安装位置无关。
+数据仓配置：
+
+```toml
+[data]
+repository = "example/private-data" # 使用数据业务或就绪 doctor 前必填，必须为私有仓
+branch = "main"
+request_timeout = "30s"
+```
+
+对应环境变量为 `MY_DATA_REPOSITORY`、`MY_DATA_BRANCH`、`MY_DATA_REQUEST_TIMEOUT`，空值视为未设置。
+超时须为正 duration。缺少数据仓不阻塞 help、schema、version 或示例 greet；数据业务在创建 Session 前校验。
+认证通过外部 `gh` 的现有登录状态获得，仅保留于本次调用内存。my 不登录、不保存 token，支持时使用 `gh auth token --no-refresh`。
+API 客户端固定使用 go-gh/v2 v2.17.0，禁用环境调试输出和 HTTP 缓存；`GH_DEBUG` 不绕过项目输出策略。
+
+## 数据仓与机器生命周期
+
+用户先创建私有 GitHub 仓库、初始提交及目标分支并通过 gh 完成认证，再配置仓名与分支：
+
+```sh
+my data init
+my machine register workstation --kind desktop --note "Synthetic example"
+my machine list --json
+my machine show workstation --json
+my machine current --json
+my machine bind workstation
+my machine retire workstation
+my machine bind workstation --reactivate --update-platform
+```
+
+`data init` 幂等写入根 `my.toml` 的 schema_version=1；缺少标记而已有 machines 时拒绝接管。
+机器文件位于 `machines/<id>.toml`：ID 为 1–32 位小写字母、数字和连字符，首尾须为字母或数字；
+kind 为 laptop、desktop、server、vm；os/arch 由当前平台取得，note 为非空单行，登记时间为 UTC。
+状态为 active 或 retired，退役记录保留登记资料并增加 retired_at。备注不会加密，勿写入秘密。
+
+相同 active 资料重复登记不提交新版本，并可补齐本机绑定；资料不同或已退役则拒绝登记。
+`bind` 保留原 kind、note 和登记时间；退役机器要求 `--reactivate`，平台变化要求 `--update-platform`。
+两个条件同时存在时须同时给出。绑定保存仓名、仓数字 ID、分支与机器 ID，不覆盖其他身份。
+`current` 只读本机，其他查询读取固定远端 HEAD；退役只清除精确匹配的本机绑定。
+
+远端变更以 expectedHeadOid 作 CAS，不自动重试。并发 HEAD 变化先重新查询；提交结果未知时，
+先用 show/list、doctor --remote 核实远端状态，再决定重跑登记或绑定。远端已成功而本机写入失败时，
+诊断列出 data.commit 和已确认版本，修复本机路径后 bind 补齐，不需重发提交。
+`completed_effects=null` 表示未知，`[]` 表示确认没有业务副作用；按 phase 和 recovery 处理。
+单次请求超时退出 1，父调用取消或截止退出 130。不得根据超时直接推断远端未提交。
 
 日志默认写 `<state>/logs/<run_id>/events.jsonl`；Trace 默认关闭，file 写同次运行的 `trace.jsonl`，只供本地诊断，不承诺 OTLP 或重放。
 诊断故障告警并继续业务。错误包含阶段、已确认副作用和恢复建议；JSONL 逐行按 type 识别 error/warning，日志仍按 event 识别。轮转和清理边界见[诊断资源所有权](docs/design-guidelines.md#日志trace-和异步工作的所有权)。

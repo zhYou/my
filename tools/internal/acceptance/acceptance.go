@@ -98,20 +98,21 @@ func Verify(executable, dir, name, example, version, commit string) (resultErr e
 		}
 		baseline = normalized
 	}
-	// 空 doctor 与补全帮助在改名后的真实二进制中也必须可发现。
+	// 未配置数据仓时 doctor 完成负向报告；帮助与补全仍可发现。
 	stdout, stderr, err = run(nil, doctorCommand, jsonFlag)
 	var report struct {
 		RequiredAvailable bool  `json:"required_available"`
 		Checks            []any `json:"checks"`
 	}
-	if err != nil || len(stderr) != 0 {
-		return errors.Join(fmt.Errorf("doctor 空报告验收失败：%s", stderr), err)
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 || len(stderr) != 0 {
+		return errors.Join(fmt.Errorf("doctor 负向报告验收失败：%s", stderr), err)
 	}
 	if err := json.Unmarshal(stdout, &report); err != nil {
 		return err
 	}
-	if !report.RequiredAvailable || report.Checks == nil || len(report.Checks) != 0 {
-		return fmt.Errorf("doctor 空报告不符合契约：%s", stdout)
+	if report.RequiredAvailable || report.Checks == nil || len(report.Checks) == 0 {
+		return fmt.Errorf("doctor 负向报告不符合契约：%s", stdout)
 	}
 	stdout, stderr, err = run(nil, "help", "completion", "bash")
 	if err != nil || len(stderr) != 0 || !bytes.Contains(stdout, []byte(name+" completion bash")) {

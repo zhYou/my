@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/zhYou/my/internal/app/cli"
+	"github.com/zhYou/my/internal/app/doctor"
 	"github.com/zhYou/my/internal/base/paths"
 	"github.com/zhYou/my/tools/internal/contract"
 )
@@ -35,7 +36,10 @@ func captureContract(ctx context.Context) (_ []byte, resultErr error) {
 	} {
 		var out, errOut bytes.Buffer
 		code := cli.Run(ctx, args, cli.Options{
-			Name:        "contract-cli",
+			Name: "contract-cli",
+			Dependencies: &cli.Dependencies{Doctor: func(context.Context, doctor.Options) (doctor.Result, error) {
+				return doctor.Result{RequiredAvailable: true, Checks: []doctor.Check{}}, nil
+			}},
 			Version:     "1.0.0",
 			Commit:      "abc",
 			Date:        "2000-01-01",

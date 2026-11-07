@@ -1,0 +1,13 @@
+{
+  "id": "2026-11-07-my-home-machine-doctor",
+  "compatibility": "breaking",
+  "summary": "my 统一 HOME 默认路径；新增数据仓和机器生命周期命令，将 doctor 空入口改为本地与显式联网只读检查。",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli data",
+    "/schema/commands/contract-cli/commands/contract-cli machine",
+    "/schema/commands/contract-cli/commands/contract-cli doctor"
+  ],
+  "previous_version": "v0.3.1",
+  "target_version": "v0.4.0",
+  "migration": "业务相对已验收模板同步提交65085233d4f1053c0e7be04bd29ffc4a2be3acb0比较；整轮以my 7850e92已提交契约为基线。v0.3.1为继承兼容决策，v0.4.0为未发布应用目标，与模板版本独立。默认配置、Session与状态改至~/.my，Windows为USERPROFILE/.my；可先用绝对MY_HOME指向已有根，再明确迁移config.toml和所属data/state/cache，不自动读取旧系统路径或machine-config。--config只覆盖文件。doctor现在需配置data.repository和gh凭据，默认5项离线检查，--remote追加远端项；未配置返回完整负向报告与1而非空报告0。新增code和duration_ms，消费者忽略新增字段。所有--json stderr依照诊断记录逐行解析error/warning，日志仍按event解析。数据仓须私有且分支已有初始提交；不自动创建或登录。未知提交先查询核实，确认远端成功的本机失败用bind恢复。"
+}

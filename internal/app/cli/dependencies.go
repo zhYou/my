@@ -2,7 +2,12 @@ package cli
 
 import (
 	"context"
+	"net/http"
 	"sync"
+	"time"
+
+	"github.com/zhYou/my/internal/app/machine"
+	"github.com/zhYou/my/internal/base/paths"
 
 	"github.com/zhYou/my/internal/app/config"
 	"github.com/zhYou/my/internal/app/doctor"
@@ -15,14 +20,22 @@ import (
 
 // Dependencies 描述命令依赖；构造时复制并补齐默认值，不修改调用者对象。
 type Dependencies struct {
-	LoadConfig func(context.Context, config.Options) (config.Config, error)
-	Doctor     func(context.Context, doctor.Options) (doctor.Result, error)
-	Validator  *validation.Validator
-	Greet      func(context.Context, greeting.Options) (greeting.Result, error)
-	NewLogger  func(logging.RunInfo, logging.Options, func(error)) *logging.Logger
-	Logger     *logging.Logger
+	ProbeGH       func(context.Context) error
+	Credential    func(context.Context) (string, error)
+	DataTransport http.RoundTripper
+	State         func(string) machine.State
+	Now           func() time.Time
+	LoadConfig    func(context.Context, config.Options) (config.Config, error)
+	Doctor        func(context.Context, doctor.Options) (doctor.Result, error)
+	Validator     *validation.Validator
+	Greet         func(context.Context, greeting.Options) (greeting.Result, error)
+	NewLogger     func(logging.RunInfo, logging.Options, func(error)) *logging.Logger
+	Logger        *logging.Logger
 }
 type invocation struct {
+	options         Options
+	config          config.Config
+	directories     paths.Directories
 	diagnosticMu    sync.RWMutex
 	languageFlag    *languageValue
 	bundle          *messages.Bundle

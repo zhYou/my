@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zhYou/my/internal/base/fault"
+	"github.com/zhYou/my/internal/datarepo"
 )
 
 func exitCode(err error) int {
@@ -105,4 +106,14 @@ func protectCommand(cmd *cobra.Command) {
 	for _, child := range cmd.Commands() {
 		protectCommand(child)
 	}
+}
+
+func operationExitCode(ctx context.Context, err error) int {
+	if ctx.Err() != nil {
+		return 130
+	}
+	if _, ok := errors.AsType[*datarepo.RequestTimeoutError](err); ok {
+		return 1
+	}
+	return exitCode(err)
 }

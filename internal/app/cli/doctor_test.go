@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDoctorEmptyReportAndDiscovery(t *testing.T) {
+func TestDoctorEmptyReportRenderingAndDiscovery(t *testing.T) {
 	code, out, stderr := invoke(t, "doctor", "--json")
 	require.Zero(t, code, stderr)
 	require.Empty(t, stderr)
@@ -113,7 +113,12 @@ func TestDoctorFailuresDoNotCommitOutput(t *testing.T) {
 	code := run(
 		context.Background(),
 		[]string{"doctor"},
-		Options{Out: &out, ErrOut: &stderr, LookupEnv: noFixtureEnv},
+		Options{
+			Out:          &out,
+			ErrOut:       &stderr,
+			LookupEnv:    noFixtureEnv,
+			Dependencies: &Dependencies{Doctor: emptyDoctorFixture},
+		},
 		func() (*messages.Bundle, error) {
 			return bundle, nil
 		},
@@ -123,9 +128,9 @@ func TestDoctorFailuresDoNotCommitOutput(t *testing.T) {
 	require.NotEmpty(t, stderr.String())
 }
 
-func TestDoctorDoesNotReadConfigCreateStateOrRunForSchema(t *testing.T) {
+func TestDoctorDiscoveryDoesNotReadConfigCreateStateOrRun(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "absent")
-	for _, args := range [][]string{{"doctor", "--json"}, {"doctor", "--help"}, {"schema", "doctor"}} {
+	for _, args := range [][]string{{"doctor", "--help"}, {"schema", "doctor"}} {
 		var out, stderr bytes.Buffer
 		code := Run(
 			context.Background(),

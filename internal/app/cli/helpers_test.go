@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"github.com/zhYou/my/internal/app/config"
+	"github.com/zhYou/my/internal/app/doctor"
 	"github.com/zhYou/my/internal/base/messages"
 	"github.com/zhYou/my/internal/base/paths"
 	"github.com/zhYou/my/internal/locales"
@@ -27,14 +28,15 @@ func invokeContext(ctx context.Context, t *testing.T, args ...string) (int, stri
 	t.Helper()
 	var out, errOut bytes.Buffer
 	code := Run(ctx, args, Options{
-		Name:        "testcli",
-		Version:     "v1.2.3",
-		Commit:      "abc123",
-		Date:        "2026-10-28",
-		Out:         &out,
-		ErrOut:      &errOut,
-		ConfigDir:   t.TempDir(),
-		Directories: &paths.Directories{State: t.TempDir()},
+		Name:         "testcli",
+		Dependencies: &Dependencies{Doctor: emptyDoctorFixture},
+		Version:      "v1.2.3",
+		Commit:       "abc123",
+		Date:         "2026-10-28",
+		Out:          &out,
+		ErrOut:       &errOut,
+		ConfigDir:    t.TempDir(),
+		Directories:  &paths.Directories{State: t.TempDir()},
 		LookupEnv: func(string) (string, bool) {
 			return "", false
 		},
@@ -167,4 +169,11 @@ other = "乙名称"
 
 func noFixtureEnv(string) (string, bool) {
 	return "", false
+}
+
+func emptyDoctorFixture(ctx context.Context, opts doctor.Options) (doctor.Result, error) {
+	if err := opts.Validate(ctx); err != nil {
+		return doctor.Result{}, err
+	}
+	return doctor.Result{RequiredAvailable: true, Checks: []doctor.Check{}}, nil
 }

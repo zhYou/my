@@ -319,3 +319,51 @@ func TestInvalidInputDoesNotLeakValues(t *testing.T) {
 		})
 	}
 }
+
+func TestDataConfigurationPrecedenceAndValidation(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(
+		t,
+		os.WriteFile(
+			file,
+			[]byte("[data]\nrepository='owner/file'\nbranch='from-file'\nrequest_timeout='3s'\n"),
+			0o600,
+		),
+	)
+	env := map[string]string{}
+	load := func() (Config, error) {
+		return Load(
+			t.Context(),
+			Options{
+				AppName:   "my",
+				Path:      file,
+				LookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok },
+			},
+		)
+	}
+	cfg, err := load()
+	require.NoError(t, err)
+	require.Equal(t, "owner/file", cfg.Data.Repository)
+	require.Equal(t, 3*time.Second, cfg.Data.RequestTimeout)
+	env["MY_DATA_REPOSITORY"] = "owner/env"
+	env["MY_DATA_BRANCH"] = "from-env"
+	env["MY_DATA_REQUEST_TIMEOUT"] = "750ms"
+	cfg, err = load()
+	require.NoError(t, err)
+	require.Equal(t, "owner/env", cfg.Data.Repository)
+	require.Equal(t, "from-env", cfg.Data.Branch)
+	require.Equal(t, 750*time.Millisecond, cfg.Data.RequestTimeout)
+	env["MY_DATA_REPOSITORY"] = ""
+	cfg, err = load()
+	require.NoError(t, err)
+	require.Equal(t, "owner/file", cfg.Data.Repository)
+	for key, values := range map[string][]string{"MY_DATA_REPOSITORY": {"../private-marker", "https://github.com/owner/data"}, "MY_DATA_BRANCH": {"../private-marker", "a.lock/b", "a?b"}, "MY_DATA_REQUEST_TIMEOUT": {"0s", "-1s", "private-marker"}} {
+		for _, value := range values {
+			env[key] = value
+			_, err = load()
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), "private-marker")
+			delete(env, key)
+		}
+	}
+}

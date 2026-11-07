@@ -7,8 +7,8 @@ cli 0 schema greet --config bad.toml
 stdout '"result_schema":'
 cli 0 completion bash --config bad.toml
 stdout 'bash completion'
-cli 0 doctor --config bad.toml --json
-stdout '"required_available":true,"checks":\[\]'
+cli 1 doctor --config bad.toml --json
+stdout '"required_available":false,"checks":\['
 ! stderr .
 cli 0 help completion bash --config bad.toml
 stdout 'completion bash'

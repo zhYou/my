@@ -26,3 +26,9 @@
 
 迁移步骤和旧初始化事务恢复见[模板升级](template-upgrades.md)。模板版本独立于应用发布版本，兼容记录不代表已创建标签或发布；
 派生项目的检查依赖已提交基线与记录，不推测不存在的版本或历史快照。
+
+[HOME、机器和 doctor 记录](compatibility/changes/2026-11-07-my-home-machine-doctor.json)记录本轮业务的破坏影响：
+默认根改为 `~/.my`（Windows 为 USERPROFILE 下 `.my`），`MY_HOME` 仍优先且须为绝对路径；`--config` 只改配置文件。
+已有系统目录不会自动读取或迁移，可先指定明确的 MY_HOME，再迁移所属配置、data、state、cache；不复制无关个人诊断数据。
+doctor 从空报告改为实际只读检查，未就绪返回完整报告与退出1；--remote 才联网，--timeout 默认10s每项。
+模板升级和业务接入共用尚未发布的应用 v0.4.0 目标，不把两个阶段写成 v0.4.0→v0.4.0，也不据此创建发布标签。

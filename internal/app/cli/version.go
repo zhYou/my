@@ -23,10 +23,10 @@ func newVersionCommand(opts Options, call *invocation) *cobra.Command {
 					"cli.version_text",
 					messages.FormatOptions{
 						Params: map[string]any{
-							paramName: opts.Name,
-							"Version": opts.Version,
-							"Commit":  opts.Commit,
-							"Date":    opts.Date,
+							paramName:   opts.Name,
+							"Version":   opts.Version,
+							paramCommit: opts.Commit,
+							"Date":      opts.Date,
 						},
 					},
 				)

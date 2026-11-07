@@ -126,7 +126,7 @@ func (v *languageValue) String() string {
 }
 
 func (v *languageValue) Type() string {
-	return "string"
+	return schemaStringType
 }
 
 func (v *languageValue) Set(s string) error {

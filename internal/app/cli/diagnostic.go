@@ -219,27 +219,27 @@ func diagnosticSchema() (json.RawMessage, error) {
 	if err := json.Unmarshal(raw, &document); err != nil {
 		return nil, err
 	}
-	properties, ok := document["properties"].(map[string]any)
+	properties, ok := document[schemaPropertiesKey].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("诊断 Schema 缺少 properties")
 	}
 	properties["schema_version"] = map[string]any{schemaConstKey: 1}
-	properties[schemaTypeKey] = map[string]any{"enum": []string{diagnosticError, diagnosticWarning}}
+	properties[schemaTypeKey] = map[string]any{schemaEnumKey: []string{diagnosticError, diagnosticWarning}}
 	items, ok := properties["diagnostics"].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("诊断 Schema 缺少 diagnostics")
 	}
 	items["minItems"] = 1
 	items[schemaTypeKey] = "array"
-	properties["exit_code"] = map[string]any{schemaTypeKey: "integer", "enum": []int{1, 2, 130}}
+	properties["exit_code"] = map[string]any{schemaTypeKey: "integer", schemaEnumKey: []int{1, 2, 130}}
 	document["oneOf"] = []any{
 		map[string]any{
-			"properties":      map[string]any{schemaTypeKey: map[string]any{schemaConstKey: diagnosticError}},
-			schemaRequiredKey: []string{"exit_code"},
+			schemaPropertiesKey: map[string]any{schemaTypeKey: map[string]any{schemaConstKey: diagnosticError}},
+			schemaRequiredKey:   []string{"exit_code"},
 		},
 		map[string]any{
-			"properties": map[string]any{schemaTypeKey: map[string]any{schemaConstKey: diagnosticWarning}},
-			"not":        map[string]any{schemaRequiredKey: []string{"exit_code"}},
+			schemaPropertiesKey: map[string]any{schemaTypeKey: map[string]any{schemaConstKey: diagnosticWarning}},
+			"not":               map[string]any{schemaRequiredKey: []string{"exit_code"}},
 		},
 	}
 	override, err := json.Marshal(document)

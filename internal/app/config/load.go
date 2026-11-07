@@ -20,10 +20,12 @@ import (
 	"github.com/zhYou/my/internal/base/paths"
 	"github.com/zhYou/my/internal/base/telemetry"
 	"github.com/zhYou/my/internal/base/validation"
+	"github.com/zhYou/my/internal/datarepo"
 )
 
 // Config 保存模块组合后的强类型配置。
 type Config struct {
+	Data        datarepo.Config    `mapstructure:"data"`
 	Logging     logging.Config     `mapstructure:"logging"`
 	Diagnostics diagnostics.Config `mapstructure:"diagnostics"`
 	Telemetry   telemetry.Config   `mapstructure:"telemetry"`
@@ -31,6 +33,7 @@ type Config struct {
 
 // Options 声明本次调用的显式依赖与覆盖选项。
 type Options struct {
+	Layout        paths.Layout
 	AppName       string
 	Path          string
 	UserConfigDir string
@@ -42,12 +45,20 @@ type Options struct {
 
 // Defaults 返回本模块的默认配置。
 func Defaults() Config {
-	return Config{Logging: logging.Defaults(), Diagnostics: diagnostics.Defaults(), Telemetry: telemetry.Defaults()}
+	return Config{
+		Data:        datarepo.Defaults(),
+		Logging:     logging.Defaults(),
+		Diagnostics: diagnostics.Defaults(),
+		Telemetry:   telemetry.Defaults(),
+	}
 }
 
 // Load 按显式选项 > 非空环境变量 > 唯一 TOML 文件 > 默认值解析。
 func Load(ctx context.Context, opts Options) (Config, error) {
 	cfg := Defaults()
+	if opts.Layout == "" {
+		opts.Layout = paths.HomeLayout
+	}
 	if err := ctx.Err(); err != nil {
 		return cfg, err
 	}
@@ -68,7 +79,7 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		home = ""
 	}
 	if home != "" || file == "" && opts.UserConfigDir == "" {
-		dirs, err := paths.Resolve(paths.Options{AppName: opts.AppName, LookupEnv: lookup})
+		dirs, err := paths.Resolve(paths.Options{AppName: opts.AppName, LookupEnv: lookup, Layout: opts.Layout})
 		if err != nil {
 			return cfg, err
 		}
@@ -79,6 +90,9 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		file = filepath.Join(opts.UserConfigDir, opts.AppName, "config.toml")
 	}
 	defaults := map[string]any{
+		"data.repository":                cfg.Data.Repository,
+		"data.branch":                    cfg.Data.Branch,
+		"data.request_timeout":           cfg.Data.RequestTimeout,
 		loggingLevelKey:                  cfg.Logging.Level,
 		"logging.output":                 cfg.Logging.Output,
 		"diagnostics.max_size_mib":       cfg.Diagnostics.MaxSizeMiB,
@@ -170,6 +184,9 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		v = validation.New()
 	}
 	if err := v.Struct(ctx, cfg); err != nil {
+		return cfg, problem("invalid", err, nil)
+	}
+	if err := cfg.Data.ValidateOptional(); err != nil {
 		return cfg, problem("invalid", err, nil)
 	}
 	return cfg, ctx.Err()
