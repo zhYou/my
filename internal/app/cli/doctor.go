@@ -22,6 +22,7 @@ func newDoctorCommand(call *invocation) *cobra.Command {
 			return options.Validate(cmd.Context())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			call.setPhase("doctor.run")
 			result, err := call.deps.Doctor(cmd.Context(), options)
 			if err != nil {
 				return err

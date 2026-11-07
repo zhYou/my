@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -54,11 +53,6 @@ func run(ctx context.Context, args []string, opts Options, loadBundle func() (*m
 	opts.Out = sink
 	//nolint:contextcheck // Cobra 构造阶段不执行请求，下面 ExecuteContextC 才注入调用者 ctx。
 	root, call, err := buildRoot(opts, loadBundle, args...)
-	if root == nil {
-		//nolint:errcheck // 已在报告启动失败；stderr 再失败无法递归报告，保留失败退出码。
-		_, _ = fmt.Fprintf(opts.ErrOut, "Error: %v\n", err)
-		return 1
-	}
 	defer func() {
 		if call.session != nil {
 			call.session.Finish(
@@ -66,7 +60,14 @@ func run(ctx context.Context, args []string, opts Options, loadBundle func() (*m
 				logging.CommandResult{ExitCode: code, Duration: time.Since(started), Err: executionErr},
 			)
 		}
+		if executionErr != nil {
+			call.reportDiagnostic(opts.ErrOut, diagnosticError, executionErr, code)
+		}
 	}()
+	if root == nil {
+		executionErr = err
+		return 1
+	}
 	if err == nil {
 		err = ctx.Err()
 	}
@@ -108,25 +109,11 @@ func run(ctx context.Context, args []string, opts Options, loadBundle func() (*m
 	if err == nil && sink.Err() != nil {
 		err = (fault.Definition{Code: "cli.write", Kind: fault.Runtime}).Wrap(sink.Err())
 	}
-	err = classifyExecutionError(err)
+	err = classifyExecutionError(err, call.phase)
 	executionErr = err
 	if err == nil {
 		return call.reportExitCode
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		message := call.localizer.Text("cli.cancelled", nil)
-		if errors.Is(err, context.DeadlineExceeded) {
-			message = call.localizer.Text("cli.deadline", nil)
-		}
-		//nolint:errcheck // 错误输出失败不能覆盖原始业务错误或取消退出码。
-		_, _ = fmt.Fprintln(opts.ErrOut, call.localizer.Text("cli.error", map[string]any{paramMessage: message}))
-		return 130
-	}
-	//nolint:errcheck // 错误出口失败不能覆盖已确定的业务退出码，也不能递归报告。
-	_, _ = fmt.Fprintln(
-		opts.ErrOut,
-		call.localizer.Text("cli.error", map[string]any{paramMessage: call.localizer.Render(err)}),
-	)
 	return exitCode(err)
 }
 
@@ -154,12 +141,16 @@ func buildRoot(
 	args ...string,
 ) (*cobra.Command, *invocation, error) {
 	call := newInvocation(opts.Dependencies)
-	bundle, err := loadBundle()
-	if err != nil {
-		return nil, call, err
+	bundle, bootstrapErr := loadBundle()
+	if bundle == nil && bootstrapErr == nil {
+		bootstrapErr = fmt.Errorf("message bundle is nil")
 	}
-	if bundle == nil {
-		return nil, call, fmt.Errorf("message bundle is nil")
+	if bootstrapErr != nil {
+		var err error
+		bundle, err = messages.NewBundle()
+		if err != nil {
+			return nil, call, err
+		}
 	}
 	call.bundle = bundle
 	call.localizer = bundle.Localizer(languageEnglish)
@@ -192,12 +183,14 @@ func buildRoot(
 			return err
 		}
 		if skipsConfig(cmd, root) {
+			call.setPhase("execute")
 			return nil
 		}
 		var override *string
 		if cmd.Flags().Changed(flagLogLevel) {
 			override = &call.logLevel
 		}
+		call.setPhase("configuration")
 		cfg, err := call.deps.LoadConfig(
 			cmd.Context(),
 			config.Options{
@@ -230,15 +223,9 @@ func buildRoot(
 				NewLogger:      call.deps.NewLogger,
 				Localizer:      call.localizer,
 			},
-			func(err error) {
-				//nolint:errcheck // 警告出口不可用时不能递归告警，也不改变业务结果。
-				_, _ = fmt.Fprintln(
-					opts.ErrOut,
-					call.localizer.Text("cli.warning", map[string]any{paramMessage: call.localizer.Render(err)}),
-				)
-			},
+			func(err error) { call.reportDiagnostic(opts.ErrOut, diagnosticWarning, err, 0) },
 		)
-		call.session = owned
+		call.setSession(owned)
 		call.logger = owned.Logger
 		cmd.SetContext(ctx)
 		return nil
@@ -329,6 +316,14 @@ func buildRoot(
 	selected := opts.Language
 	if selected == "" {
 		selected = languageEnvironment(opts)
+	}
+	call.jsonDiagnostics = selectJSON(root, args)
+	if bootstrapErr != nil {
+		return root, call, (fault.Definition{Code: "cli.bootstrap", Kind: fault.Runtime}).Wrap(
+			bootstrapErr,
+			fault.WithSensitiveCause(),
+			fault.WithDiagnostic(fault.Diagnostic{Phase: "bootstrap", CompletedEffects: []string{}}),
+		)
 	}
 	lang, selectionErr := selectLanguage(root, args, selected)
 	call.localizer = bundle.Localizer(lang)

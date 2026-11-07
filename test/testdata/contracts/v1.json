@@ -1,5 +1,18 @@
 {
   "results": {
+    "diagnostics": {
+      "error": {
+        "diagnostics": "array",
+        "exit_code": "number",
+        "schema_version": "number",
+        "type": "string"
+      },
+      "warning": {
+        "diagnostics": "array",
+        "schema_version": "number",
+        "type": "string"
+      }
+    },
     "doctor": {
       "checks": "array",
       "required_available": "boolean"
@@ -564,6 +577,119 @@
         },
         "path": "contract-cli"
       }
+    },
+    "diagnostic_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": true,
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "exit_code"
+          ]
+        },
+        {
+          "not": {
+            "required": [
+              "exit_code"
+            ]
+          },
+          "properties": {
+            "type": {
+              "const": "warning"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "diagnostics": {
+          "items": {
+            "additionalProperties": true,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "completed_effects": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "phase": {
+                "type": "string"
+              },
+              "recovery": {
+                "additionalProperties": true,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "kind",
+              "message",
+              "phase",
+              "completed_effects"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "exit_code": {
+          "enum": [
+            1,
+            2,
+            130
+          ],
+          "type": "integer"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "type": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "schema_version",
+        "diagnostics"
+      ],
+      "type": "object"
     },
     "exit_codes": {
       "cancelled": 130,

@@ -3,7 +3,7 @@ stdout '"message":"Hello, Ada!"'
 ! stderr .
 cli 2 --lang en greet
 ! stdout .
-stderr 'Error: --name is required'
+stderr 'Error: .*--name is required'
 cli 0 --lang en schema greet
 stdout '"description":"Greeting'
 cli 0 --lang en greet --help

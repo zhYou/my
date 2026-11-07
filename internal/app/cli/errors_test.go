@@ -80,7 +80,7 @@ func TestBusinessErrorWithCustomPreRun(t *testing.T) {
 		}),
 	})
 	root.SetArgs([]string{"fail"})
-	err := classifyExecutionError(root.Execute())
+	err := classifyExecutionError(root.Execute(), "execute")
 	require.ErrorIs(t, err, cause)
 	require.Equal(t, 1, exitCode(err))
 }
@@ -97,7 +97,7 @@ func TestCobraRequiredFlagIsUsageError(t *testing.T) {
 	require.NoError(t, requiredCommand.MarkFlagRequired("token"))
 	root.AddCommand(requiredCommand)
 	root.SetArgs([]string{"required"})
-	err := classifyExecutionError(root.Execute())
+	err := classifyExecutionError(root.Execute(), "arguments")
 	require.Error(t, err)
 	require.Equal(t, 2, exitCode(err))
 }

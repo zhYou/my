@@ -4,8 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/zhYou/my/internal/base/fault"
+	"github.com/zhYou/my/internal/locales"
 
 	"github.com/stretchr/testify/require"
 )
@@ -272,4 +276,46 @@ func TestCanceledLoadReturnsBeforeReadingEnvironmentOrFile(t *testing.T) {
 	})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, Defaults(), cfg)
+}
+
+// 配置解析原因必须可遍历，但输入值不能进入可显示的错误。
+func TestInvalidInputDoesNotLeakValues(t *testing.T) {
+	bundle, err := locales.LoadBundle()
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name    string
+		content string
+		key     string
+	}{
+		{"integer_env", "", "TESTCLI_DIAGNOSTICS_MAX_BACKUPS"},
+		{"duration_env", "", "TESTCLI_TELEMETRY_EXPORT_TIMEOUT"},
+		{"duration_file", "[telemetry]\nexport_timeout = \"fake-private-marker\"\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "config.toml")
+			require.NoError(t, os.WriteFile(file, []byte(tc.content), 0o600))
+			_, err := Load(
+				t.Context(),
+				Options{
+					AppName:   "testcli",
+					Path:      file,
+					LookupEnv: func(key string) (string, bool) { return "fake-private-marker", tc.key != "" && key == tc.key },
+				},
+			)
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), "fake-private-marker")
+			if tc.key != "" {
+				diagnostic, ok := fault.DiagnosticOf(err)
+				require.True(t, ok)
+				require.Equal(t, "config.environment", diagnostic.Phase)
+			}
+			for _, lang := range []string{"en", "zh-CN"} {
+				require.NotContains(t, bundle.Localizer(lang).Render(err), "fake-private-marker")
+			}
+			if tc.name == "integer_env" {
+				var numeric *strconv.NumError
+				require.ErrorAs(t, err, &numeric)
+			}
+		})
+	}
 }

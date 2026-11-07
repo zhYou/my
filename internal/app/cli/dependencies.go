@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"sync"
 
 	"github.com/zhYou/my/internal/app/config"
 	"github.com/zhYou/my/internal/app/doctor"
@@ -22,20 +23,23 @@ type Dependencies struct {
 	Logger     *logging.Logger
 }
 type invocation struct {
-	languageFlag   *languageValue
-	bundle         *messages.Bundle
-	localizer      *messages.Localizer
-	commandTexts   []commandTextBinding
-	flagTexts      []flagTextBinding
-	helpErr        error
-	reportExitCode int
-	results        resultRegistry
-	asJSON         bool
-	configPath     string
-	logLevel       string
-	deps           Dependencies
-	logger         *logging.Logger
-	session        *session.Session
+	diagnosticMu    sync.RWMutex
+	languageFlag    *languageValue
+	bundle          *messages.Bundle
+	localizer       *messages.Localizer
+	commandTexts    []commandTextBinding
+	flagTexts       []flagTextBinding
+	helpErr         error
+	reportExitCode  int
+	results         resultRegistry
+	asJSON          bool
+	jsonDiagnostics bool
+	phase           string
+	configPath      string
+	logLevel        string
+	deps            Dependencies
+	logger          *logging.Logger
+	session         *session.Session
 }
 
 func newInvocation(provided *Dependencies) *invocation {
@@ -58,5 +62,29 @@ func newInvocation(provided *Dependencies) *invocation {
 	if deps.NewLogger == nil {
 		deps.NewLogger = logging.New
 	}
-	return &invocation{deps: deps, logLevel: defaultLogLevel, logger: logging.NewNop()}
+	return &invocation{phase: phaseArguments, deps: deps, logLevel: defaultLogLevel, logger: logging.NewNop()}
+}
+
+func (call *invocation) setPhase(phase string) {
+	call.diagnosticMu.Lock()
+	defer call.diagnosticMu.Unlock()
+	call.phase = phase
+}
+
+func (call *invocation) setSession(owned *session.Session) {
+	call.diagnosticMu.Lock()
+	defer call.diagnosticMu.Unlock()
+	call.phase = "execute"
+	call.session = owned
+}
+
+func (call *invocation) diagnosticView() *invocation {
+	call.diagnosticMu.RLock()
+	defer call.diagnosticMu.RUnlock()
+	return &invocation{
+		phase:           call.phase,
+		session:         call.session,
+		localizer:       call.localizer,
+		jsonDiagnostics: call.jsonDiagnostics,
+	}
 }

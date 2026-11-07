@@ -107,8 +107,8 @@ MY_HOME="$(mktemp -d)" ./bin/my greet --name Codex --json
 ```
 
 - 默认文本，`--json` 不由终端、配置或环境隐式开启；缺少必需参数立即失败，不交互询问。
-- 成功结果写 stdout，错误和告警写 stderr；日志使用独立出口。执行或序列化失败时 stdout 为空；底层写入失败可能留下部分字节，须先检查退出码。
-- `schema [命令路径...]` 始终输出 JSON，包含命令树、参数、默认值和退出码；greet、version、doctor 提供 Draft 2020-12 结果结构。结果允许新增字段，配置文件仍拒绝未知键。
+- 成功结果写 stdout，错误和告警写 stderr；`--json` 时诊断为带 type 的 JSONL，日志使用独立出口。执行或序列化失败时 stdout 为空；底层写入失败可能留下部分字节，须先检查退出码。
+- `schema [命令路径...]` 始终输出 JSON，包含命令树、参数、默认值和退出码；greet、version、doctor 提供 Draft 2020-12 结果结构。结果允许新增字段，配置文件仍拒绝未知键；diagnostic_schema 描述结构化错误和告警。
 - 帮助是文本，补全是原生 shell 脚本，不受 `--json` 影响。验证真实退出码请用构建后的程序，`go run` 会包装非零退出码。
 
 | 退出码 | 含义                |
@@ -166,7 +166,7 @@ exporter = "none" # none、file
 改名为 mycli 后使用 `MYCLI_HOME`。相对应用 HOME 会报错；Linux 相对 XDG 变量回退到 HOME。此目录与程序安装位置无关。
 
 日志默认写 `<state>/logs/<run_id>/events.jsonl`；Trace 默认关闭，file 写同次运行的 `trace.jsonl`，只供本地诊断，不承诺 OTLP 或重放。
-诊断故障告警并继续业务。轮转和清理边界见[诊断资源所有权](docs/design-guidelines.md#日志trace-和异步工作的所有权)。
+诊断故障告警并继续业务。错误包含阶段、已确认副作用和恢复建议；JSONL 逐行按 type 识别 error/warning，日志仍按 event 识别。轮转和清理边界见[诊断资源所有权](docs/design-guidelines.md#日志trace-和异步工作的所有权)。
 验证示例时隔离应用配置与状态：
 
 ```sh
@@ -220,6 +220,6 @@ task 内由 mise 提供工具环境，无需额外包装。
 | [安全报告](SECURITY.md)               | 目标项目须填写的私密报告入口         |
 | [项目待办](docs/backlog.md)           | 明确要求记录的探索想法               |
 
-本项目来源于 [go-cli-starter](https://github.com/zhYou/go-cli-starter) 0.3.0，
-来源提交为 `88c55dc68019e220368e063dae487017ea8b939c`，完整记录见 [.template-origin.json](.template-origin.json)。
+本项目来源于 [go-cli-starter](https://github.com/zhYou/go-cli-starter) 0.4.0，
+来源提交为 `065fc74a424020155f9d849709b0baaa819ca685`，完整记录见 [.template-origin.json](.template-origin.json)。
 模板版本与应用发布版本独立；已有项目升级见[模板升级](docs/template-upgrades.md)，不运行初始化覆盖业务。

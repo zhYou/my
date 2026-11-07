@@ -137,9 +137,16 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		if _, ok := def.(int); ok {
 			number, err := strconv.Atoi(value)
 			if err != nil {
-				return cfg, problem("environment", err, fault.Params{"Field": env})
+				return cfg, problem(environmentProblem, err, fault.Params{"Field": env})
 			}
 			typed = number
+		}
+		if _, ok := def.(time.Duration); ok {
+			duration, err := time.ParseDuration(value)
+			if err != nil {
+				return cfg, problem(environmentProblem, err, fault.Params{"Field": env})
+			}
+			typed = duration
 		}
 		if err := layer(map[string]any{key: typed}); err != nil {
 			return cfg, problem(decodeProblem, err, nil)
@@ -209,7 +216,19 @@ func strictHook(from, to reflect.Type, value any) (any, error) {
 func problem(code string, cause error, params fault.Params) error {
 	d := fault.Definition{Code: fault.Code("config." + code), Kind: fault.Configuration}
 	if cause != nil {
-		return d.Wrap(cause, fault.WithParams(params))
+		options := []fault.Option{fault.WithParams(params), fault.WithDiagnostic(configDiagnostic(code, params))}
+		if code == "parse" || code == decodeProblem || code == environmentProblem {
+			options = append(options, fault.WithSensitiveCause())
+		}
+		return d.Wrap(cause, options...)
 	}
-	return d.New(fault.WithParams(params))
+	return d.New(fault.WithParams(params), fault.WithDiagnostic(configDiagnostic(code, params)))
+}
+
+func configDiagnostic(code string, params fault.Params) fault.Diagnostic {
+	recovery := &fault.Recovery{Code: "config.recover"}
+	if code == environmentProblem {
+		recovery = &fault.Recovery{Code: "config.recover_environment", Params: params}
+	}
+	return fault.Diagnostic{Phase: "config." + code, CompletedEffects: []string{}, Recovery: recovery}
 }

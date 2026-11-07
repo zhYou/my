@@ -1,7 +1,7 @@
 # 机器接口兼容性
 
 `schema_version` 保持 1。产品 CLI 的命令、选项、JSON 字段、枚举和退出码是机器接口；
-所选语言的帮助与说明可调整，字段不翻译。消费者应忽略新增字段，结果允许额外属性，配置未知键仍失败。
+所选语言的帮助与说明可调整，字段不翻译。显式 --json 的 stderr JSONL 诊断及其 diagnostic_schema 也属于机器接口。消费者应忽略新增字段，结果允许额外属性，配置未知键仍失败。
 删除、改名、改变字段类型、增加必填要求或改变退出码视为潜在破坏变更。
 废弃产品 CLI 命令时先保留旧入口，说明迁移和计划移除版本，再在适当版本移除。
 
@@ -21,6 +21,8 @@
 | [CLI 基础](compatibility/changes/2026-10-30-cli-foundations.json)               | lang、info 默认值及应用 v0.1.0→v0.2.0 决策          |
 | [消息与默认语言](compatibility/changes/2026-11-02-i18n-config.json)             | 默认语言由 zh-CN 改为 en                            |
 | [发现能力与 doctor](compatibility/changes/2026-11-02-cli-discovery-doctor.json) | doctor 报告、completion shell 子命令、帮助与 schema |
+
+[0.4.0 诊断契约记录](compatibility/changes/2026-11-07-my-diagnostic-contract.json)声明 stderr 文本转 JSONL 的破坏变更；schema_version 仍为 1。
 
 迁移步骤和旧初始化事务恢复见[模板升级](template-upgrades.md)。模板版本独立于应用发布版本，兼容记录不代表已创建标签或发布；
 派生项目的检查依赖已提交基线与记录，不推测不存在的版本或历史快照。

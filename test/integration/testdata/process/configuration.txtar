@@ -2,9 +2,9 @@ env MY_LANG=zh-CN
 cli 1 greet --name Codex --config bad.toml
 ! stdout .
 stderr '解析 TOML 配置'
-cli 0 greet --name Codex --config valid.toml --log-level debug
+cli 0 greet --name Codex --config valid.toml --log-level error
 stdout '你好，Codex！'
-stderr '"level":"debug"'
+! stderr .
 cli 1 greet --name Codex --config legacy.yaml
 ! stdout .
 stderr 'TOML'

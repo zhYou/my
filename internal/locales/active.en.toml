@@ -319,3 +319,39 @@ other = "No checks configured."
 
 ["doctor.check"]
 other = "{{.Name}} {{.Status}} {{.Detail}}"
+
+["config.recover"]
+other = "Check field names, types, ranges and file/environment/flag overrides; correct the configuration and retry."
+
+["config.recover_environment"]
+other = "Correct or unset {{.Field}}, then retry."
+
+["cli.failure_phase"]
+other = "; phase: {{.Phase}}"
+
+["cli.completed_effects"]
+other = "; confirmed effects: [{{.Effects}}]"
+
+["cli.recovery"]
+other = "; recovery: {{.Advice}}"
+
+["cli.bootstrap"]
+other = "Failed to initialize command messages"
+
+["cli.usage"]
+other = "Invalid command invocation"
+
+["cli.runtime"]
+other = "Command failed"
+
+["cli.recover_output"]
+other = "Check the output destination and verify operation state before retrying."
+
+["command.failed"]
+other = "External tool failed"
+
+["cli.recover_usage"]
+other = "Use --help to inspect accepted commands and options, then correct the invocation."
+
+["cli.greet_failed_log"]
+other = "Greeting failed"

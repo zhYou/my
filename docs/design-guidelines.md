@@ -74,6 +74,15 @@ Cobra 提供命令与元数据；前置顺序、schema 输出及退出码是项�
 通用执行器的 Dir、Env、捕获及并行选项保持有类型 API；doctor 的探测限额属于开发工具，
 无需为填充模板配置而新增产品选项。
 
+每个实际新增配置项须说明类型、默认值、允许来源、覆盖关系、范围及组合约束；默认值由模块的 Defaults 提供，
+经统一加载入口组合。先校验参数和完整配置，再创建资源或执行业务副作用；直接业务调用也校验输入。
+本次诊断能力不新增业务配置或隐藏环境开关。
+
+凭据由具体业务声明来源，优先通过调用级依赖、注入的 LookupEnv 或受控凭据提供者取得；不预建凭据配置框架。
+需要文件、环境或 flag 输入时，明确读取时机和优先级，不用日志证明凭据存在，不把凭据写入配置示例。
+配置及错误参数只保留审查过的字段名、类型、位置等安全信息；禁止整份配置、凭据值、认证头和带凭据 URL 进入诊断。
+解析器的错误也可能包含输入值，不能因其来自第三方就直接显示；敏感原因保护见下一节的错误规则。
+
 项目只读取一个 TOML，顺序为显式 flag > 非空环境变量 > 文件 > 默认值。`Changed` 表示用户
 明确给过 flag，即使值恰好等于默认值也生效；未设置的 flag 不能覆盖文件。当前级别覆盖写法：
 
@@ -114,6 +123,17 @@ validator 实例可复用；项目在使用前完成自定义规则注册，之�
 
 业务失败需要同时给自动化和用户诊断时，在所属模块定义稳定 fault.Code、Kind 及参数；
 使用 Wrap 保留系统原因。项目不依赖错误字符串判断取消、文件缺失或子进程退出。
+新增能力还须用 fault.WithDiagnostic 补充 Diagnostic：Phase 是所属模块的稳定阶段标识，
+CompletedEffects 仅列已确认的脱敏副作用标识，Recovery 保存双语消息 ID 和安全参数。
+nil 副作用列表表示未知，空列表表示确认没有副作用；非空列表不保证穷尽。
+副作用未知时，应指导先核实业务状态，不能建议直接重试非幂等操作。
+WithDiagnostic 快照切片和参数映射；嵌套参数须不可变。DiagnosticOf 读取最近的完整诊断，
+聚合错误按 Details 的分支分别呈现，不合并或猜测副作用。边界使用 WithDetails 补齐逐分支呈现时仍保留原始错误链，不修改借用错误或用外层默认值覆盖已知事实。恢复说明按业务编写，不执行自动恢复。
+
+含敏感输入的原始原因使用 fault.WithSensitiveCause；Error.Error、Localizer.Render、日志与 Trace
+均隐藏该原因，errors.Is/As 仍可遍历。该选项不扫描或脱敏 Params、Message、Recovery 参数及任意业务日志，
+这些内容须由产生方只放安全数据。配置 parse/decode/environment 错误已使用此机制，避免回显无效值。
+
 以下片段展示实际 fault API 的用法，`readErr` 是调用者取得的错误：
 
 ```go
@@ -155,15 +175,34 @@ Text/Render 仅用于安全诊断兜底，不能凭非空字符串判断渲染�
 `mise run lint:i18n` 检查双语目录、模板和参数，细则见[开发说明](development.md#静态规则与开发探测)。
 项目暂不支持运行时翻译覆盖或 `[i18n]` 配置。CLI 按 `--lang` > `<PREFIX>_LANG` > en 选语言，
 zh-CN 是中文、zh 是别名，不从 OS 区域推断。稳定命令、选项、JSON 字段、错误码和状态枚举不翻译；
-第三方错误叶子保留原文。Help、version、completion、schema 在坏配置下仍可运行，不创建诊断目录。
+第三方错误叶子在经过敏感边界审查后保留原文。Help、version、completion、schema 在坏配置下仍可运行，不创建诊断目录。
 
 退出码为成功 0、运行/配置 1、调用无效 2、调用者取消 130。stdout 只提交成功结果；doctor 的已完成失败报告例外，见“扩展 doctor”。
-`--json` 为一个文档，序列化失败保持空输出，底层写失败可能留下部分字节。消费方先检查退出码。
+`--json` 的成功 stdout 为一个文档，序列化失败保持空输出，底层写失败可能留下部分字节。消费方先检查退出码。
+错误与告警协议见[结构化诊断](#结构化诊断)；doctor 的完成负向报告不额外产生错误记录。
 默认文本；帮助为文本、补全为原生脚本、schema 始终为 JSON。错误和告警写 stderr，日志使用独立出口。
 只有 `cmd/<name>` 处理进程退出，业务和日志返回错误。库依据：
 [Go errors](https://pkg.go.dev/errors@go1.27.3)、
 [go-i18n v2.7.0](https://pkg.go.dev/github.com/nicksnyder/go-i18n/v2@v2.7.0/i18n)。
 错误分类、目录组织和语言优先级是项目契约；go-i18n 的 Bundle 在 Localizer 读取时不能继续修改。
+
+## 结构化诊断
+
+显式启用 --json 时，stderr 使用 JSONL：错误和告警各占一行，现有日志仍使用其 JSONL 结构。
+诊断以 type=error 或 warning 区分，日志使用 event 等既有字段，不封装借用 logger。
+每条诊断包含 schema_version=1 和非空 diagnostics 数组；仅错误包含 exit_code，存在 Session 时包含 run_id。
+每项包含 code、kind、message、phase、completed_effects，以及可选 recovery（code 和 message）。
+说明与恢复文案本地化，机器标识不翻译。不向 stderr 序列化原始 fault.Params 或错误链对象。
+
+一次失败最多产生一条最终 error，先收尾 Session，再提交错误；warning 不改变业务结果。
+参数或配置错误不为取得 run_id 创建诊断目录。未知领域码按调用边界提供 cli.usage/runtime/cancelled/deadline 等兜底码。
+JSON 模式按命令树元数据预选，最后一个合法 --json 或 --json=bool 生效；跳过选项值、尊重 --，
+非法布尔值仍由正式解析报错。预选不修改 Changed、不执行 hook 或读取配置。
+消息目录初始化失败时仍可给出安全英文诊断。诊断渲染或写入失败不覆盖业务退出码，不递归告警。
+
+schema [命令路径] 的 diagnostic_schema 给出错误与告警的 Draft 2020-12 结构；
+它不把普通日志声明为诊断记录。消费方逐行解析 stderr，按 type 识别诊断，不能将整个 stderr 当作一个 JSON 文档。
+文本模式在错误说明后补充阶段、已确认副作用和可用恢复建议。
 
 ## 日志、Trace 和异步工作的所有权
 
@@ -173,24 +212,33 @@ zh-CN 是中文、zh 是别名，不从 OS 区域推断。稳定命令、选项�
 不承诺 OTLP、采集服务接入或重放；使用私有 provider，不替换全局 provider，也不通过环境隐式启用 exporter。
 SDK 环境仍有版本相关行为，不能将此概括为“忽略所有 OTEL_*”。
 
+启用的诊断出口按日志级别记录 command_started、command_finished、实际命令、耗时、退出状态及 run_id；
+file Trace 的 service.instance.id 对应相同 run_id。发现命令和校验前失败不强制创建 Session。
+关键业务阶段明确稳定名称、结果和耗时；成功阶段用 info，失败用 error，不仅依赖 debug。
 在已创建的调用中增加业务 span，参照 greet：
 
 ```go
+started := time.Now()
 ctx, span := call.session.Tracer.Start(cmd.Context(), "greeting.run")
 defer span.End()
 result, err := call.deps.Greet(ctx, greeting.Options{Name: name, Localizer: call.localizer})
 if err != nil {
-    span.RecordError(err)
+    telemetry.RecordError(span, err)
     span.SetStatus(codes.Error, call.localizer.Text("session.failed", nil))
     return err
 }
-call.logger.WithContext(ctx).Debugw(call.localizer.Text("cli.greet_log", nil), "event", "greeting_finished")
+call.logger.WithContext(ctx).Record(greetingFinished{
+    message: call.localizer.Text("cli.greet_log", nil),
+    duration: time.Since(started), failed: false,
+})
 ```
 
 `WithContext` 只绑定 span 关联字段，logger 仍显式传递。重要结束事件使用
 `Logger.Record(logging.CommandResult{...})` 或 `logging.ToolCall`，普通临时诊断才用 Debugw/Infow。
 工具事件只记录操作、程序名、结果、耗时与结构化错误，不记录 argv、环境和原始输出。
-新领域事件可实现 `logging.Event` 的 Emit 方法。日志门面没有 Fatal/Panic，业务不得绕过入口退出进程。
+新领域事件由所属模块实现 `logging.Event` 的 Emit 方法，显式使用调用级 logger 和 tracer；
+telemetry.RecordError 逐分支记录安全错误文本、error.code、error.phase、已知副作用和恢复标识。
+命令结束日志保留既有错误字段，并增加 error_details 数组。日志门面没有 Fatal/Panic，业务不得绕过入口退出进程。
 
 并发工作通过 `Session.Go(context.Context, func(context.Context)) bool` 登记，工作接收本次显式传入的 Context；Finish 开始后拒绝新任务。
 工作须尊重 Context 并自行结束。Finish 幂等等待已登记工作，记录结束事件，结束根 span，
@@ -199,6 +247,10 @@ call.logger.WithContext(ctx).Debugw(call.localizer.Text("cli.greet_log", nil), "
 借用 logger、reader、writer 不 Sync/Close；借用且共享的输出需由调用者提供并发安全包装。
 CLI 自有 stderr 路径串行化错误、日志和告警，但不能替嵌入方接管独立的外部写入。
 任意永久阻塞的自定义 IO 不保证硬截止，工作不结束也会阻止 Finish 返回。
+
+第三方组件可能绕过调用级出口写进程标准流或全局 handler。接入时须验证默认、异常环境、取消和失败路径，
+优先使用显式 writer 与私有实例，无法安全构造时降级到项目告警；不通过改进程环境或全局 handler 隔离并发调用。
+现有 OTel 环境预检、资源字段过滤及 exporter 告警沿用，异常环境验证应捕获真实子进程 stdout/stderr。
 
 资源创建、写入、导出或收尾故障按类别告警并继续业务，不覆盖业务结果；无可用出口时降级到空日志/Trace。
 文件轮转软阈值默认 10 MiB，单条超大记录不拆分，默认 5 备份；按 14 天、200 MiB 软总量清理。后两项与备份数可设 0 关闭。
@@ -278,10 +330,21 @@ Serena 与 Go CLI 补充、应用 HOME 隔离和验证选择统一见[开发说�
 添加检查时维护有类型的 Options 和 Check，校验在副作用前完成；不要把开发工具清单作为产品依赖。
 当前空实现不加载配置或创建诊断资源。需要这些资源的真实检查须按 Session 所有权规则显式接入。
 
+检查须只读：不安装依赖、不修复状态、不登录或刷新凭据、不修改业务配置和数据。
+默认离线；真实联网检查须由派生项目显式选择，说明访问目标、请求内容、是否使用凭据及关闭方式，不能由隐式调试环境触发。
+每项明确必需或可选、独立超时、输出捕获和并发上限；外部程序复用 command，网络调用传递检查 Context。
+检查超时或依赖不可用形成 status=failed 的完成报告，继续收集其余检查；父调用取消或无法形成报告则返回 error。
+不要把部分检查误报成完整成功，也不要以检查超时替代整个调用的取消语义。
+Detail 只给安全解释和可执行建议，不输出响应体、原始 stderr 或凭据。
+接入示例见 [doctor 脱敏夹具](../internal/app/cli/doctor_test.go)：使用 Dependencies.Doctor、只读临时文件和本地 HTTP 服务，
+演示联网选择、必需/可选超时及取消。模板不为示例增加生产检查或通用调度器。
+
 Result 的 checks 始终编码为数组。RequiredAvailable 表示所有必需检查均可用；可选失败不能将它改为 false。
 检查项的 name、status、required 是机器接口，detail 提供当前语言说明。已完成的负向报告返回 Result、nil，
 将 RequiredAvailable 置 false；CLI 完整渲染后输出并返回 1，不附加重复错误。
 未能完成检查则返回 error，CLI 保持 stdout 为空并按已有规则报告；取消返回 130。
+
+## 补全协议
 
 帮助、示例和 shell 子命令沿用具体命令对象绑定集中目录。补全请求仅消费有效的完整语言参数，
 未完成参数使用有效环境或 en 兜底；普通调用仍严格校验。补全不读取应用配置、不创建诊断资源。
