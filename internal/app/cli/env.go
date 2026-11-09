@@ -187,10 +187,12 @@ func (call *invocation) environmentService(
 		return nil, machine.Binding{}, err
 	}
 	return shellenv.New(shellenv.Options{
-		Repository:    client,
-		Cache:         shellenv.NewFileCache(filepath.Join(call.directories.State, shellenvStateDirectory)),
-		AgeKey:        ageKey,
-		MachineID:     binding.MachineID,
-		KnownMachines: known,
+		Repository:     client,
+		Cache:          shellenv.NewFileCache(filepath.Join(call.directories.State, shellenvStateDirectory)),
+		AgeKey:         ageKey,
+		MachineID:      binding.MachineID,
+		KnownMachines:  known,
+		RepositoryName: binding.Repository,
+		Branch:         binding.Branch,
 	}), binding, nil
 }

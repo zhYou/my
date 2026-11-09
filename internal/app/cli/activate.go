@@ -40,9 +40,11 @@ func newActivateCommand(call *invocation) *cobra.Command {
 				return err
 			}
 			service := shellenv.New(shellenv.Options{
-				Cache:     shellenv.NewFileCache(filepath.Join(call.directories.State, shellenvStateDirectory)),
-				AgeKey:    ageKey,
-				MachineID: binding.MachineID,
+				Cache:          shellenv.NewFileCache(filepath.Join(call.directories.State, shellenvStateDirectory)),
+				AgeKey:         ageKey,
+				MachineID:      binding.MachineID,
+				RepositoryName: binding.Repository,
+				Branch:         binding.Branch,
 			})
 			output, err := service.Activate(cmd.Context(), args[0])
 			if err != nil {

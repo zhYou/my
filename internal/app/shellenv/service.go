@@ -26,11 +26,13 @@ type Repository interface {
 
 // Options 显式注入环境业务依赖。
 type Options struct {
-	Repository    Repository
-	Cache         Cache
-	AgeKey        *agecrypt.Key
-	MachineID     string
-	KnownMachines []string
+	Repository     Repository
+	Cache          Cache
+	AgeKey         *agecrypt.Key
+	MachineID      string
+	KnownMachines  []string
+	RepositoryName string
+	Branch         string
 }
 
 // Service 维护环境变量并渲染离线 shell 代码。
@@ -308,6 +310,11 @@ func (s *Service) Activate(ctx context.Context, shell string) (string, error) {
 		return "", err
 	}
 	if !exists {
+		return "", problem(codeState, phaseRead, nil)
+	}
+	if s.options.RepositoryName != "" &&
+		(!strings.EqualFold(cache.Snapshot.Repository, s.options.RepositoryName) ||
+			cache.Snapshot.Branch != s.options.Branch) {
 		return "", problem(codeState, phaseRead, nil)
 	}
 	ordinary, err := decodeRecords(cache.Ordinary)

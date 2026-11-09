@@ -112,6 +112,35 @@ func TestSyncConflictDoesNotWriteAnySide(t *testing.T) {
 	require.Equal(t, "verbose = \"local\"\n", readFixture(t, localPath))
 }
 
+func TestSyncSkipsRemoteAuthoritativeEnvironmentTarget(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	repository.snapshot.Files["configs/targets/shell-env/target.toml"] = []byte(
+		"schema_version = 1\ntarget = \"shell-env\"\nmachines = [\"*\"]\n",
+	)
+	repository.snapshot.Files["configs/targets/shell-env/data/env.toml"] = []byte(
+		"schema_version = 1\n[env.EDITOR]\nvalue = \"nvim\"\nmachines = [\"*\"]\n",
+	)
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+}
+
+func TestSyncRejectsUnknownConfigurationTarget(t *testing.T) {
+	home := t.TempDir()
+	snapshot := initializedSnapshot()
+	snapshot.ConfigInitialized = true
+	snapshot.Files["configs/manifest.toml"] = []byte("schema_version = 1\n")
+	snapshot.Files["configs/targets/unknown/target.toml"] = []byte(
+		"schema_version = 1\ntarget = \"unknown\"\nmachines = [\"*\"]\n",
+	)
+	service := newTestService(home, &memoryRepository{snapshot: snapshot})
+
+	_, err := service.Sync(t.Context(), SyncOptions{})
+	require.Error(t, err)
+}
+
 func TestResolveRemoteAndLocal(t *testing.T) {
 	t.Run("remote", func(t *testing.T) {
 		home, repository, service := conflictingTopgrade(t)

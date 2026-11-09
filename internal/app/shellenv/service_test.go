@@ -155,6 +155,23 @@ func TestMachineScopeFiltersActivate(t *testing.T) {
 	require.Equal(t, "export EDITOR='nvim'\n", output)
 }
 
+func TestActivateRejectsCacheFromDifferentBinding(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "cache")
+	service, repository := newEnvironmentServiceAt(t, cache, "workstation")
+	_, err := service.Set(t.Context(), SetOptions{Name: "EDITOR", Value: []byte("nvim")})
+	require.NoError(t, err)
+	other := New(Options{
+		Repository:     repository,
+		Cache:          NewFileCache(cache),
+		MachineID:      "workstation",
+		RepositoryName: "owner/other",
+		Branch:         "main",
+		KnownMachines:  []string{"workstation"},
+	})
+	_, err = other.Activate(t.Context(), "bash")
+	require.Error(t, err)
+}
+
 func newEnvironmentService(t *testing.T, machineID string) (*Service, *memoryRepository) {
 	t.Helper()
 	return newEnvironmentServiceAt(t, filepath.Join(t.TempDir(), "cache"), machineID)

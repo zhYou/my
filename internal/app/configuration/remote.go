@@ -48,6 +48,19 @@ func parseRemoteTargets(
 	if !snapshot.ConfigInitialized {
 		return result, nil
 	}
+	for name := range snapshot.Files {
+		if !strings.HasPrefix(name, configTargetsRoot+"/") {
+			continue
+		}
+		parts := strings.Split(name, "/")
+		if len(parts) < 4 {
+			return nil, problem(codeStateInvalid, phaseStateRead, nil)
+		}
+		id := TargetID(parts[2])
+		if _, known := definitions[id]; !known {
+			return nil, problem(codeStateInvalid, phaseStateRead, nil)
+		}
+	}
 	for _, id := range sortedTargetIDs(definitions) {
 		definition := definitions[id]
 		prefix := remoteTargetPrefix(id)
