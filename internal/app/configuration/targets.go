@@ -348,7 +348,7 @@ func readCodexSettingUnits(data []byte, goos string) (map[UnitID]UnitValue, erro
 	for id, localPath := range codexFilesystemUnits(goos) {
 		value, err := TOMLValue(
 			data,
-			[]string{codexPermissionsTable, codexDevelopmentPermission, "filesystem", localPath},
+			[]string{codexPermissionsTable, codexDevelopmentPermission, codexFilesystemTable, localPath},
 		)
 		if err != nil {
 			return nil, err

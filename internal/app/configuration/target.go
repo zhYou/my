@@ -34,6 +34,12 @@ const (
 	TargetShellEnvSecret TargetID = "shell-env-secret"
 )
 
+const (
+	fieldUnitPrefix  = "field:"
+	fileUnitPrefix   = "file:"
+	secretUnitPrefix = "secret:"
+)
+
 // Validate 拒绝路径、大小写漂移和不稳定目标 ID。
 func (id TargetID) Validate() error {
 	value := string(id)
@@ -57,26 +63,29 @@ const SecretUnitID UnitID = "secret:current"
 
 // FieldUnitID 构造结构化字段单位 ID。
 func FieldUnitID(parts ...string) UnitID {
-	return UnitID("field:" + strings.Join(parts, "."))
+	return UnitID(fieldUnitPrefix + strings.Join(parts, "."))
 }
 
 // FileUnitID 构造完整文件单位 ID。
 func FileUnitID(name string) UnitID {
-	return UnitID("file:" + name)
+	return UnitID(fileUnitPrefix + name)
 }
 
 // Validate 检查单位前缀和稳定路径字符。
 func (id UnitID) Validate() error {
 	value := string(id)
-	body := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(value, "field:"), "file:"), "secret:")
+	body := strings.TrimPrefix(
+		strings.TrimPrefix(strings.TrimPrefix(value, fieldUnitPrefix), fileUnitPrefix),
+		secretUnitPrefix,
+	)
 	if body == "" || body != value {
 		if body == "" {
 			return invalidInput()
 		}
 	}
-	validPrefix := strings.HasPrefix(value, "field:") ||
-		strings.HasPrefix(value, "file:") ||
-		strings.HasPrefix(value, "secret:")
+	validPrefix := strings.HasPrefix(value, fieldUnitPrefix) ||
+		strings.HasPrefix(value, fileUnitPrefix) ||
+		strings.HasPrefix(value, secretUnitPrefix)
 	if !validPrefix || strings.ContainsAny(body, "/\\\x00") || strings.Contains(body, "..") {
 		return invalidInput()
 	}

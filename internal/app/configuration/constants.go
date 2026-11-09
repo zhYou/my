@@ -1,6 +1,9 @@
 package configuration
 
 const (
+	configDataDirectory  = "data"
+	codexFilesystemTable = "filesystem"
+
 	stateSchemaVersion = 1
 	stateDirectoryMode = 0o700
 	stateFileMode      = 0o600
