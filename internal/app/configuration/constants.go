@@ -12,6 +12,7 @@ const (
 	phaseCompare         = "configuration.compare"
 	codeInvalidInput     = "configuration.invalid_input"
 	codeStateInvalid     = "configuration.state_invalid"
+	codeLegacyConflict   = "configuration.legacy"
 	firstTakeoverCode    = "configuration.first_takeover"
 	changedBothCode      = "configuration.changed_both"
 	fileMissingCode      = "configuration.file_missing"

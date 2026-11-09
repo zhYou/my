@@ -3,6 +3,7 @@ module github.com/zhYou/my
 go 1.27.3
 
 require (
+	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/cli/go-gh/v2 v2.17.0
 	github.com/go-playground/validator/v10 v10.30.5
 	github.com/go-viper/mapstructure/v2 v2.4.0
