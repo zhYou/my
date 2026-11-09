@@ -21,6 +21,7 @@
 | [CLI 基础](compatibility/changes/2026-10-30-cli-foundations.json)               | lang、info 默认值及应用 v0.1.0→v0.2.0 决策          |
 | [消息与默认语言](compatibility/changes/2026-11-02-i18n-config.json)             | 默认语言由 zh-CN 改为 en                            |
 | [发现能力与 doctor](compatibility/changes/2026-11-02-cli-discovery-doctor.json) | doctor 报告、completion shell 子命令、帮助与 schema |
+| [配置同步与环境激活](compatibility/changes/2026-11-09-config-sync.json)         | config、env、activate 命令及可选 age identity       |
 
 [0.4.0 诊断契约记录](compatibility/changes/2026-11-07-my-diagnostic-contract.json)声明 stderr 文本转 JSONL 的破坏变更；schema_version 仍为 1。
 
@@ -32,3 +33,7 @@
 已有系统目录不会自动读取或迁移，可先指定明确的 MY_HOME，再迁移所属配置、data、state、cache；不复制无关个人诊断数据。
 doctor 从空报告改为实际只读检查，未就绪返回完整报告与退出1；--remote 才联网，--timeout 默认10s每项。
 模板升级和业务接入共用尚未发布的应用 v0.4.0 目标，不把两个阶段写成 v0.4.0→v0.4.0，也不据此创建发布标签。
+
+[配置同步与环境激活记录](compatibility/changes/2026-11-09-config-sync.json)新增 `config`、`env` 和
+`activate` 命令，以及可选的 `[secrets] identity_file`。既有命令、数据仓根标记、机器记录和退出码保持兼容；
+配置首次进入数据仓使用显式 `config capture`，不自动迁移旧 `machine-config` 字段或文件。

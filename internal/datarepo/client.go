@@ -26,6 +26,20 @@ const (
 	configurationManifestPath = "configs/manifest.toml"
 	maxConfigurationFiles     = 256
 	maxConfigurationDepth     = 8
+	rootManifestName          = "my.toml"
+	gitBlobType               = "blob"
+	gitTreeType               = "tree"
+	gitFileMode               = "100644"
+	gitDirectoryMode          = "040000"
+	tomlSuffix                = ".toml"
+	machinesDirectory         = "machines"
+	machinesPrefix            = "machines/"
+	configsDirectory          = "configs"
+	configsPrefix             = "configs/"
+	targetsDirectory          = "targets"
+	targetMetadataName        = "target.toml"
+	dataDirectory             = "data"
+	manifestName              = "manifest.toml"
 )
 
 // Metadata 标识一次一致的远端快照。
@@ -199,8 +213,8 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 	}
 	for _, entry := range entries {
 		switch entry.Path {
-		case "my.toml":
-			if entry.Type != "blob" || entry.Mode != "100644" {
+		case rootManifestName:
+			if entry.Type != gitBlobType || entry.Mode != gitFileMode {
 				return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			data, err := c.blob(ctx, entry.SHA)
@@ -217,9 +231,9 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 			}
 			snapshot.Initialized = true
 			snapshot.Files[entry.Path] = data
-		case "machines":
+		case machinesDirectory:
 			snapshot.HasMachines = true
-			if entry.Type != "tree" || entry.Mode != "040000" {
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
 				return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			machines, err := c.tree(ctx, entry.SHA)
@@ -227,7 +241,8 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 				return snapshot, err
 			}
 			for _, machine := range machines {
-				if machine.Type != "blob" || machine.Mode != "100644" || !strings.HasSuffix(machine.Path, ".toml") ||
+				if machine.Type != gitBlobType || machine.Mode != gitFileMode ||
+					!strings.HasSuffix(machine.Path, tomlSuffix) ||
 					strings.ContainsAny(machine.Path, "/\\") {
 					return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 				}
@@ -235,10 +250,10 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 				if err != nil {
 					return snapshot, err
 				}
-				snapshot.Files["machines/"+machine.Path] = data
+				snapshot.Files[machinesPrefix+machine.Path] = data
 			}
-		case "configs":
-			if entry.Type != "tree" || entry.Mode != "040000" {
+		case configsDirectory:
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
 				return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			if err := c.readConfiguration(ctx, &snapshot, entry.SHA); err != nil {
@@ -272,7 +287,8 @@ func (c *Client) CommitChanges(ctx context.Context, snapshot Snapshot, changes C
 	seenDeletion := make(map[string]struct{}, len(changes.Deletions))
 	deletions := make([]string, 0, len(changes.Deletions))
 	for _, configPath := range changes.Deletions {
-		if !validCommitPath(configPath) || configPath == "my.toml" || strings.HasPrefix(configPath, "machines/") {
+		if !validCommitPath(configPath) || configPath == rootManifestName ||
+			strings.HasPrefix(configPath, machinesPrefix) {
 			return result, failure(codeFormat, phaseCommit, nil, []string{}, recoverFormat)
 		}
 		if _, duplicate := seenDeletion[configPath]; duplicate {
@@ -357,13 +373,13 @@ func (c *Client) readConfiguration(ctx context.Context, snapshot *Snapshot, sha 
 	var manifestSHA, targetsSHA string
 	for _, entry := range entries {
 		switch entry.Path {
-		case "manifest.toml":
-			if entry.Type != "blob" || entry.Mode != "100644" {
+		case manifestName:
+			if entry.Type != gitBlobType || entry.Mode != gitFileMode {
 				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			manifestSHA = entry.SHA
-		case "targets":
-			if entry.Type != "tree" || entry.Mode != "040000" {
+		case targetsDirectory:
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
 				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			targetsSHA = entry.SHA
@@ -393,7 +409,7 @@ func (c *Client) readConfiguration(ctx context.Context, snapshot *Snapshot, sha 
 		return err
 	}
 	for _, target := range targets {
-		if target.Type != "tree" || target.Mode != "040000" || !validTargetID(target.Path) {
+		if target.Type != gitTreeType || target.Mode != gitDirectoryMode || !validTargetID(target.Path) {
 			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 		}
 		if err := c.readConfigurationTarget(ctx, snapshot, target.Path, target.SHA); err != nil {
@@ -411,13 +427,13 @@ func (c *Client) readConfigurationTarget(ctx context.Context, snapshot *Snapshot
 	var targetSHA, dataSHA string
 	for _, entry := range entries {
 		switch entry.Path {
-		case "target.toml":
-			if entry.Type != "blob" || entry.Mode != "100644" {
+		case targetMetadataName:
+			if entry.Type != gitBlobType || entry.Mode != gitFileMode {
 				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			targetSHA = entry.SHA
-		case "data":
-			if entry.Type != "tree" || entry.Mode != "040000" {
+		case dataDirectory:
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
 				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			dataSHA = entry.SHA
@@ -441,12 +457,18 @@ func (c *Client) readConfigurationTarget(ctx context.Context, snapshot *Snapshot
 		metadata.Target != targetID {
 		return failure(codeFormat, phaseRead, err, []string{}, recoverFormat)
 	}
-	targetPath := path.Join("configs", "targets", targetID, "target.toml")
+	targetPath := path.Join(configsDirectory, targetsDirectory, targetID, targetMetadataName)
 	snapshot.Files[targetPath] = target
 	if dataSHA == "" {
 		return nil
 	}
-	return c.readConfigurationData(ctx, snapshot, path.Join("configs", "targets", targetID, "data"), dataSHA, 0)
+	return c.readConfigurationData(
+		ctx,
+		snapshot,
+		path.Join(configsDirectory, targetsDirectory, targetID, dataDirectory),
+		dataSHA,
+		0,
+	)
 }
 
 func (c *Client) readConfigurationData(
@@ -468,7 +490,7 @@ func (c *Client) readConfigurationData(
 			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 		}
 		switch {
-		case entry.Type == "blob" && entry.Mode == "100644":
+		case entry.Type == gitBlobType && entry.Mode == gitFileMode:
 			if configurationFileCount(snapshot.Files) >= maxConfigurationFiles {
 				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
@@ -477,7 +499,7 @@ func (c *Client) readConfigurationData(
 				return err
 			}
 			snapshot.Files[path.Join(parent, entry.Path)] = data
-		case entry.Type == "tree" && entry.Mode == "040000":
+		case entry.Type == gitTreeType && entry.Mode == gitDirectoryMode:
 			if err := c.readConfigurationData(
 				ctx,
 				snapshot,
@@ -497,7 +519,7 @@ func (c *Client) readConfigurationData(
 func configurationFileCount(files map[string][]byte) int {
 	count := 0
 	for name := range files {
-		if strings.HasPrefix(name, "configs/") {
+		if strings.HasPrefix(name, configsPrefix) {
 			count++
 		}
 	}
@@ -505,30 +527,29 @@ func configurationFileCount(files map[string][]byte) int {
 }
 
 func validCommitPath(value string) bool {
-	if value == "my.toml" {
+	if value == rootManifestName {
 		return true
 	}
-	if strings.HasPrefix(value, "machines/") {
-		remainder := strings.TrimPrefix(value, "machines/")
-		return safePathComponent(strings.TrimSuffix(remainder, ".toml")) &&
-			strings.HasSuffix(remainder, ".toml")
+	if remainder, ok := strings.CutPrefix(value, machinesPrefix); ok {
+		return safePathComponent(strings.TrimSuffix(remainder, tomlSuffix)) &&
+			strings.HasSuffix(remainder, tomlSuffix)
 	}
 	if value == configurationManifestPath {
 		return true
 	}
 	parts := strings.Split(value, "/")
 	if len(parts) == 4 &&
-		parts[0] == "configs" &&
-		parts[1] == "targets" &&
+		parts[0] == configsDirectory &&
+		parts[1] == targetsDirectory &&
 		validTargetID(parts[2]) &&
-		parts[3] == "target.toml" {
+		parts[3] == targetMetadataName {
 		return true
 	}
 	if len(parts) < 5 ||
-		parts[0] != "configs" ||
-		parts[1] != "targets" ||
+		parts[0] != configsDirectory ||
+		parts[1] != targetsDirectory ||
 		!validTargetID(parts[2]) ||
-		parts[3] != "data" {
+		parts[3] != dataDirectory {
 		return false
 	}
 	for _, component := range parts[4:] {

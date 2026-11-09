@@ -31,6 +31,54 @@
     "commands": {
       "contract-cli": {
         "commands": {
+          "contract-cli activate": {
+            "commands": [],
+            "flags": {
+              "age-identity": {
+                "default": "",
+                "inherited": false,
+                "name": "age-identity",
+                "required": false,
+                "type": "string"
+              },
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli activate"
+          },
           "contract-cli completion": {
             "commands": {
               "contract-cli completion bash": {
@@ -236,6 +284,680 @@
               }
             },
             "path": "contract-cli completion"
+          },
+          "contract-cli config": {
+            "commands": {
+              "contract-cli config capture": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "all": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "all",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "machine": {
+                    "default": "[]",
+                    "inherited": false,
+                    "name": "machine",
+                    "required": false,
+                    "type": "stringSlice"
+                  }
+                },
+                "path": "contract-cli config capture",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "changed": {
+                            "type": "boolean"
+                          },
+                          "changes": {
+                            "type": "integer"
+                          },
+                          "conflicts": {
+                            "type": "integer"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "changed",
+                          "changes",
+                          "conflicts"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "targets",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli config diff": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli config diff",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changes": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "action": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "unit": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "unit",
+                          "action"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "conflicts": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "unit": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "unit",
+                          "code"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "changes",
+                    "conflicts"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli config remove": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli config remove",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "changed": {
+                            "type": "boolean"
+                          },
+                          "changes": {
+                            "type": "integer"
+                          },
+                          "conflicts": {
+                            "type": "integer"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "changed",
+                          "changes",
+                          "conflicts"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "targets",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli config resolve": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "from": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "from",
+                    "required": true,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "unit": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "unit",
+                    "required": true,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli config resolve",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "changed": {
+                            "type": "boolean"
+                          },
+                          "changes": {
+                            "type": "integer"
+                          },
+                          "conflicts": {
+                            "type": "integer"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "changed",
+                          "changes",
+                          "conflicts"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "targets",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli config sync": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli config sync",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "changed": {
+                            "type": "boolean"
+                          },
+                          "changes": {
+                            "type": "integer"
+                          },
+                          "conflicts": {
+                            "type": "integer"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "changed",
+                          "changes",
+                          "conflicts"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "targets",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli config"
           },
           "contract-cli data": {
             "commands": {
@@ -462,6 +1184,399 @@
               ],
               "type": "object"
             }
+          },
+          "contract-cli env": {
+            "commands": {
+              "contract-cli env list": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli env list",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    },
+                    "variables": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "machines": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": [
+                              "null",
+                              "array"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "secret": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "secret",
+                          "machines"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "variables"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli env remove": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "secret": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "secret",
+                    "required": false,
+                    "type": "bool"
+                  }
+                },
+                "path": "contract-cli env remove",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "machines": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "secret": {
+                      "type": "boolean"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "name",
+                    "secret",
+                    "machines",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli env set": {
+                "commands": [],
+                "flags": {
+                  "age-identity": {
+                    "default": "",
+                    "inherited": false,
+                    "name": "age-identity",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "machine": {
+                    "default": "[]",
+                    "inherited": false,
+                    "name": "machine",
+                    "required": false,
+                    "type": "stringSlice"
+                  },
+                  "overwrite": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "overwrite",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "secret": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "secret",
+                    "required": false,
+                    "type": "bool"
+                  }
+                },
+                "path": "contract-cli env set",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "machines": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "secret": {
+                      "type": "boolean"
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "name",
+                    "secret",
+                    "machines",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "flags": {
+              "config": {
+                "default": "",
+                "inherited": true,
+                "name": "config",
+                "required": false,
+                "type": "string"
+              },
+              "help": {
+                "default": "false",
+                "inherited": false,
+                "name": "help",
+                "required": false,
+                "type": "bool"
+              },
+              "json": {
+                "default": "false",
+                "inherited": true,
+                "name": "json",
+                "required": false,
+                "type": "bool"
+              },
+              "lang": {
+                "default": "en",
+                "inherited": true,
+                "name": "lang",
+                "required": false,
+                "type": "string"
+              },
+              "log-level": {
+                "default": "info",
+                "inherited": true,
+                "name": "log-level",
+                "required": false,
+                "type": "string"
+              }
+            },
+            "path": "contract-cli env"
           },
           "contract-cli greet": {
             "commands": [],

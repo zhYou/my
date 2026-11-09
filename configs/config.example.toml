@@ -4,6 +4,10 @@ repository = ""
 branch = "main"
 request_timeout = "30s"
 
+# age identity 由用户保存在仓外；未使用秘密目标时可为空。
+[secrets]
+identity_file = ""
+
 # 日志默认写入应用状态目录，stderr 和 none 可显式选择。
 [logging]
 level = "info"

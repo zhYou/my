@@ -1,0 +1,13 @@
+{
+  "id": "2026-11-09-config-sync",
+  "compatibility": "compatible",
+  "summary": "新增配置收录、diff、双向同步、冲突解决、age 认证、shell 环境变量和 activate 命令。",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli config",
+    "/schema/commands/contract-cli/commands/contract-cli env",
+    "/schema/commands/contract-cli/commands/contract-cli activate"
+  ],
+  "previous_version": "v0.4.0",
+  "target_version": "v0.5.0",
+  "migration": "新增命令和可选 [secrets] identity_file 配置；现有 data init、机器记录、doctor、HOME 布局和退出码不变。已有配置通过显式 config capture 收录，旧字段和旧 rules 文件名只报告冲突，不自动迁移。sync 在存在冲突时不写本机或远端；resolve 逐项采用 local 或 remote。Codex auth 只在显式 capture 或冲突选择后发布新版本。shell 启动文件由用户手工加入 my activate 调用，my 不修改 RC、fish 配置、PowerShell profile、系统环境或 LaunchAgent。"
+}

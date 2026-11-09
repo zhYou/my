@@ -75,10 +75,12 @@ Cobra 提供命令与元数据；前置顺序、schema 输出及退出码是项�
 
 每个实际新增配置项须说明类型、默认值、允许来源、覆盖关系、范围及组合约束；默认值由模块的 Defaults 提供，
 经统一加载入口组合。先校验参数和完整配置，再创建资源或执行业务副作用；直接业务调用也校验输入。
-数据仓配置为 [data] repository、branch、request_timeout；默认与环境变量见 README。
+数据仓配置为 [data] repository、branch、request_timeout；`[secrets] identity_file` 只在秘密
+目标实际读写时加载。默认值及 `MY_DATA_*`、`MY_SECRETS_IDENTITY_FILE` 覆盖规则见 README。
 my 配置、Session 与业务状态默认共用 HOME 布局，MY_HOME 统一覆盖，--config 不改变状态根。
 
 凭据由具体业务声明来源，优先通过调用级依赖、注入的 LookupEnv 或受控凭据提供者取得；不预建凭据配置框架。
+age identity 只接受仓外普通文件中的单个原生 X25519 或 Hybrid 身份，不支持插件、SSH 或自动生成。
 需要文件、环境或 flag 输入时，明确读取时机和优先级，不用日志证明凭据存在，不把凭据写入配置示例。
 配置及错误参数只保留审查过的字段名、类型、位置等安全信息；禁止整份配置、凭据值、认证头和带凭据 URL 进入诊断。
 解析器的错误也可能包含输入值，不能因其来自第三方就直接显示；敏感原因保护见下一节的错误规则。
@@ -310,6 +312,11 @@ Windows 终止失败先关闭 Job 再等待根进程，返回前验证活动进�
 WaitDelay 默认 250ms，控制取消终止及根进程退出后的管道排空宽限。Linux/macOS 在 SIGTERM 宽限耗尽后发送
 SIGKILL，并额外保留一次 WaitDelay 观察进程组退出；确认组不存在时立即结束，未被收养的僵尸仍由 OS 回收。
 永久阻塞的借用 IO 不保证被打断。
+
+配置同步复用固定提交读取和一次 `expectedHeadOid` CAS 提交。普通字段和完整文件保留未纳管内容；
+秘密只保存版本摘要与密文。冲突在写入前停止，用户使用 `config diff` 返回的稳定单位 ID 显式选择来源。
+`activate` 读取本机 `state/shellenv` 缓存，不访问远端、不创建 Session、日志或 Trace；
+stdout 只能是目标 shell 的赋值代码，校验失败必须在输出任何字节前返回。
 
 库依据：[os/exec](https://pkg.go.dev/os/exec@go1.27.3)、
 [errgroup v0.24.0](https://pkg.go.dev/golang.org/x/sync@v0.24.0/errgroup)、

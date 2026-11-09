@@ -241,7 +241,10 @@ func TestCommitChangesSupportsConfigurationAdditionsAndDeletions(t *testing.T) {
 	base := strings.Repeat("a", 40)
 	next := strings.Repeat("b", 40)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/graphql", r.URL.Path)
+		if !assert.Equal(t, "/graphql", r.URL.Path) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		var body struct {
 			Variables struct {
 				Input struct {
@@ -261,13 +264,19 @@ func TestCommitChangesSupportsConfigurationAdditionsAndDeletions(t *testing.T) {
 				} `json:"input"`
 			} `json:"variables"`
 		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-		require.Equal(t, base, body.Variables.Input.ExpectedHead)
-		require.Equal(t, "my: capture configuration", body.Variables.Input.Message.Headline)
-		require.Len(t, body.Variables.Input.FileChanges.Additions, 1)
-		require.Equal(t, "configs/targets/mise/data/values.toml", body.Variables.Input.FileChanges.Additions[0].Path)
-		require.Len(t, body.Variables.Input.FileChanges.Deletions, 1)
-		require.Equal(t, "configs/targets/old/target.toml", body.Variables.Input.FileChanges.Deletions[0].Path)
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		assert.Equal(t, base, body.Variables.Input.ExpectedHead)
+		assert.Equal(t, "my: capture configuration", body.Variables.Input.Message.Headline)
+		if !assert.Len(t, body.Variables.Input.FileChanges.Additions, 1) ||
+			!assert.Len(t, body.Variables.Input.FileChanges.Deletions, 1) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		assert.Equal(t, "configs/targets/mise/data/values.toml", body.Variables.Input.FileChanges.Additions[0].Path)
+		assert.Equal(t, "configs/targets/old/target.toml", body.Variables.Input.FileChanges.Deletions[0].Path)
 		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"createCommitOnBranch": map[string]any{"commit": map[string]any{"oid": next}},

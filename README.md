@@ -3,9 +3,10 @@
 `my` 是个人数据与资源管理 CLI，面向机器、配置文件、私有账号、云厂商和云服务的管理与同步。
 代码仓公开，实际数据位于独立私有仓库；敏感数据使用 age 加密，唯一解密凭据由用户在仓外保管。
 
-当前支持私有数据仓初始化、机器登记与查询、本机绑定、退役，以及只读 doctor 检查。
+当前支持私有数据仓初始化、机器登记与查询、本机绑定、退役、配置收录与双向同步、
+age 加密认证、shell 环境变量激活，以及只读 doctor 检查。
 CLI 提供文本和 JSON 输出、双语消息、严格 TOML 配置、Schema、shell 补全、日志和 Trace。
-`greet` 保留为模板验收示例；配置同步、账号和云服务管理留待后续模块实现。
+`greet` 保留为模板验收示例；账号和云服务管理留待后续模块实现。
 
 ## 项目定位与数据边界
 
@@ -16,13 +17,13 @@ CLI 提供文本和 JSON 输出、双语消息、严格 TOML 配置、Schema、s
 | 唯一 age 解密凭据及访问数据仓的认证凭据 | 用户自行在仓外保管                    |
 | 同步基线、缓存、日志和恢复记录          | 本机应用私有目录                      |
 
-后续配置管理采用 GitOps 的声明式期望状态和版本追踪思路；账号等资料采用版本化记录。
+配置管理采用 GitOps 的声明式期望状态和版本追踪思路；账号等资料采用版本化记录。
 配置按字段声明管理范围并进行结构校验，保留应用自行维护及本机专属的字段。
 远端数据通过 GitHub API 访问，本地保存必要状态和缓存，不维护完整数据仓 Git 工作树。
-具体同步协议在配置模块实施前单独设计。
+同步使用固定提交三方比较和 CAS 提交，冲突必须显式解决。
 
-完整边界见[架构说明](docs/architecture.md)。软件升级和应用环境变量注入不属于业务范围。
-开发工具链继续由 mise 管理，CLI 自身仍支持下文所述的配置与环境变量。
+完整边界见[架构说明](docs/architecture.md)。软件升级、系统/GUI 环境变量和向运行中应用注入不属于业务范围；
+`my activate` 只输出由用户主动加载到当前 shell 的变量代码。
 
 ## 本地环境
 
@@ -101,6 +102,10 @@ go install github.com/zhYou/my/cmd/my@latest
 ./bin/my schema
 ./bin/my schema greet
 ./bin/my doctor --json
+./bin/my config diff --json
+./bin/my config sync --json
+./bin/my env list --json
+./bin/my activate bash
 ./bin/my help completion bash
 MY_HOME="$(mktemp -d)" ./bin/my greet --name Codex --json
 ./bin/my version --json
@@ -178,6 +183,15 @@ request_timeout = "30s"
 认证通过外部 `gh` 的现有登录状态获得，仅保留于本次调用内存。my 不登录、不保存 token，支持时使用 `gh auth token --no-refresh`。
 API 客户端固定使用 go-gh/v2 v2.17.0，禁用环境调试输出和 HTTP 缓存；`GH_DEBUG` 不绕过项目输出策略。
 
+age 身份路径只在秘密目标实际读写时加载，必须由用户保存在仓外：
+
+```toml
+[secrets]
+identity_file = "/absolute/path/to/age-identity.txt" # 也可用 MY_SECRETS_IDENTITY_FILE 或 --age-identity
+```
+
+支持单个原生 X25519 或 Hybrid 身份，不支持 SSH、插件或口令，也不自动生成或复制凭据。
+
 ## 数据仓与机器生命周期
 
 用户先创建私有 GitHub 仓库、初始提交及目标分支并通过 gh 完成认证，再配置仓名与分支：
@@ -218,6 +232,65 @@ example_home=$(mktemp -d)
 cp configs/config.example.toml "$example_home/config.toml"
 MY_HOME="$example_home" ./bin/my greet --name Codex --lang zh-CN --json
 ```
+
+## 配置同步与环境激活
+
+配置首次进入数据仓必须显式收录；`capture --all` 不包含秘密目标：
+
+```sh
+my config capture codex-settings codex-rules mise
+my config capture --all
+my config diff
+my config sync
+my config resolve codex-settings --unit field:features.network_proxy --from remote
+my config remove topgrade
+```
+
+内建目标为 `codex-settings`、`codex-rules`、`codex-deepseek`、`codex-auth`、`mise`、
+`topgrade`、`clash-global`、`clash-lan`、`shell-env` 和 `shell-env-secret`。
+`clash-lan` 默认只适用于执行 capture 的当前机器，其余文件目标默认适用全部 active 机器，
+`--machine` 可缩小范围。
+
+数据仓布局为：
+
+```text
+configs/
+  manifest.toml
+  targets/<target>/target.toml
+  targets/<target>/data/...
+```
+
+字段同步只修改声明单位，保留未纳管字段、注释和排版；完整文件按整份内容比较。
+`diff` 只读并返回稳定单位 ID。`sync` 遇到任何冲突时，本轮不写本机、不提交远端；
+解决一个冲突后重新运行 `sync`。远端提交使用 expectedHeadOid CAS，不自动重试。
+
+Codex 认证目标把完整 `auth.json` 保存为 age 密文。只有显式 `capture codex-auth`
+或冲突选择 local 时才发布新的登录版本；相同版本同步不会覆盖 Codex 在各机器本地刷新的 token。
+普通同步只在远端认证版本变化时解密认证快照；没有秘密变化时不读取认证密文内容。
+
+环境变量以数据仓为权威来源，值只从 stdin 读取，避免命令行历史和进程参数泄漏：
+
+```sh
+printf '%s' 'nvim' | my env set EDITOR
+printf '%s' 'secret-value' | my env set DEEPSEEK_API_KEY --secret
+my env list
+my env remove EDITOR
+```
+
+`sync` 只下载普通声明或秘密密文到 `<state>/shellenv` 缓存，不要求 age 身份；
+`activate` 离线读取缓存，在需要时解密秘密变量。支持四种 shell：
+
+```sh
+eval "$(my activate bash)"
+eval "$(my activate zsh)"
+my activate fish | source
+my activate powershell | Out-String | Invoke-Expression
+```
+
+`my` 不修改 RC、fish 配置、PowerShell profile、系统环境或 LaunchAgent，启动文件中的 activate
+调用由用户手工加入。`activate --json` 无效；成功后 stdout 只包含 shell 赋值代码，不创建 Session
+或持久日志。危险变量名（如 `PATH`、`BASH_ENV`、`LD_*`、`NODE_*`）会被拒绝。
+自定义脚本环境和向运行中应用注入不支持。
 
 ## Codex 开发
 
