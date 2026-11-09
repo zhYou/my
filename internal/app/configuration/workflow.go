@@ -20,16 +20,22 @@ type Repository interface {
 	CommitChanges(context.Context, datarepo.Snapshot, datarepo.Changes) (datarepo.Metadata, error)
 }
 
+// EnvironmentCacheSyncer 把远端环境声明下载到本机离线缓存。
+type EnvironmentCacheSyncer interface {
+	SyncCache(context.Context) error
+}
+
 // Options 显式注入配置业务依赖。
 type Options struct {
-	Repository    Repository
-	State         State
-	Home          string
-	OS            string
-	MachineID     string
-	KnownMachines []string
-	Definitions   []TargetDefinition
-	AgeKey        *agecrypt.Key
+	Repository       Repository
+	State            State
+	Home             string
+	OS               string
+	MachineID        string
+	KnownMachines    []string
+	Definitions      []TargetDefinition
+	AgeKey           *agecrypt.Key
+	EnvironmentCache EnvironmentCacheSyncer
 }
 
 // Service 执行目标收录、差异、同步、冲突解决和移除。
@@ -410,6 +416,11 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 		})
 		if targetChanged {
 			result.Changed = true
+		}
+	}
+	if s.options.EnvironmentCache != nil {
+		if err := s.options.EnvironmentCache.SyncCache(ctx); err != nil {
+			return result, err
 		}
 	}
 	return result, nil

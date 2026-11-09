@@ -1,0 +1,23 @@
+package shellenv
+
+const (
+	schemaVersion       = 1
+	maxValueSize        = 8 << 10
+	maxOutputSize       = 32 << 10
+	unsafeValueControls = "\r\n\x00"
+
+	targetOrdinary = "shell-env"
+	targetSecret   = "shell-env-secret"
+
+	configManifest     = "configs/manifest.toml"
+	targetsRoot        = "configs/targets"
+	targetMetadataFile = "target.toml"
+	dataDirectory      = "data"
+	envFileName        = "env.toml"
+	envCipherName      = "env.toml.age"
+
+	shellBash       = "bash"
+	shellZsh        = "zsh"
+	shellFish       = "fish"
+	shellPowerShell = "powershell"
+)
