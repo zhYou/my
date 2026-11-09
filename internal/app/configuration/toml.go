@@ -14,8 +14,9 @@ import (
 
 // TOMLPatch 描述一个字段值的替换或删除；零值表示删除。
 type TOMLPatch struct {
-	Path  []string
-	Value UnitValue
+	Path    []string
+	Value   UnitValue
+	Comment string
 }
 
 type tomlNode struct {
@@ -121,7 +122,11 @@ func patchTOMLOne(data []byte, patch TOMLPatch) ([]byte, error) {
 	}
 	tablePath := patch.Path[:len(patch.Path)-1]
 	key := tomlKey(patch.Path[len(patch.Path)-1])
-	line := []byte(key + " = " + string(value) + "\n")
+	comment := ""
+	if patch.Comment != "" {
+		comment = "# " + strings.ReplaceAll(patch.Comment, "\n", " ") + "\n"
+	}
+	line := []byte(comment + key + " = " + string(value) + "\n")
 	if len(tablePath) == 0 {
 		offset := firstTableOffset(data)
 		return replaceRange(data, offset, offset, line), nil

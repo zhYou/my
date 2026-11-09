@@ -46,6 +46,18 @@ go = "1.27.3"
 	require.Contains(t, string(output), `go = "1.27.3"`)
 }
 
+func TestPatchTOMLAddsCommentForNewManagedField(t *testing.T) {
+	output, err := PatchTOML([]byte("[features]\nweb_search = true\n"), []TOMLPatch{
+		{
+			Path:    []string{"features", "network_proxy"},
+			Value:   boolValue(false),
+			Comment: "不启用 Codex 网络过滤代理。",
+		},
+	})
+	require.NoError(t, err)
+	require.Contains(t, string(output), "# 不启用 Codex 网络过滤代理。\nnetwork_proxy = false")
+}
+
 func TestTOMLValueReadsNestedAndQuotedKeys(t *testing.T) {
 	data := []byte(`[permissions.development.filesystem]
 "~/.gradle" = "write"

@@ -782,7 +782,11 @@ func (s *Service) applyLocalUnits(
 			if !ok {
 				continue
 			}
-			patches = append(patches, TOMLPatch{Path: tomlPath, Value: value})
+			patches = append(patches, TOMLPatch{
+				Path:    tomlPath,
+				Value:   value,
+				Comment: localTOMLComment(definition, id),
+			})
 		}
 		if len(patches) == 0 {
 			continue
@@ -839,6 +843,59 @@ func localTOMLPath(definition TargetDefinition, id UnitID, goos string) ([]strin
 		return []string{codexPermissionsTable, codexDevelopmentPermission, codexFilesystemTable, local}, true
 	}
 	return strings.Split(body, "."), true
+}
+
+//nolint:goconst // 工具组关键词同时参与跨平台路径命名，集中为列表更易审查。
+func localTOMLComment(definition TargetDefinition, id UnitID) string {
+	if definition.ID != TargetCodexSettings {
+		return ""
+	}
+	switch string(id) {
+	case "field:default_permissions":
+		return "默认使用 development 权限配置。"
+	case "field:permissions.development.extends":
+		return "继承 Codex 内置工作区权限。"
+	case "field:permissions.development.network.enabled":
+		return "允许开发命令联网下载依赖和访问开发服务。"
+	case "field:features.network_proxy":
+		return "不启用 Codex 自带的网络过滤代理。"
+	}
+	body := strings.TrimPrefix(string(id), fieldUnitPrefix)
+	if !strings.HasPrefix(body, codexFilesystemTable+".") {
+		return ""
+	}
+	logical := strings.TrimPrefix(body, codexFilesystemTable+".")
+	group := "开发工具"
+	switch {
+	case containsAny(logical, "gradle", "m2", "ivy2", "sbt", "coursier", "jbang", "konan", "java"):
+		group = "JVM/Java"
+	case containsAny(logical, "go"):
+		group = "Go"
+	case containsAny(logical, "npm", "pnpm", "yarn", "node"):
+		group = "Node.js"
+	case containsAny(logical, "uv", "pip", "poetry", "pdm", "pipx"):
+		group = "Python"
+	case containsAny(logical, "mise"):
+		group = "mise"
+	case containsAny(logical, "serena", "gitnexus"):
+		group = "Agent"
+	case containsAny(logical, "rtk"):
+		group = "RTK"
+	case containsAny(logical, "ccache", "sccache", "conan", "vcpkg", "cmake", "meson"):
+		group = "原生构建工具"
+	case containsAny(logical, "dotnet", "nuget"):
+		group = ".NET"
+	}
+	return "允许 Codex 写入 " + group + " 开发工具目录。"
+}
+
+func containsAny(value string, parts ...string) bool {
+	for _, part := range parts {
+		if strings.Contains(value, part) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) captureScope(
