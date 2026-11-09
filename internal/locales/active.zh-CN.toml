@@ -541,6 +541,12 @@ other = "配置及数据仓选择有效。"
 ["doctor.remedy.config"]
 other = "检查 config.toml 与 MY_DATA_* 覆盖值后重跑 doctor。"
 
+["doctor.detail.auth.age"]
+other = "配置的 age 身份是单个可读的原生私有身份。"
+
+["doctor.remedy.auth.age"]
+other = "检查 secrets.identity_file 或 MY_SECRETS_IDENTITY_FILE，以及文件类型和权限。"
+
 ["doctor.detail.gh"]
 other = "gh 可执行程序可用。"
 
@@ -585,3 +591,81 @@ other = "使用 machine show 核对记录，确认身份后再用显式 bind 选
 
 ["config.file_type"]
 other = "配置目标必须为普通文件：{{.Path}}。"
+
+["cli.config_command"]
+other = "收录并同步纳管配置"
+
+["cli.config_capture"]
+other = "收录本机配置目标"
+
+["cli.config_diff"]
+other = "只读显示配置变化与冲突"
+
+["cli.config_sync"]
+other = "同步纳管配置"
+
+["cli.config_resolve"]
+other = "解决一个配置冲突"
+
+["cli.config_remove"]
+other = "取消纳管配置目标"
+
+["cli.config_all"]
+other = "收录所有受支持的非秘密配置目标"
+
+["cli.config_machine"]
+other = "限制目标适用的机器 ID"
+
+["cli.config_unit"]
+other = "config diff 返回的稳定冲突单位"
+
+["cli.config_from"]
+other = "冲突来源：local 或 remote"
+
+["cli.age_identity"]
+other = "覆盖 age 身份文件路径"
+
+["cli.env"]
+other = "管理同步的 shell 环境变量"
+
+["cli.env_set"]
+other = "从 stdin 设置环境变量"
+
+["cli.env_remove"]
+other = "删除环境变量"
+
+["cli.env_list"]
+other = "列出环境变量名称，不显示值"
+
+["cli.env_secret"]
+other = "以 age 密文保存变量"
+
+["cli.env_overwrite"]
+other = "覆盖同名变量"
+
+["cli.activate"]
+other = "输出 shell 环境变量赋值"
+
+["configuration.capture_result"]
+other = "配置已收录到 {{.Commit}}；changed={{.Changed}}。"
+
+["configuration.sync_result"]
+other = "配置已同步到 {{.Commit}}；changed={{.Changed}}。"
+
+["configuration.resolve_result"]
+other = "配置冲突已在 {{.Commit}} 解决。"
+
+["configuration.remove_result"]
+other = "取消纳管已提交到 {{.Commit}}。"
+
+["configuration.no_changes"]
+other = "没有配置变化。"
+
+["configuration.diff_line"]
+other = "{{.Target}}\t{{.Unit}}\t{{.Action}}"
+
+["shellenv.set_result"]
+other = "环境变量 {{.Name}} 已保存；secret={{.Secret}}；changed={{.Changed}}。"
+
+["shellenv.remove_result"]
+other = "环境变量 {{.Name}} 已删除。"

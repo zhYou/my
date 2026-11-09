@@ -26,6 +26,7 @@ import (
 // Config 保存模块组合后的强类型配置。
 type Config struct {
 	Data        datarepo.Config    `mapstructure:"data"`
+	Secrets     Secrets            `mapstructure:"secrets"`
 	Logging     logging.Config     `mapstructure:"logging"`
 	Diagnostics diagnostics.Config `mapstructure:"diagnostics"`
 	Telemetry   telemetry.Config   `mapstructure:"telemetry"`
@@ -47,6 +48,7 @@ type Options struct {
 func Defaults() Config {
 	return Config{
 		Data:        datarepo.Defaults(),
+		Secrets:     SecretsDefaults(),
 		Logging:     logging.Defaults(),
 		Diagnostics: diagnostics.Defaults(),
 		Telemetry:   telemetry.Defaults(),
@@ -93,6 +95,7 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		"data.repository":                cfg.Data.Repository,
 		"data.branch":                    cfg.Data.Branch,
 		"data.request_timeout":           cfg.Data.RequestTimeout,
+		"secrets.identity_file":          cfg.Secrets.IdentityFile,
 		loggingLevelKey:                  cfg.Logging.Level,
 		"logging.output":                 cfg.Logging.Output,
 		"diagnostics.max_size_mib":       cfg.Diagnostics.MaxSizeMiB,
@@ -195,10 +198,13 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 		v = validation.New()
 	}
 	if err := v.Struct(ctx, cfg); err != nil {
-		return cfg, problem("invalid", err, nil)
+		return cfg, problem(invalidProblem, err, nil)
 	}
 	if err := cfg.Data.ValidateOptional(); err != nil {
-		return cfg, problem("invalid", err, nil)
+		return cfg, problem(invalidProblem, err, nil)
+	}
+	if err := cfg.Secrets.ValidateOptional(); err != nil {
+		return cfg, problem(invalidProblem, err, nil)
 	}
 	return cfg, ctx.Err()
 }

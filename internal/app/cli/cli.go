@@ -188,7 +188,7 @@ func buildRoot(
 			return err
 		}
 		if skipsConfig(cmd, root) {
-			call.setPhase("execute")
+			call.setPhase(phaseExecute)
 			return nil
 		}
 		var override *string
@@ -229,6 +229,10 @@ func buildRoot(
 			}
 			call.directories = dirs
 		}
+		if cmd.Annotations[annotationSkipSession] == annotationEnabled {
+			call.setPhase(phaseExecute)
+			return nil
+		}
 		ctx, owned := session.Begin(
 			cmd.Context(),
 			cfg,
@@ -261,7 +265,18 @@ func buildRoot(
 	schema := newSchemaCommand(root, &call.results)
 	completion := newCompletionCommand(root, call, opts.Name)
 	doctorCommand := newDoctorCommand(call)
-	root.AddCommand(greet, version, schema, completion, doctorCommand, newDataCommand(call), newMachineCommand(call))
+	root.AddCommand(
+		greet,
+		version,
+		schema,
+		completion,
+		doctorCommand,
+		newDataCommand(call),
+		newMachineCommand(call),
+		newConfigCommand(call),
+		newEnvCommand(call),
+		newActivateCommand(call),
+	)
 	call.bindCommand(doctorCommand, commandTexts{
 		short: message("cli.doctor"),
 		example: textMessage{
