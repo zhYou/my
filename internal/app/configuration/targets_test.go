@@ -69,6 +69,11 @@ func TestCodexFilesystemLogicalPathsAreStableAcrossPlatforms(t *testing.T) {
 	require.NotContains(t, linux, "machine-config")
 }
 
+func TestTargetDataRejectsMalformedJSONAndYAML(t *testing.T) {
+	require.Error(t, validateTargetData(TargetFile{Format: FormatJSON}, []byte("{broken")))
+	require.Error(t, validateTargetData(TargetFile{Format: FormatYAML}, []byte("key: [unterminated\n")))
+}
+
 func writeFixture(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))

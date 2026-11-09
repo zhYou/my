@@ -1,7 +1,7 @@
 package configuration
 
 import (
-	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"maps"
@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/pelletier/go-toml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 const maxTargetFileSize = 1 << 20
@@ -385,15 +386,17 @@ func validateTargetData(file TargetFile, data []byte) error {
 		if err := toml.Unmarshal(data, &document); err != nil {
 			return invalidTOML(err)
 		}
-	case FormatJSON:
-		if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
+	case FormatJSON, FormatAgeFile:
+		var value map[string]any
+		if err := json.Unmarshal(data, &value); err != nil || value == nil {
 			return invalidInput()
 		}
 	case FormatYAML:
-		if len(bytes.TrimSpace(data)) == 0 {
+		var value any
+		if err := yaml.Unmarshal(data, &value); err != nil || value == nil {
 			return invalidInput()
 		}
-	case FormatText, FormatAgeFile:
+	case FormatText:
 	default:
 		return invalidInput()
 	}
