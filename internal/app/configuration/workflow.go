@@ -99,9 +99,14 @@ type Result struct {
 
 // DiffChange 描述一个单位的只读比较结果。
 type DiffChange struct {
-	Target TargetID `json:"target"`
-	Unit   UnitID   `json:"unit"`
-	Action Action   `json:"action"`
+	Target   TargetID `json:"target"`
+	Unit     UnitID   `json:"unit"`
+	Action   Action   `json:"action"`
+	Baseline string   `json:"baseline,omitempty"`
+	Local    string   `json:"local,omitempty"`
+	Remote   string   `json:"remote,omitempty"`
+	Diff     string   `json:"diff,omitempty"`
+	Secret   bool     `json:"secret"`
 }
 
 // Conflict 描述需要显式来源选择的单位。
@@ -303,10 +308,7 @@ func (s *Service) Diff(ctx context.Context, input DiffOptions) (DiffResult, erro
 			if comparison.Action == ActionUnchanged {
 				continue
 			}
-			result.Changes = append(
-				result.Changes,
-				DiffChange{Target: plan.target.ID, Unit: id, Action: comparison.Action},
-			)
+			result.Changes = append(result.Changes, diffChange(plan, id, comparison))
 			if comparison.Action == ActionConflict {
 				result.Conflicts = append(
 					result.Conflicts,
@@ -316,6 +318,46 @@ func (s *Service) Diff(ctx context.Context, input DiffOptions) (DiffResult, erro
 		}
 	}
 	return result, nil
+}
+
+func diffChange(plan targetPlan, id UnitID, comparison Comparison) DiffChange {
+	result := DiffChange{
+		Target: plan.target.ID,
+		Unit:   id,
+		Action: comparison.Action,
+		Secret: plan.target.Kind == UnitSecret,
+	}
+	baseline, hasBaseline := plan.baseline.Units[id]
+	local := plan.local[id]
+	remote := plan.remote[id]
+	result.Baseline = displayValue(plan.target.Kind, unitValueFromBaseline(baseline, hasBaseline))
+	result.Local = displayValue(plan.target.Kind, local)
+	result.Remote = displayValue(plan.target.Kind, remote)
+	if plan.target.Kind == UnitFile {
+		result.Diff = UnifiedTextDiff(
+			string(plan.target.ID)+"/"+string(id),
+			local.Data,
+			remote.Data,
+		)
+	}
+	return result
+}
+
+func displayValue(kind UnitKind, value UnitValue) string {
+	if !value.Exists {
+		return "<absent>"
+	}
+	if kind == UnitSecret {
+		return value.Digest
+	}
+	return string(value.Data)
+}
+
+func unitValueFromBaseline(value BaselineValue, exists bool) UnitValue {
+	if !exists {
+		return UnitValue{}
+	}
+	return UnitValue{Exists: value.Exists, Digest: value.Digest, Data: value.Data}
 }
 
 // Sync 自动应用无冲突变化；存在冲突时不写本机或远端。

@@ -476,6 +476,21 @@
                           "action": {
                             "type": "string"
                           },
+                          "baseline": {
+                            "type": "string"
+                          },
+                          "diff": {
+                            "type": "string"
+                          },
+                          "local": {
+                            "type": "string"
+                          },
+                          "remote": {
+                            "type": "string"
+                          },
+                          "secret": {
+                            "type": "boolean"
+                          },
                           "target": {
                             "type": "string"
                           },
@@ -486,7 +501,8 @@
                         "required": [
                           "target",
                           "unit",
-                          "action"
+                          "action",
+                          "secret"
                         ],
                         "type": "object"
                       },

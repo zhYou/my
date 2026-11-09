@@ -126,6 +126,11 @@ func newConfigDiffCommand(call *invocation) *cobra.Command {
 					if _, err := fmt.Fprintln(w, text); err != nil {
 						return err
 					}
+					if change.Diff != "" {
+						if _, err := fmt.Fprint(w, change.Diff); err != nil {
+							return err
+						}
+					}
 				}
 				return nil
 			})

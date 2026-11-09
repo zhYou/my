@@ -112,6 +112,17 @@ func TestSyncConflictDoesNotWriteAnySide(t *testing.T) {
 	require.Equal(t, "verbose = \"local\"\n", readFixture(t, localPath))
 }
 
+func TestDiffReportsLocalRemoteAndUnifiedText(t *testing.T) {
+	_, _, service := conflictingTopgrade(t)
+	diff, err := service.Diff(t.Context(), DiffOptions{Targets: []TargetID{TargetTopgrade}})
+	require.NoError(t, err)
+	require.Len(t, diff.Changes, 1)
+	require.Equal(t, "verbose = \"local\"\n", diff.Changes[0].Local)
+	require.Equal(t, "verbose = \"remote\"\n", diff.Changes[0].Remote)
+	require.Contains(t, diff.Changes[0].Diff, `-verbose = "local"`)
+	require.Contains(t, diff.Changes[0].Diff, `+verbose = "remote"`)
+}
+
 func TestSyncSkipsRemoteAuthoritativeEnvironmentTarget(t *testing.T) {
 	home, repository, service := capturedTopgrade(t, "verbose = true\n")
 	repository.snapshot.Files["configs/targets/shell-env/target.toml"] = []byte(
