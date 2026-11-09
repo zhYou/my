@@ -19,20 +19,25 @@ const (
 	configManifestFile = "configs/manifest.toml"
 	configTargetsRoot  = "configs/targets"
 	fieldValuesFile    = "values.toml"
+	targetMetadataFile = "target.toml"
 )
 
 type remoteTarget struct {
-	id     TargetID
-	scope  MachineScope
-	units  map[UnitID]UnitValue
-	files  map[string][]byte
-	target TargetDefinition
+	id        TargetID
+	scope     MachineScope
+	units     map[UnitID]UnitValue
+	files     map[string][]byte
+	target    TargetDefinition
+	version   string
+	recipient string
 }
 
 type remoteMetadata struct {
 	SchemaVersion int      `toml:"schema_version"`
 	Target        TargetID `toml:"target"`
 	Machines      []string `toml:"machines"`
+	Version       string   `toml:"version,omitempty"`
+	Recipient     string   `toml:"recipient,omitempty"`
 }
 
 func parseRemoteTargets(
@@ -46,7 +51,7 @@ func parseRemoteTargets(
 	for _, id := range sortedTargetIDs(definitions) {
 		definition := definitions[id]
 		prefix := remoteTargetPrefix(id)
-		metadataData, exists := snapshot.Files[path.Join(prefix, "target.toml")]
+		metadataData, exists := snapshot.Files[path.Join(prefix, targetMetadataFile)]
 		if !exists {
 			continue
 		}
@@ -63,15 +68,28 @@ func parseRemoteTargets(
 			return nil, err
 		}
 		target := remoteTarget{
-			id:     id,
-			scope:  scope,
-			units:  map[UnitID]UnitValue{},
-			files:  map[string][]byte{},
-			target: definition,
+			id:        id,
+			scope:     scope,
+			units:     map[UnitID]UnitValue{},
+			files:     map[string][]byte{},
+			target:    definition,
+			version:   metadata.Version,
+			recipient: metadata.Recipient,
 		}
 		switch {
 		case definition.RemoteAuthoritative:
 			continue
+		case definition.Kind == UnitSecret:
+			if metadata.Version == "" || metadata.Recipient == "" || len(definition.Files) != 1 {
+				return nil, problem(codeStateInvalid, phaseStateRead, nil)
+			}
+			file := definition.Files[0]
+			data, exists := snapshot.Files[path.Join(prefix, configDataDirectory, file.Name+".age")]
+			if !exists {
+				return nil, problem(codeStateInvalid, phaseStateRead, nil)
+			}
+			target.units[SecretUnitID] = UnitValue{Exists: true, Digest: metadata.Version}
+			target.files[file.Name] = data
 		case definition.Kind == UnitField:
 			valuesPath := path.Join(prefix, configDataDirectory, fieldValuesFile)
 			if data, ok := snapshot.Files[valuesPath]; ok {
@@ -132,6 +150,15 @@ func encodeScope(scope MachineScope) ([]string, error) {
 }
 
 func encodeRemoteMetadata(target TargetID, scope MachineScope) ([]byte, error) {
+	return encodeRemoteMetadataWithSecret(target, scope, "", "")
+}
+
+func encodeRemoteMetadataWithSecret(
+	target TargetID,
+	scope MachineScope,
+	version string,
+	recipient string,
+) ([]byte, error) {
 	machines, err := encodeScope(scope)
 	if err != nil {
 		return nil, err
@@ -140,6 +167,8 @@ func encodeRemoteMetadata(target TargetID, scope MachineScope) ([]byte, error) {
 		SchemaVersion: 1,
 		Target:        target,
 		Machines:      machines,
+		Version:       version,
+		Recipient:     recipient,
 	})
 }
 
@@ -197,7 +226,7 @@ func remoteFilesForTarget(target remoteTarget) (map[string][]byte, error) {
 		return nil, err
 	}
 	files := map[string][]byte{
-		path.Join(prefix, "target.toml"): metadata,
+		path.Join(prefix, targetMetadataFile): metadata,
 	}
 	if target.target.Kind == UnitField {
 		values, err := encodeFieldValues(target.units)
@@ -205,6 +234,28 @@ func remoteFilesForTarget(target remoteTarget) (map[string][]byte, error) {
 			return nil, err
 		}
 		files[path.Join(prefix, configDataDirectory, fieldValuesFile)] = values
+		return files, nil
+	}
+	if target.target.Kind == UnitSecret {
+		if target.version == "" || target.recipient == "" || len(target.target.Files) != 1 {
+			return nil, problem(codeStateInvalid, phaseStateWrite, nil)
+		}
+		metadata, err := encodeRemoteMetadataWithSecret(
+			target.id,
+			target.scope,
+			target.version,
+			target.recipient,
+		)
+		if err != nil {
+			return nil, err
+		}
+		files[path.Join(prefix, targetMetadataFile)] = metadata
+		name := target.target.Files[0].Name
+		ciphertext, exists := target.files[name]
+		if !exists || len(ciphertext) == 0 {
+			return nil, problem(codeStateInvalid, phaseStateWrite, nil)
+		}
+		files[path.Join(prefix, configDataDirectory, name+".age")] = append([]byte(nil), ciphertext...)
 		return files, nil
 	}
 	for _, file := range target.target.Files {

@@ -21,8 +21,16 @@ import (
 
 // Baseline 保存一个目标上次成功同步的单位状态。
 type Baseline struct {
-	Target TargetID
-	Units  map[UnitID]BaselineValue
+	Target  TargetID
+	Units   map[UnitID]BaselineValue
+	Pending *PendingSecret
+}
+
+// PendingSecret 记录认证文件原子替换前后的摘要，供中断恢复判断。
+type PendingSecret struct {
+	Version        string `json:"version"`
+	BeforeDigest   string `json:"before_digest"`
+	SnapshotDigest string `json:"snapshot_digest"`
 }
 
 type baselineEnvelope struct {
@@ -32,6 +40,7 @@ type baselineEnvelope struct {
 	Branch        string                   `json:"branch"`
 	Target        TargetID                 `json:"target"`
 	Units         map[UnitID]BaselineValue `json:"units"`
+	Pending       *PendingSecret           `json:"pending,omitempty"`
 }
 
 // State 是本机配置基线的锁定、读取、原子发布和清理边界。
@@ -110,7 +119,7 @@ func (s *FileState) Read(metadata datarepo.Metadata, target TargetID) (Baseline,
 			return Baseline{}, false, problem(codeStateInvalid, phaseStateRead, err)
 		}
 	}
-	return Baseline{Target: target, Units: envelope.Units}, true, nil
+	return Baseline{Target: target, Units: envelope.Units, Pending: envelope.Pending}, true, nil
 }
 
 // Write 严格编码并以同目录临时文件原子发布基线。
@@ -132,6 +141,7 @@ func (s *FileState) Write(metadata datarepo.Metadata, baseline Baseline) error {
 		Branch:        metadata.Branch,
 		Target:        baseline.Target,
 		Units:         baseline.Units,
+		Pending:       baseline.Pending,
 	}
 	data, err := json.Marshal(envelope)
 	if err != nil {
@@ -239,6 +249,13 @@ func (b Baseline) Validate() error {
 				return invalidInput()
 			}
 		}
+	}
+	if b.Pending != nil &&
+		(b.Target != TargetCodexAuth && b.Target != TargetShellEnvSecret ||
+			b.Pending.Version == "" ||
+			b.Pending.BeforeDigest == "" ||
+			b.Pending.SnapshotDigest == "") {
+		return invalidInput()
 	}
 	return nil
 }

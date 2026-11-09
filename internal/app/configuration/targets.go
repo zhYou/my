@@ -290,7 +290,11 @@ func (d TargetDefinition) ReadLocal(home, goos string) (TargetSnapshot, error) {
 			maps.Copy(snapshot.Units, units)
 			continue
 		}
-		snapshot.Units[FileUnitID(file.Name)] = UnitValueFromBytes(data)
+		unit := FileUnitID(file.Name)
+		if d.Kind == UnitSecret {
+			unit = SecretUnitID
+		}
+		snapshot.Units[unit] = UnitValueFromBytes(data)
 	}
 	return snapshot, nil
 }

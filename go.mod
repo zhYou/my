@@ -3,6 +3,7 @@ module github.com/zhYou/my
 go 1.27.3
 
 require (
+	filippo.io/age v1.3.2
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/cli/go-gh/v2 v2.17.0
 	github.com/go-playground/validator/v10 v10.30.5
@@ -32,6 +33,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cli/safeexec v1.0.1 // indirect

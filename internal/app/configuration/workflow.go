@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/zhYou/my/internal/base/agecrypt"
 	"github.com/zhYou/my/internal/datarepo"
 )
 
@@ -28,6 +29,7 @@ type Options struct {
 	MachineID     string
 	KnownMachines []string
 	Definitions   []TargetDefinition
+	AgeKey        *agecrypt.Key
 }
 
 // Service 执行目标收录、差异、同步、冲突解决和移除。
@@ -121,14 +123,19 @@ func (e *ConflictError) Error() string {
 }
 
 type targetPlan struct {
-	target       TargetDefinition
-	scope        MachineScope
-	local        map[UnitID]UnitValue
-	remote       map[UnitID]UnitValue
-	baseline     Baseline
-	hasBaseline  bool
-	missingLocal bool
-	comparisons  map[UnitID]Comparison
+	target             TargetDefinition
+	scope              MachineScope
+	local              map[UnitID]UnitValue
+	remote             map[UnitID]UnitValue
+	baseline           Baseline
+	hasBaseline        bool
+	missingLocal       bool
+	comparisons        map[UnitID]Comparison
+	ciphertext         []byte
+	version            string
+	recipient          string
+	localFileDigest    string
+	secretStateUnknown bool
 }
 
 // New 补齐运行平台和默认目标，资源仍在调用时使用。
@@ -185,12 +192,14 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		files[configManifestFile] = []byte("schema_version = 1\n")
 	}
 	baselines := map[TargetID]Baseline{}
+	changedTargets := map[TargetID]bool{}
 	for _, id := range targetIDs {
 		definition, ok := definitions[id]
-		if !ok || !definition.CaptureAll {
+		if !ok || definition.RemoteAuthoritative {
 			return result, invalidInput()
 		}
-		if _, exists := remote[id]; exists {
+		existing, remoteExists := remote[id]
+		if remoteExists && !definition.Secret {
 			return result, problem(codeInvalidInput, phaseValidate, nil)
 		}
 		local, readErr := definition.ReadLocal(s.options.Home, s.options.OS)
@@ -204,11 +213,33 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		if scopeErr != nil {
 			return result, scopeErr
 		}
-		target := remoteTarget{
-			id:     id,
-			scope:  scope,
-			units:  existingUnits(local.Units),
-			target: definition,
+		if remoteExists && len(input.Machines) == 0 {
+			scope = existing.scope
+		}
+		target := remoteTarget{id: id, scope: scope, units: existingUnits(local.Units), target: definition}
+		if definition.Secret {
+			if s.options.AgeKey == nil {
+				return result, problem(codeInvalidInput, phaseValidate, nil)
+			}
+			unit, exists := local.Units[SecretUnitID]
+			if !exists || !unit.Exists {
+				return result, problem(codeInvalidInput, phaseValidate, nil)
+			}
+			if remoteExists &&
+				existing.units[SecretUnitID].Digest == unit.Digest {
+				baselines[id] = baselineFromUnits(id, local.Units)
+				continue
+			}
+			ciphertext, encryptErr := s.options.AgeKey.Encrypt(unit.Data)
+			if encryptErr != nil {
+				return result, problem(codeStateInvalid, phaseStateWrite, encryptErr)
+			}
+			target.units = map[UnitID]UnitValue{
+				SecretUnitID: {Exists: true, Digest: unit.Digest},
+			}
+			target.files = map[string][]byte{definition.Files[0].Name: ciphertext}
+			target.version = unit.Digest
+			target.recipient = s.options.AgeKey.Recipient()
 		}
 		targetFiles, encodeErr := remoteFilesForTarget(target)
 		if encodeErr != nil {
@@ -216,18 +247,22 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		}
 		maps.Copy(files, targetFiles)
 		baselines[id] = baselineFromUnits(id, local.Units)
+		changedTargets[id] = true
 	}
 	if len(baselines) == 0 {
 		return result, invalidInput()
 	}
-	metadata, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-		Message: "my: capture configuration",
-		Files:   files,
-	})
-	if err != nil {
-		return result, err
+	metadata := snapshot.Metadata
+	if len(files) != 0 {
+		metadata, err = s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
+			Message: "my: capture configuration",
+			Files:   files,
+		})
+		if err != nil {
+			return result, err
+		}
 	}
-	result = Result{Snapshot: metadata, Changed: true, Targets: make([]TargetResult, 0, len(baselines))}
+	result = Result{Snapshot: metadata, Changed: len(files) != 0, Targets: make([]TargetResult, 0, len(baselines))}
 	for _, id := range targetIDs {
 		baseline, selected := baselines[id]
 		if !selected {
@@ -236,7 +271,12 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		if err := s.options.State.Write(metadata, baseline); err != nil {
 			return result, err
 		}
-		result.Targets = append(result.Targets, TargetResult{Target: id, Changed: true, Changes: len(baseline.Units)})
+		result.Targets = append(result.Targets, TargetResult{
+			Target: id, Changed: changedTargets[id], Changes: len(baseline.Units),
+		})
+		if changedTargets[id] {
+			result.Changed = true
+		}
 	}
 	return result, nil
 }
@@ -337,6 +377,23 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 		}
 		remoteOnly := valuesForAction(plan.comparisons, plan.remote, ActionApplyRemote)
 		if len(remoteOnly) != 0 {
+			if plan.target.Kind == UnitSecret {
+				decrypted, decryptErr := s.decryptSecretUnits(plan, remoteOnly)
+				if decryptErr != nil {
+					return result, decryptErr
+				}
+				plaintext := decrypted[SecretUnitID].Data
+				pendingBaseline := plan.baseline
+				pendingBaseline.Pending = &PendingSecret{
+					Version:        plan.remote[SecretUnitID].Digest,
+					BeforeDigest:   plan.localFileDigest,
+					SnapshotDigest: UnitValueFromBytes(plaintext).Digest,
+				}
+				if err := s.options.State.Write(metadata, pendingBaseline); err != nil {
+					return result, err
+				}
+				remoteOnly = decrypted
+			}
 			if err := s.applyLocalUnits(plan.target, remoteOnly); err != nil {
 				return result, err
 			}
@@ -389,6 +446,13 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	if !exists || comparison.Action != ActionConflict {
 		return result, invalidInput()
 	}
+	baseline, baselineExists, err := s.options.State.Read(snapshot.Metadata, input.Target)
+	if err != nil {
+		return result, err
+	}
+	if !baselineExists {
+		baseline = Baseline{Target: input.Target, Units: map[UnitID]BaselineValue{}}
+	}
 	var chosen UnitValue
 	switch input.From {
 	case ResolveLocal:
@@ -401,6 +465,19 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 			scope:  plan.scope,
 			units:  unitOverlay(plan.remote, map[UnitID]UnitValue{input.Unit: chosen}),
 			target: plan.target,
+		}
+		if plan.target.Kind == UnitSecret {
+			if s.options.AgeKey == nil || len(chosen.Data) == 0 {
+				return result, problem(codeInvalidInput, phaseValidate, nil)
+			}
+			ciphertext, encryptErr := s.options.AgeKey.Encrypt(chosen.Data)
+			if encryptErr != nil {
+				return result, problem(codeStateInvalid, phaseStateWrite, encryptErr)
+			}
+			updated.version = chosen.Digest
+			updated.recipient = s.options.AgeKey.Recipient()
+			updated.files = map[string][]byte{plan.target.Files[0].Name: ciphertext}
+			updated.units[input.Unit] = UnitValue{Exists: true, Digest: chosen.Digest}
 		}
 		files, encodeErr := remoteFilesForTarget(updated)
 		if encodeErr != nil {
@@ -417,18 +494,31 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 		plan.remote = updated.units
 	case ResolveRemote:
 		chosen = plan.remote[input.Unit]
+		if plan.target.Kind == UnitSecret {
+			decrypted, decryptErr := s.decryptSecretUnits(
+				*plan,
+				map[UnitID]UnitValue{input.Unit: chosen},
+			)
+			if decryptErr != nil {
+				return result, decryptErr
+			}
+			pendingBaseline := baseline
+			pendingBaseline.Pending = &PendingSecret{
+				Version:        chosen.Digest,
+				BeforeDigest:   plan.localFileDigest,
+				SnapshotDigest: chosen.Digest,
+			}
+			if err := s.options.State.Write(snapshot.Metadata, pendingBaseline); err != nil {
+				return result, err
+			}
+			chosen = decrypted[input.Unit]
+		}
 		if err := s.applyLocalUnits(plan.target, map[UnitID]UnitValue{input.Unit: chosen}); err != nil {
 			return result, err
 		}
 		plan.local[input.Unit] = chosen
 	}
-	baseline, exists, err := s.options.State.Read(snapshot.Metadata, input.Target)
-	if err != nil {
-		return result, err
-	}
-	if !exists {
-		baseline = Baseline{Target: input.Target, Units: map[UnitID]BaselineValue{}}
-	}
+	baseline.Pending = nil
 	baseline.Units[input.Unit] = baselineValueFromUnit(
 		chosen,
 		input.Target == TargetCodexAuth || input.Target == TargetShellEnvSecret,
@@ -538,6 +628,34 @@ func (s *Service) plan(
 		if !missingLocal {
 			localUnits = local.Units
 		}
+		localFileDigest := ""
+		secretStateUnknown := false
+		if definition.Kind == UnitSecret {
+			localFileDigest = localUnits[SecretUnitID].Digest
+		}
+		if definition.Kind == UnitSecret && hasBaseline {
+			localSecret := localUnits[SecretUnitID]
+			if !localSecret.Exists {
+				missingLocal = true
+			} else {
+				effectiveVersion := baseline.Units[SecretUnitID].Digest
+				if baseline.Pending != nil {
+					switch localSecret.Digest {
+					case baseline.Pending.SnapshotDigest:
+						effectiveVersion = baseline.Pending.Version
+					case baseline.Pending.BeforeDigest:
+					default:
+						secretStateUnknown = true
+					}
+				}
+				localUnits = map[UnitID]UnitValue{
+					SecretUnitID: {
+						Exists: true,
+						Digest: effectiveVersion,
+					},
+				}
+			}
+		}
 		ids := unitIDSet(localUnits, remoteTarget.units, baseline.Units)
 		comparisons := make(map[UnitID]Comparison, len(ids))
 		for _, unit := range ids {
@@ -552,17 +670,25 @@ func (s *Service) plan(
 			if missingLocal && hasBaseline {
 				comparison = Comparison{Action: ActionConflict, Code: fileMissingCode}
 			}
+			if secretStateUnknown {
+				comparison = Comparison{Action: ActionConflict, Code: "configuration.secret_state_unknown"}
+			}
 			comparisons[unit] = comparison
 		}
 		plans = append(plans, targetPlan{
-			target:       definition,
-			scope:        remoteTarget.scope,
-			local:        localUnits,
-			remote:       remoteTarget.units,
-			baseline:     baseline,
-			hasBaseline:  hasBaseline,
-			missingLocal: missingLocal,
-			comparisons:  comparisons,
+			target:             definition,
+			scope:              remoteTarget.scope,
+			local:              localUnits,
+			remote:             remoteTarget.units,
+			baseline:           baseline,
+			hasBaseline:        hasBaseline,
+			missingLocal:       missingLocal,
+			comparisons:        comparisons,
+			ciphertext:         append([]byte(nil), remoteTarget.files[definition.Files[0].Name]...),
+			version:            remoteTarget.version,
+			recipient:          remoteTarget.recipient,
+			localFileDigest:    localFileDigest,
+			secretStateUnknown: secretStateUnknown,
 		})
 	}
 	return snapshot, plans, nil
@@ -572,6 +698,17 @@ func (s *Service) applyLocalUnits(
 	definition TargetDefinition,
 	units map[UnitID]UnitValue,
 ) error {
+	if definition.Kind == UnitSecret {
+		value, exists := units[SecretUnitID]
+		if !exists || !value.Exists || len(value.Data) == 0 || len(definition.Files) != 1 {
+			return invalidInput()
+		}
+		return AtomicWriteFile(
+			localFilePath(s.options.Home, definition.Files[0]),
+			value.Data,
+			0o600,
+		)
+	}
 	if definition.Kind == UnitFile {
 		for id := range units {
 			body := strings.TrimPrefix(string(id), fileUnitPrefix)
@@ -614,6 +751,25 @@ func (s *Service) applyLocalUnits(
 		}
 	}
 	return nil
+}
+
+func (s *Service) decryptSecretUnits(
+	plan targetPlan,
+	values map[UnitID]UnitValue,
+) (map[UnitID]UnitValue, error) {
+	if s.options.AgeKey == nil || len(plan.ciphertext) == 0 {
+		return nil, problem(codeInvalidInput, phaseValidate, nil)
+	}
+	plaintext, err := s.options.AgeKey.Decrypt(plan.ciphertext, plan.recipient)
+	if err != nil {
+		return nil, problem(codeStateInvalid, phaseStateRead, err)
+	}
+	result := make(map[UnitID]UnitValue, len(values))
+	for id, value := range values {
+		value.Data = plaintext
+		result[id] = value
+	}
+	return result, nil
 }
 
 func localTOMLPath(definition TargetDefinition, id UnitID, goos string) ([]string, bool) {
