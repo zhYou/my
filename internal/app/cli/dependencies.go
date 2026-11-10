@@ -50,6 +50,7 @@ type invocation struct {
 	phase           string
 	configPath      string
 	logLevel        string
+	ageIdentity     string
 	deps            Dependencies
 	logger          *logging.Logger
 	session         *session.Session
@@ -87,7 +88,7 @@ func (call *invocation) setPhase(phase string) {
 func (call *invocation) setSession(owned *session.Session) {
 	call.diagnosticMu.Lock()
 	defer call.diagnosticMu.Unlock()
-	call.phase = "execute"
+	call.phase = phaseExecute
 	call.session = owned
 }
 

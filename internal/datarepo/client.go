@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 
@@ -21,6 +22,26 @@ import (
 
 const responseLimit = 1 << 20
 
+const (
+	configurationManifestPath = "configs/manifest.toml"
+	maxConfigurationFiles     = 256
+	maxConfigurationDepth     = 8
+	rootManifestName          = "my.toml"
+	gitBlobType               = "blob"
+	gitTreeType               = "tree"
+	gitFileMode               = "100644"
+	gitDirectoryMode          = "040000"
+	tomlSuffix                = ".toml"
+	machinesDirectory         = "machines"
+	machinesPrefix            = "machines/"
+	configsDirectory          = "configs"
+	configsPrefix             = "configs/"
+	targetsDirectory          = "targets"
+	targetMetadataName        = "target.toml"
+	dataDirectory             = "data"
+	manifestName              = "manifest.toml"
+)
+
 // Metadata 标识一次一致的远端快照。
 type Metadata struct {
 	Repository   string `json:"repository"`
@@ -31,10 +52,18 @@ type Metadata struct {
 
 // Snapshot 只包含本轮纳管的格式标记和机器记录。
 type Snapshot struct {
-	Metadata    Metadata
-	Files       map[string][]byte
-	Initialized bool
-	HasMachines bool
+	Metadata          Metadata
+	Files             map[string][]byte
+	Initialized       bool
+	ConfigInitialized bool
+	HasMachines       bool
+}
+
+// Changes 描述一次配置或机器资料提交中的新增、更新和删除。
+type Changes struct {
+	Message   string
+	Files     map[string][]byte
+	Deletions []string
 }
 
 // Options 注入调用级认证、HTTP 和观测依赖。
@@ -184,8 +213,8 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 	}
 	for _, entry := range entries {
 		switch entry.Path {
-		case "my.toml":
-			if entry.Type != "blob" || entry.Mode != "100644" {
+		case rootManifestName:
+			if entry.Type != gitBlobType || entry.Mode != gitFileMode {
 				return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			data, err := c.blob(ctx, entry.SHA)
@@ -202,9 +231,9 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 			}
 			snapshot.Initialized = true
 			snapshot.Files[entry.Path] = data
-		case "machines":
+		case machinesDirectory:
 			snapshot.HasMachines = true
-			if entry.Type != "tree" || entry.Mode != "040000" {
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
 				return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 			}
 			machines, err := c.tree(ctx, entry.SHA)
@@ -212,7 +241,8 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 				return snapshot, err
 			}
 			for _, machine := range machines {
-				if machine.Type != "blob" || machine.Mode != "100644" || !strings.HasSuffix(machine.Path, ".toml") ||
+				if machine.Type != gitBlobType || machine.Mode != gitFileMode ||
+					!strings.HasSuffix(machine.Path, tomlSuffix) ||
 					strings.ContainsAny(machine.Path, "/\\") {
 					return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 				}
@@ -220,7 +250,14 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 				if err != nil {
 					return snapshot, err
 				}
-				snapshot.Files["machines/"+machine.Path] = data
+				snapshot.Files[machinesPrefix+machine.Path] = data
+			}
+		case configsDirectory:
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
+				return snapshot, failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+			}
+			if err := c.readConfiguration(ctx, &snapshot, entry.SHA); err != nil {
+				return snapshot, err
 			}
 		}
 	}
@@ -229,27 +266,62 @@ func (c *Client) ReadAt(ctx context.Context, metadata Metadata) (Snapshot, error
 
 // Commit 使用一次 CAS mutation 提交；不确定结果保留未知副作用状态。
 func (c *Client) Commit(ctx context.Context, snapshot Snapshot, files map[string][]byte) (result Metadata, err error) {
+	return c.CommitChanges(ctx, snapshot, Changes{
+		Message: "my: update managed inventory",
+		Files:   files,
+	})
+}
+
+// CommitChanges 使用一次 CAS mutation 同时提交新增、更新和删除。
+func (c *Client) CommitChanges(ctx context.Context, snapshot Snapshot, changes Changes) (result Metadata, err error) {
 	result = snapshot.Metadata
 	ctx, finish := c.observe(ctx, phaseCommit, snapshot.Metadata.Commit)
 	defer func() { finish(err, result) }()
-	paths := make([]string, 0, len(files))
-	for path := range files {
-		if path != "my.toml" &&
-			(!strings.HasPrefix(path, "machines/") || !strings.HasSuffix(path, ".toml") || strings.Contains(path, "..") || strings.ContainsAny(strings.TrimPrefix(path, "machines/"), "/\\")) {
+	paths := make([]string, 0, len(changes.Files))
+	for configPath := range changes.Files {
+		if !validCommitPath(configPath) {
 			return result, failure(codeFormat, phaseCommit, nil, []string{}, recoverFormat)
 		}
-		paths = append(paths, path)
+		paths = append(paths, configPath)
 	}
-	if len(paths) == 0 || snapshot.Metadata.Commit == "" {
+	seenDeletion := make(map[string]struct{}, len(changes.Deletions))
+	deletions := make([]string, 0, len(changes.Deletions))
+	for _, configPath := range changes.Deletions {
+		if !validCommitPath(configPath) || configPath == rootManifestName ||
+			strings.HasPrefix(configPath, machinesPrefix) {
+			return result, failure(codeFormat, phaseCommit, nil, []string{}, recoverFormat)
+		}
+		if _, duplicate := seenDeletion[configPath]; duplicate {
+			return result, failure(codeFormat, phaseCommit, nil, []string{}, recoverFormat)
+		}
+		if _, added := changes.Files[configPath]; added {
+			return result, failure(codeFormat, phaseCommit, nil, []string{}, recoverFormat)
+		}
+		seenDeletion[configPath] = struct{}{}
+		deletions = append(deletions, configPath)
+	}
+	if len(paths) == 0 && len(deletions) == 0 || snapshot.Metadata.Commit == "" {
 		return result, failure(codeFormat, phaseCommit, nil, []string{}, recoverFormat)
 	}
 	sort.Strings(paths)
+	sort.Strings(deletions)
 	additions := make([]map[string]string, 0, len(paths))
-	for _, path := range paths {
+	for _, configPath := range paths {
 		additions = append(
 			additions,
-			map[string]string{"path": path, "contents": base64.StdEncoding.EncodeToString(files[path])},
+			map[string]string{
+				"path":     configPath,
+				"contents": base64.StdEncoding.EncodeToString(changes.Files[configPath]),
+			},
 		)
+	}
+	deleted := make([]map[string]string, 0, len(deletions))
+	for _, configPath := range deletions {
+		deleted = append(deleted, map[string]string{"path": configPath})
+	}
+	message := changes.Message
+	if message == "" {
+		message = "my: update managed inventory"
 	}
 	input := map[string]any{
 		"branch": map[string]string{
@@ -257,8 +329,8 @@ func (c *Client) Commit(ctx context.Context, snapshot Snapshot, files map[string
 			"branchName":              c.config.Branch,
 		},
 		"expectedHeadOid": snapshot.Metadata.Commit,
-		"message":         map[string]string{"headline": "my: update managed inventory"},
-		"fileChanges":     map[string]any{"additions": additions},
+		"message":         map[string]string{"headline": message},
+		"fileChanges":     map[string]any{"additions": additions, "deletions": deleted},
 	}
 	var response struct {
 		Mutation struct {
@@ -291,6 +363,226 @@ func (c *Client) Commit(ctx context.Context, snapshot Snapshot, files map[string
 	}
 	result.Commit = response.Mutation.Commit.OID
 	return result, nil
+}
+
+func (c *Client) readConfiguration(ctx context.Context, snapshot *Snapshot, sha string) error {
+	entries, err := c.tree(ctx, sha)
+	if err != nil {
+		return err
+	}
+	var manifestSHA, targetsSHA string
+	for _, entry := range entries {
+		switch entry.Path {
+		case manifestName:
+			if entry.Type != gitBlobType || entry.Mode != gitFileMode {
+				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+			}
+			manifestSHA = entry.SHA
+		case targetsDirectory:
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
+				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+			}
+			targetsSHA = entry.SHA
+		default:
+			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+		}
+	}
+	if manifestSHA == "" || targetsSHA == "" {
+		return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+	}
+	manifest, err := c.blob(ctx, manifestSHA)
+	if err != nil {
+		return err
+	}
+	var header struct {
+		SchemaVersion int `toml:"schema_version"`
+	}
+	decoder := toml.NewDecoder(bytes.NewReader(manifest))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&header); err != nil || header.SchemaVersion != 1 {
+		return failure(codeFormat, phaseRead, err, []string{}, recoverFormat)
+	}
+	snapshot.ConfigInitialized = true
+	snapshot.Files[configurationManifestPath] = manifest
+	targets, err := c.tree(ctx, targetsSHA)
+	if err != nil {
+		return err
+	}
+	for _, target := range targets {
+		if target.Type != gitTreeType || target.Mode != gitDirectoryMode || !validTargetID(target.Path) {
+			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+		}
+		if err := c.readConfigurationTarget(ctx, snapshot, target.Path, target.SHA); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) readConfigurationTarget(ctx context.Context, snapshot *Snapshot, targetID, sha string) error {
+	entries, err := c.tree(ctx, sha)
+	if err != nil {
+		return err
+	}
+	var targetSHA, dataSHA string
+	for _, entry := range entries {
+		switch entry.Path {
+		case targetMetadataName:
+			if entry.Type != gitBlobType || entry.Mode != gitFileMode {
+				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+			}
+			targetSHA = entry.SHA
+		case dataDirectory:
+			if entry.Type != gitTreeType || entry.Mode != gitDirectoryMode {
+				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+			}
+			dataSHA = entry.SHA
+		default:
+			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+		}
+	}
+	if targetSHA == "" {
+		return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+	}
+	target, err := c.blob(ctx, targetSHA)
+	if err != nil {
+		return err
+	}
+	var metadata struct {
+		SchemaVersion int    `toml:"schema_version"`
+		Target        string `toml:"target"`
+	}
+	if err := toml.Unmarshal(target, &metadata); err != nil ||
+		metadata.SchemaVersion != 1 ||
+		metadata.Target != targetID {
+		return failure(codeFormat, phaseRead, err, []string{}, recoverFormat)
+	}
+	targetPath := path.Join(configsDirectory, targetsDirectory, targetID, targetMetadataName)
+	snapshot.Files[targetPath] = target
+	if dataSHA == "" {
+		return nil
+	}
+	return c.readConfigurationData(
+		ctx,
+		snapshot,
+		path.Join(configsDirectory, targetsDirectory, targetID, dataDirectory),
+		dataSHA,
+		0,
+	)
+}
+
+func (c *Client) readConfigurationData(
+	ctx context.Context,
+	snapshot *Snapshot,
+	parent string,
+	sha string,
+	depth int,
+) error {
+	if depth >= maxConfigurationDepth {
+		return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+	}
+	entries, err := c.tree(ctx, sha)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !safePathComponent(entry.Path) {
+			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+		}
+		switch {
+		case entry.Type == gitBlobType && entry.Mode == gitFileMode:
+			if configurationFileCount(snapshot.Files) >= maxConfigurationFiles {
+				return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+			}
+			data, err := c.blob(ctx, entry.SHA)
+			if err != nil {
+				return err
+			}
+			snapshot.Files[path.Join(parent, entry.Path)] = data
+		case entry.Type == gitTreeType && entry.Mode == gitDirectoryMode:
+			if err := c.readConfigurationData(
+				ctx,
+				snapshot,
+				path.Join(parent, entry.Path),
+				entry.SHA,
+				depth+1,
+			); err != nil {
+				return err
+			}
+		default:
+			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
+		}
+	}
+	return nil
+}
+
+func configurationFileCount(files map[string][]byte) int {
+	count := 0
+	for name := range files {
+		if strings.HasPrefix(name, configsPrefix) {
+			count++
+		}
+	}
+	return count
+}
+
+func validCommitPath(value string) bool {
+	if value == rootManifestName {
+		return true
+	}
+	if remainder, ok := strings.CutPrefix(value, machinesPrefix); ok {
+		return safePathComponent(strings.TrimSuffix(remainder, tomlSuffix)) &&
+			strings.HasSuffix(remainder, tomlSuffix)
+	}
+	if value == configurationManifestPath {
+		return true
+	}
+	parts := strings.Split(value, "/")
+	if len(parts) == 4 &&
+		parts[0] == configsDirectory &&
+		parts[1] == targetsDirectory &&
+		validTargetID(parts[2]) &&
+		parts[3] == targetMetadataName {
+		return true
+	}
+	if len(parts) < 5 ||
+		parts[0] != configsDirectory ||
+		parts[1] != targetsDirectory ||
+		!validTargetID(parts[2]) ||
+		parts[3] != dataDirectory {
+		return false
+	}
+	for _, component := range parts[4:] {
+		if !safePathComponent(component) {
+			return false
+		}
+	}
+	return true
+}
+
+func validTargetID(value string) bool {
+	if value == "" || value[0] == '-' || value[len(value)-1] == '-' {
+		return false
+	}
+	for _, r := range value {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func safePathComponent(value string) bool {
+	if value == "" || value == "." || value == ".." {
+		return false
+	}
+	for _, r := range value {
+		if r == '/' || r == '\\' || r == 0 || r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 type treeEntry struct {

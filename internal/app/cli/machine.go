@@ -11,12 +11,45 @@ import (
 	"github.com/zhYou/my/internal/base/messages"
 	"github.com/zhYou/my/internal/command"
 	"github.com/zhYou/my/internal/datarepo"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
-	annotationNeedsData  = "my.needs-data"
-	annotationNeedsPaths = "my.needs-paths"
+	annotationNeedsData   = "my.needs-data"
+	annotationNeedsPaths  = "my.needs-paths"
+	annotationSkipSession = "my.skip-session"
 )
+
+// dataRepository 构造调用级 GitHub 数据仓客户端。
+func (call *invocation) dataRepository(ctx context.Context) (*datarepo.Client, error) {
+	token := call.deps.Credential
+	if token == nil {
+		token = (datarepo.CredentialSource{Execution: command.Execution{
+			Localizer: call.localizer,
+			Logger:    call.logger,
+			Tracer:    call.sessionTracer(),
+		}}).Read
+	}
+	return datarepo.New(
+		ctx,
+		call.config.Data,
+		datarepo.Options{
+			Token:     token,
+			Transport: call.deps.DataTransport,
+			Logger:    call.logger,
+			Tracer:    call.sessionTracer(),
+			Localizer: call.localizer,
+			CacheDir:  call.directories.Cache,
+		},
+	)
+}
+
+func (call *invocation) sessionTracer() trace.Tracer {
+	if call.session == nil {
+		return nil
+	}
+	return call.session.Tracer
+}
 
 func newDataCommand(call *invocation) *cobra.Command {
 	group := &cobra.Command{
@@ -47,7 +80,7 @@ func newDataCommand(call *invocation) *cobra.Command {
 					"Repository": result.Snapshot.Repository,
 					"Branch":     result.Snapshot.Branch,
 					paramCommit:  result.Snapshot.Commit,
-					"Changed":    result.Changed,
+					paramChanged: result.Changed,
 				},
 			)
 		},
@@ -63,7 +96,7 @@ func newDataCommand(call *invocation) *cobra.Command {
 
 func newMachineCommand(call *invocation) *cobra.Command {
 	group := &cobra.Command{
-		Use:         "machine",
+		Use:         flagMachine,
 		Args:        noArgs,
 		Annotations: map[string]string{annotationSkipConfig: annotationEnabled},
 		RunE:        func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
@@ -311,22 +344,7 @@ func (call *invocation) machineService(ctx context.Context, remote bool) (*machi
 		options.Tracer = call.session.Tracer
 	}
 	if remote {
-		token := call.deps.Credential
-		if token == nil {
-			token = (datarepo.CredentialSource{Execution: command.Execution{Localizer: call.localizer, Logger: call.logger, Tracer: options.Tracer}}).Read
-		}
-		client, err := datarepo.New(
-			ctx,
-			call.config.Data,
-			datarepo.Options{
-				Token:     token,
-				Transport: call.deps.DataTransport,
-				Logger:    call.logger,
-				Tracer:    options.Tracer,
-				Localizer: call.localizer,
-				CacheDir:  call.directories.Cache,
-			},
-		)
+		client, err := call.dataRepository(ctx)
 		if err != nil {
 			return nil, err
 		}

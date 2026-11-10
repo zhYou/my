@@ -104,6 +104,225 @@ func TestReadSnapshotPinsTreeAndCommitUsesExpectedHead(t *testing.T) {
 	assert.Equal(t, 1, commits)
 }
 
+func TestReadAtIncludesStrictConfigurationTree(t *testing.T) {
+	commit := strings.Repeat("a", 40)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/repos/owner/data/git/trees/" + commit:
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"tree": []map[string]string{
+					{"path": "my.toml", "type": "blob", "mode": "100644", "sha": "manifest"},
+					{"path": "configs", "type": "tree", "mode": "040000", "sha": "configs"},
+				},
+				"truncated": false,
+			}))
+		case "/repos/owner/data/git/trees/configs":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"tree": []map[string]string{
+					{"path": "manifest.toml", "type": "blob", "mode": "100644", "sha": "config-manifest"},
+					{"path": "targets", "type": "tree", "mode": "040000", "sha": "targets"},
+				},
+				"truncated": false,
+			}))
+		case "/repos/owner/data/git/trees/targets":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"tree": []map[string]string{
+					{"path": "mise", "type": "tree", "mode": "040000", "sha": "mise"},
+				},
+				"truncated": false,
+			}))
+		case "/repos/owner/data/git/trees/mise":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"tree": []map[string]string{
+					{"path": "target.toml", "type": "blob", "mode": "100644", "sha": "target"},
+					{"path": "data", "type": "tree", "mode": "040000", "sha": "mise-data"},
+				},
+				"truncated": false,
+			}))
+		case "/repos/owner/data/git/trees/mise-data":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"tree": []map[string]string{
+					{"path": "values.toml", "type": "blob", "mode": "100644", "sha": "values"},
+				},
+				"truncated": false,
+			}))
+		case "/repos/owner/data/git/blobs/manifest":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"encoding": "base64",
+				"content":  base64.StdEncoding.EncodeToString([]byte("schema_version=1\n")),
+			}))
+		case "/repos/owner/data/git/blobs/config-manifest":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"encoding": "base64",
+				"content":  base64.StdEncoding.EncodeToString([]byte("schema_version=1\n")),
+			}))
+		case "/repos/owner/data/git/blobs/target":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"encoding": "base64",
+				"content":  base64.StdEncoding.EncodeToString([]byte("schema_version=1\ntarget=\"mise\"\n")),
+			}))
+		case "/repos/owner/data/git/blobs/values":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"encoding": "base64",
+				"content":  base64.StdEncoding.EncodeToString([]byte("[tools]\ngo=\"1.27.3\"\n")),
+			}))
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	c, err := New(
+		t.Context(),
+		Config{Repository: "owner/data", Branch: "main", RequestTimeout: time.Second},
+		Options{
+			Token:     func(context.Context) (string, error) { return "fixture-token", nil },
+			Transport: routeTransport{srv.URL},
+		},
+	)
+	require.NoError(t, err)
+	snapshot, err := c.ReadAt(t.Context(), Metadata{
+		Repository:   "owner/data",
+		RepositoryID: 42,
+		Branch:       "main",
+		Commit:       commit,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []byte("schema_version=1\n"), snapshot.Files["configs/manifest.toml"])
+	assert.Equal(t, []byte("schema_version=1\ntarget=\"mise\"\n"), snapshot.Files["configs/targets/mise/target.toml"])
+	assert.Equal(t, "[tools]\ngo=\"1.27.3\"\n", string(snapshot.Files["configs/targets/mise/data/values.toml"]))
+}
+
+func TestReadAtRejectsUnexpectedConfigurationEntry(t *testing.T) {
+	commit := strings.Repeat("a", 40)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/repos/owner/data/git/trees/" + commit:
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"tree": []map[string]string{
+					{"path": "configs", "type": "tree", "mode": "040000", "sha": "configs"},
+				},
+				"truncated": false,
+			}))
+		case "/repos/owner/data/git/trees/configs":
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"tree": []map[string]string{
+					{"path": "unexpected.toml", "type": "blob", "mode": "100644", "sha": "unexpected"},
+				},
+				"truncated": false,
+			}))
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	c, err := New(
+		t.Context(),
+		Config{Repository: "owner/data", Branch: "main", RequestTimeout: time.Second},
+		Options{
+			Token:     func(context.Context) (string, error) { return "fixture-token", nil },
+			Transport: routeTransport{srv.URL},
+		},
+	)
+	require.NoError(t, err)
+	_, err = c.ReadAt(t.Context(), Metadata{
+		Repository:   "owner/data",
+		RepositoryID: 42,
+		Branch:       "main",
+		Commit:       commit,
+	})
+	require.Error(t, err)
+}
+
+func TestCommitChangesSupportsConfigurationAdditionsAndDeletions(t *testing.T) {
+	base := strings.Repeat("a", 40)
+	next := strings.Repeat("b", 40)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !assert.Equal(t, "/graphql", r.URL.Path) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var body struct {
+			Variables struct {
+				Input struct {
+					ExpectedHead string `json:"expectedHeadOid"`
+					Message      struct {
+						Headline string `json:"headline"`
+					} `json:"message"`
+					FileChanges struct {
+						Additions []struct {
+							Path     string `json:"path"`
+							Contents string `json:"contents"`
+						} `json:"additions"`
+						Deletions []struct {
+							Path string `json:"path"`
+						} `json:"deletions"`
+					} `json:"fileChanges"`
+				} `json:"input"`
+			} `json:"variables"`
+		}
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		assert.Equal(t, base, body.Variables.Input.ExpectedHead)
+		assert.Equal(t, "my: capture configuration", body.Variables.Input.Message.Headline)
+		if !assert.Len(t, body.Variables.Input.FileChanges.Additions, 1) ||
+			!assert.Len(t, body.Variables.Input.FileChanges.Deletions, 1) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		assert.Equal(t, "configs/targets/mise/data/values.toml", body.Variables.Input.FileChanges.Additions[0].Path)
+		assert.Equal(t, "configs/targets/old/target.toml", body.Variables.Input.FileChanges.Deletions[0].Path)
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"createCommitOnBranch": map[string]any{"commit": map[string]any{"oid": next}},
+			},
+		}))
+	}))
+	defer srv.Close()
+	c, err := New(
+		t.Context(),
+		Config{Repository: "owner/data", Branch: "main", RequestTimeout: time.Second},
+		Options{
+			Token:     func(context.Context) (string, error) { return "fixture-token", nil },
+			Transport: routeTransport{srv.URL},
+		},
+	)
+	require.NoError(t, err)
+	result, err := c.CommitChanges(t.Context(), Snapshot{Metadata: Metadata{
+		Repository:   "owner/data",
+		RepositoryID: 42,
+		Branch:       "main",
+		Commit:       base,
+	}}, Changes{
+		Message:   "my: capture configuration",
+		Files:     map[string][]byte{"configs/targets/mise/data/values.toml": []byte("[tools]\n")},
+		Deletions: []string{"configs/targets/old/target.toml"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, next, result.Commit)
+}
+
+func TestCommitChangesRejectsUnsafeConfigurationPath(t *testing.T) {
+	c, err := New(
+		t.Context(),
+		Config{Repository: "owner/data", Branch: "main", RequestTimeout: time.Second},
+		Options{Token: func(context.Context) (string, error) { return "fixture-token", nil }},
+	)
+	require.NoError(t, err)
+	_, err = c.CommitChanges(t.Context(), Snapshot{Metadata: Metadata{Commit: strings.Repeat("a", 40)}}, Changes{
+		Files: map[string][]byte{"configs/targets/mise/../escape": []byte("secret")},
+	})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.NotEmpty(t, details)
+	require.Equal(t, fault.Code("data.format"), details[0].Code)
+}
+
 func TestAmbiguousCommitHasUnknownEffectsAndHidesResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)

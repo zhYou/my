@@ -5,6 +5,7 @@ const (
 	loggingLevelKey    = "logging.level"
 	decodeProblem      = "decode"
 	environmentProblem = "environment"
+	invalidProblem     = "invalid"
 )
 
 const pathParameter = "Path"

@@ -542,6 +542,12 @@ other = "Configuration and data repository selection are valid."
 ["doctor.remedy.config"]
 other = "Check config.toml and MY_DATA_* overrides, then rerun doctor."
 
+["doctor.detail.auth.age"]
+other = "The configured age identity is one readable native private identity."
+
+["doctor.remedy.auth.age"]
+other = "Check secrets.identity_file or MY_SECRETS_IDENTITY_FILE, file type and permissions."
+
 ["doctor.detail.gh"]
 other = "The gh executable is available."
 
@@ -586,3 +592,81 @@ other = "Inspect the record with machine show; restore with explicit bind flags 
 
 ["config.file_type"]
 other = "Configuration must be a regular file: {{.Path}}."
+
+["cli.config_command"]
+other = "Capture and synchronize managed configuration"
+
+["cli.config_capture"]
+other = "Capture local configuration targets"
+
+["cli.config_diff"]
+other = "Show configuration changes and conflicts without writing"
+
+["cli.config_sync"]
+other = "Synchronize managed configuration"
+
+["cli.config_resolve"]
+other = "Resolve one configuration conflict"
+
+["cli.config_remove"]
+other = "Stop managing configuration targets"
+
+["cli.config_all"]
+other = "Capture all supported non-secret configuration targets"
+
+["cli.config_machine"]
+other = "Restrict a target to machine IDs"
+
+["cli.config_unit"]
+other = "Stable conflict unit returned by config diff"
+
+["cli.config_from"]
+other = "Conflict source: local or remote"
+
+["cli.age_identity"]
+other = "Override the age identity file path"
+
+["cli.env"]
+other = "Manage synchronized shell environment variables"
+
+["cli.env_set"]
+other = "Set an environment variable from stdin"
+
+["cli.env_remove"]
+other = "Remove an environment variable"
+
+["cli.env_list"]
+other = "List environment variable names without values"
+
+["cli.env_secret"]
+other = "Store the variable as age ciphertext"
+
+["cli.env_overwrite"]
+other = "Replace an existing variable"
+
+["cli.activate"]
+other = "Print shell environment assignments"
+
+["configuration.capture_result"]
+other = "Configuration captured at {{.Commit}}; changed={{.Changed}}."
+
+["configuration.sync_result"]
+other = "Configuration synchronized at {{.Commit}}; changed={{.Changed}}."
+
+["configuration.resolve_result"]
+other = "Configuration conflict resolved at {{.Commit}}."
+
+["configuration.remove_result"]
+other = "Configuration target removal committed at {{.Commit}}."
+
+["configuration.no_changes"]
+other = "No configuration changes."
+
+["configuration.diff_line"]
+other = "{{.Target}}\t{{.Unit}}\t{{.Action}}"
+
+["shellenv.set_result"]
+other = "Environment variable {{.Name}} saved; secret={{.Secret}}; changed={{.Changed}}."
+
+["shellenv.remove_result"]
+other = "Environment variable {{.Name}} removed."

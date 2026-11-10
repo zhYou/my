@@ -7,6 +7,13 @@ const (
 	schemaChange                  = "change"
 	messageRecordResult           = "machine.record_result"
 	flagKind                      = "kind"
+	flagMachine                   = "machine"
+	flagUnit                      = "unit"
+	flagFrom                      = "from"
+	flagSecret                    = "secret"
+	paramChanged                  = "Changed"
+	phaseExecute                  = "execute"
+	shellenvStateDirectory        = "shellenv"
 	schemaEnumKey                 = "enum"
 	schemaAdditionalPropertiesKey = "additionalProperties"
 )

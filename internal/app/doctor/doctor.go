@@ -11,6 +11,7 @@ import (
 
 	"github.com/zhYou/my/internal/app/config"
 	"github.com/zhYou/my/internal/app/machine"
+	"github.com/zhYou/my/internal/base/agecrypt"
 	"github.com/zhYou/my/internal/base/fault"
 	"github.com/zhYou/my/internal/base/messages"
 	"github.com/zhYou/my/internal/base/paths"
@@ -186,6 +187,12 @@ func Run(ctx context.Context, options Options) (Result, error) {
 		}
 		return cfg.Data.Validate()
 	})
+	if configOK && cfg.Secrets.IdentityFile != "" {
+		_ = run("auth.age", true, func(context.Context) error {
+			_, err := agecrypt.LoadIdentity(cfg.Secrets.IdentityFile)
+			return err
+		})
+	}
 	ghOK := run("gh", true, func(probe context.Context) error {
 		if options.CheckGH == nil {
 			return errors.New("gh unavailable")

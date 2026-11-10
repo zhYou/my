@@ -107,22 +107,24 @@ JSON、XML、TOML 的语法由 pre-commit-hooks 包的 `check-json`、`check-xml
 
 ## 目录和依赖
 
-| 位置                                                        | 职责                                                                                 |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `cmd/<name>/`                                               | 程序入口、信号、退出及入口测试                                                       |
-| `internal/app/cli`                                          | 独立命令树、参数、输出和退出码映射                                                   |
-| `internal/app/config`                                       | 模块配置组合与严格加载                                                               |
-| `internal/app/session`                                      | 自建日志、Trace、诊断及工作收尾                                                      |
-| `internal/app/greeting`                                     | 可移除业务示例                                                                       |
-| `internal/base`                                             | fault、messages、paths、validation、IO、logging、telemetry、diagnostics、结果 schema |
-| `internal/locales`                                          | 集中双语 TOML 消息目录与共享 Bundle                                                  |
-| `internal/command`                                          | 独立 argv、进程所有权、捕获和有界批量执行                                            |
-| `tools/doctor/`、`tools/build/`                             | 环境探测、本地构建                                                                   |
-| `tools/lint/`                                               | 消息、配置、包文档、版本声明检查和规则自测                                           |
-| `tools/contract/`、`tools/template/`                        | 契约维护、模板初始化与隔离副本验收                                                   |
-| `tools/mcp/`、`tools/release/`                              | MCP 连接、发布归档与宿主安装验收                                                     |
-| `tools/internal/`                                           | 工具私有共享实现：模板事务、契约比较、工具版本、二进制验收、进程调用与 fixture       |
-| `configs/`、`test/integration/`、`test/testdata/contracts/` | 配置示例、真实进程脚本、共享契约基线                                                 |
+| 位置                                                        | 职责                                                                                           |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `cmd/<name>/`                                               | 程序入口、信号、退出及入口测试                                                                 |
+| `internal/app/cli`                                          | 独立命令树、参数、输出和退出码映射                                                             |
+| `internal/app/config`                                       | 模块配置组合与严格加载                                                                         |
+| `internal/app/session`                                      | 自建日志、Trace、诊断及工作收尾                                                                |
+| `internal/app/configuration`                                | 配置目标、三方比较、基线和冲突解决                                                             |
+| `internal/app/shellenv`                                     | 数据仓权威环境变量、本机缓存和 shell activate                                                  |
+| `internal/app/greeting`                                     | 可移除业务示例                                                                                 |
+| `internal/base`                                             | fault、messages、paths、validation、agecrypt、IO、logging、telemetry、diagnostics、结果 schema |
+| `internal/locales`                                          | 集中双语 TOML 消息目录与共享 Bundle                                                            |
+| `internal/command`                                          | 独立 argv、进程所有权、捕获和有界批量执行                                                      |
+| `tools/doctor/`、`tools/build/`                             | 环境探测、本地构建                                                                             |
+| `tools/lint/`                                               | 消息、配置、包文档、版本声明检查和规则自测                                                     |
+| `tools/contract/`、`tools/template/`                        | 契约维护、模板初始化与隔离副本验收                                                             |
+| `tools/mcp/`、`tools/release/`                              | MCP 连接、发布归档与宿主安装验收                                                               |
+| `tools/internal/`                                           | 工具私有共享实现：模板事务、契约比较、工具版本、二进制验收、进程调用与 fixture                 |
+| `configs/`、`test/integration/`、`test/testdata/contracts/` | 配置示例、真实进程脚本、共享契约基线                                                           |
 
 base 不依赖 app、command、tools 或 Cobra。领域码及结果由所属模块定义，文案集中维护；新目录按实际职责增加。
 运行时代码与测试不依赖开发包；工具可以复用运行时包。`tools/internal` 的导入范围由 Go 限制在 tools 子树内。
@@ -268,6 +270,8 @@ MY_HOME="$example_home" mise exec -- go test -race ./...
 嵌入调用可注入 Directories、LookupEnv 与 IO；只设置 ConfigDir 不会隔离日志状态。
 `IOStreams.WithDefaults` 返回副本，缺省输入 EOF、输出 io.Discard，不访问或关闭进程标准流。
 真实退出码用构建后的程序验证，`go run` 会包装非零退出。输出测试检查单 JSON 与独立 stderr；
+配置与认证测试使用合成 age 身份和临时数据仓替身，不读取用户 `auth.json`、真实 identity 或私有仓。
+`activate` 测试同时检查离线、无 Session/日志、shell 语法和敏感值不进入诊断。
 坏配置下帮助、version、completion、schema 不读配置、不落盘。
 平台进程树、取消和句柄回收需对应 OS 原生 helper；交叉编译不证明运行行为，报告以实际结果为准。
 

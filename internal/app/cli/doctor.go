@@ -56,9 +56,9 @@ func newDoctorCommand(call *invocation) *cobra.Command {
 							"doctor.check",
 							messages.FormatOptions{
 								Params: map[string]any{
-									"Name":   check.Name,
-									"Status": check.Status,
-									"Detail": check.Detail,
+									paramName: check.Name,
+									"Status":  check.Status,
+									"Detail":  check.Detail,
 								},
 							},
 						)
