@@ -364,7 +364,7 @@ task 内由 mise 提供工具环境，无需额外包装。
 
 本项目最初基于 [go-cli-starter](https://github.com/zhYou/go-cli-starter) 0.4.0，
 初始化来源 `065fc74a424020155f9d849709b0baaa819ca685` 保存在 [.template-origin.json](.template-origin.json)。
-当前已人工同步模板 0.4.1，来源提交为 `3dcd7c8d9e9632a7857b091afa107ae31a0b3c7b`。
+当前已人工同步模板 0.4.1，来源提交为 `0ba85f418512dd6eae1b3b8a0066354f2042e03d`。
 模板版本与应用发布版本独立；同步范围见[模板升级](docs/template-upgrades.md#my-的模板同步记录)，不运行初始化覆盖业务。
 
 身份路径按显式 `--age-identity`、非空环境变量、配置文件的顺序选择，仅在实际加解密时读取。

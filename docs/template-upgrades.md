@@ -154,3 +154,11 @@ my 的已提交兼容决策以 v0.3.1 为基线，本轮目标 v0.4.0 尚未发�
 
 产品入口继续使用 `machine`、`target`、`env` 与 `activate`；模板同步不改变这些命令的机器契约，
 应用兼容决策仍见[兼容记录](compatibility.md)。新建开发 worktree 使用主工作区 `.worktrees/`，已有任务工作区继续复用。
+
+2026-11-11 从 `main@3dcd7c8d9e9632a7857b091afa107ae31a0b3c7b` 人工同步至
+`main@0ba85f418512dd6eae1b3b8a0066354f2042e03d`，模板版本保持 0.4.1，来源为
+[模板 PR #37](https://github.com/zhYou/go-cli-starter/pull/37)。
+
+本次模板差异仅涉及 `docs/development.md`。对旧模板、新模板和当前 my 文档进行三方比对，
+对齐测试职责、Unix 平台约束、可选 live 验收和两组通用 IDE 折叠规则，保留 my 的真实 GitHub 验收启用条件。
+本项目测试文件的职责归并继续保留；本次同步只修改开发说明及来源记录，未改动 Go 源码、依赖、模板版本或最初初始化身份。
