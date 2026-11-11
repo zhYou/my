@@ -3,15 +3,34 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestInitializeAcceptsAnotherServiceCatalog(t *testing.T) {
+	responses := strings.NewReader(`{"jsonrpc":"2.0","id":1,"result":{}}
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"graph_stats"}],"nextCursor":"second"}}
+{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"query_graph"}]}}
+`)
+	client := &mcpClient{encoder: json.NewEncoder(io.Discard), decoder: json.NewDecoder(responses)}
+	require.NoError(t, client.initialize("graph_stats", "query_graph"))
+}
+
+func TestInitializeRejectsMissingRequiredTool(t *testing.T) {
+	responses := strings.NewReader(`{"jsonrpc":"2.0","id":1,"result":{}}
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"graph_stats"}]}}
+`)
+	client := &mcpClient{encoder: json.NewEncoder(io.Discard), decoder: json.NewDecoder(responses)}
+	require.ErrorContains(t, client.initialize("query_graph"), "query_graph")
+}
 
 func TestServerFailuresUnblockRequests(t *testing.T) {
 	bin := mcpProcessFixture(t)
@@ -28,7 +47,7 @@ func TestServerFailuresUnblockRequests(t *testing.T) {
 				timeout = 100 * time.Millisecond
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), timeout)
-			client, closeClient, err := startMCP(ctx, t.TempDir(), t.TempDir())
+			client, closeClient, err := startMCP(ctx, t.TempDir(), "mcp:serve")
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				cancel()
@@ -57,7 +76,7 @@ func TestClientCloseDrainsServerOutput(t *testing.T) {
 	t.Setenv("MCP_FIXTURE_MODE", "close-output")
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	client, closeClient, err := startMCP(ctx, t.TempDir(), t.TempDir())
+	client, closeClient, err := startMCP(ctx, t.TempDir(), "mcp:serve")
 	require.NoError(t, err)
 	_, err = client.request("probe", map[string]any{})
 	require.NoError(t, err)

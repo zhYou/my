@@ -56,7 +56,9 @@ func newDataCommand(call *invocation) *cobra.Command {
 		Use:         "data",
 		Args:        noArgs,
 		Annotations: map[string]string{annotationSkipConfig: annotationEnabled},
-		RunE:        func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
 	}
 	initialize := &cobra.Command{
 		Use:         "init",
@@ -99,7 +101,9 @@ func newMachineCommand(call *invocation) *cobra.Command {
 		Use:         flagMachine,
 		Args:        noArgs,
 		Annotations: map[string]string{annotationSkipConfig: annotationEnabled},
-		RunE:        func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
 	}
 	register := newRegisterCommand(call)
 	bind := newBindCommand(call)
@@ -361,7 +365,10 @@ func businessOutput[T any](cmd *cobra.Command, call *invocation, result T, id st
 	if err != nil {
 		return err
 	}
-	return writeText(cmd.OutOrStdout(), func(w io.Writer) error { _, err := fmt.Fprintln(w, text); return err })
+	return writeText(cmd.OutOrStdout(), func(w io.Writer) error {
+		_, err := fmt.Fprintln(w, text)
+		return err
+	})
 }
 
 func recordParams(record machine.Record, commit string) map[string]any {

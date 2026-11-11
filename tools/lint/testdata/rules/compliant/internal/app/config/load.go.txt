@@ -1,3 +1,6 @@
 package config
+import "os"
 import k "github.com/knadh/koanf/v2"
 func Decode() error { var cfg struct{ Value string }; return k.New(".").Unmarshal("", &cfg) }
+
+func Environment() (string,bool) { return os.LookupEnv("SETTING") }

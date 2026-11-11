@@ -30,6 +30,7 @@ var managedFiles = []string{
 	".serena/project.yml",
 	"tools/mcp/client.go",
 	"tools/mcp/fixture.go",
+	"tools/mcp/graphify_fixture.go",
 	".golangci.yml",
 	"cmd/" + TemplateName + "/doc.go",
 	"internal/app/cli/completion_protocol.go",

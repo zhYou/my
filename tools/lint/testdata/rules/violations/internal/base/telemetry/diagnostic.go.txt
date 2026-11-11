@@ -1,0 +1,7 @@
+package telemetry
+import "os"
+import "go.opentelemetry.io/otel/trace"
+func RecordError(span trace.Span, err error) {
+ span.RecordError(err)
+ _ = os.Getenv("TOKEN") // want forbidigo
+}

@@ -20,7 +20,9 @@ func TestUnifiedHomeConfigurationPrecedesSession(t *testing.T) {
 	var out, stderr bytes.Buffer
 	code := Run(context.Background(), []string{"greet", "--name", "fixture", "--json"}, Options{
 		Name: "my", Out: &out, ErrOut: &stderr,
-		LookupEnv: func(k string) (string, bool) { return home, k == "HOME" || k == "USERPROFILE" },
+		LookupEnv: func(k string) (string, bool) {
+			return home, k == "HOME" || k == "USERPROFILE"
+		},
 	})
 	require.Equal(t, 1, code, stderr.String())
 	require.Empty(t, out.String())

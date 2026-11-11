@@ -16,6 +16,7 @@ func TestEntryRejectsInvalidArguments(t *testing.T) {
 
 // 开发入口必须执行真实检查，并向调用者返回配置错误。
 func TestI18nAndConfigCheckTasks(t *testing.T) {
+	t.Chdir(filepath.Join("..", ".."))
 	require.NoError(t, run([]string{"i18n"}))
 	dir := t.TempDir()
 	t.Chdir(dir)

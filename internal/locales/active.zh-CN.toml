@@ -592,34 +592,34 @@ other = "使用 machine show 核对记录，确认身份后再用显式 bind 选
 ["config.file_type"]
 other = "配置目标必须为普通文件：{{.Path}}。"
 
-["cli.config_command"]
+["cli.target_command"]
 other = "收录并同步纳管配置"
 
-["cli.config_capture"]
+["cli.target_capture"]
 other = "收录本机配置目标"
 
-["cli.config_diff"]
+["cli.target_diff"]
 other = "只读显示配置变化与冲突"
 
-["cli.config_sync"]
+["cli.target_sync"]
 other = "同步纳管配置"
 
-["cli.config_resolve"]
+["cli.target_resolve"]
 other = "解决一个配置冲突"
 
-["cli.config_remove"]
+["cli.target_remove"]
 other = "取消纳管配置目标"
 
-["cli.config_all"]
+["cli.target_all"]
 other = "收录所有受支持的非秘密配置目标"
 
-["cli.config_machine"]
+["cli.target_machine"]
 other = "限制目标适用的机器 ID"
 
-["cli.config_unit"]
-other = "config diff 返回的稳定冲突单位"
+["cli.target_unit"]
+other = "target diff 返回的稳定冲突单位"
 
-["cli.config_from"]
+["cli.target_from"]
 other = "冲突来源：local 或 remote"
 
 ["cli.age_identity"]
@@ -646,22 +646,22 @@ other = "覆盖同名变量"
 ["cli.activate"]
 other = "输出 shell 环境变量赋值"
 
-["configuration.capture_result"]
+["target.capture_result"]
 other = "配置已收录到 {{.Commit}}；changed={{.Changed}}。"
 
-["configuration.sync_result"]
+["target.sync_result"]
 other = "配置已同步到 {{.Commit}}；changed={{.Changed}}。"
 
-["configuration.resolve_result"]
+["target.resolve_result"]
 other = "配置冲突已在 {{.Commit}} 解决。"
 
-["configuration.remove_result"]
+["target.remove_result"]
 other = "取消纳管已提交到 {{.Commit}}。"
 
-["configuration.no_changes"]
+["target.no_changes"]
 other = "没有配置变化。"
 
-["configuration.diff_line"]
+["target.diff_line"]
 other = "{{.Target}}\t{{.Unit}}\t{{.Action}}"
 
 ["shellenv.set_result"]
@@ -669,3 +669,87 @@ other = "环境变量 {{.Name}} 已保存；secret={{.Secret}}；changed={{.Chan
 
 ["shellenv.remove_result"]
 other = "环境变量 {{.Name}} 已删除。"
+
+["target.invalid_input"]
+other = "目标选择、单位、来源或机器范围无效。"
+
+["target.state_invalid"]
+other = "目标状态或内容无效。"
+
+["target.legacy"]
+other = "目标存在旧布局，需要显式清理。"
+
+["target.conflicts"]
+other = "目标存在 {{.Count}} 项冲突，需要显式选择来源；使用 target diff 查看冲突单位。"
+
+["target.operation_failed"]
+other = "目标操作失败。"
+
+["target.identity"]
+other = "此秘密操作需要可用的 age identity。"
+
+["target.recover"]
+other = "重试前检查 target diff 和已确认副作用。数据版本：{{.Commit}}。认证操作保留 pending 状态后重试 target sync；需要选择来源时使用 target resolve。"
+
+["target.operation_event"]
+other = "目标阶段 {{.Operation}} 已结束。"
+
+["shellenv.invalid_input"]
+other = "环境变量名、值或机器范围无效。"
+
+["shellenv.invalid_state"]
+other = "环境声明或缓存无效。"
+
+["shellenv.read_input"]
+other = "无法从标准输入读取环境变量值。"
+
+["shellenv.identity"]
+other = "此秘密操作需要可用的 age identity。"
+
+["shellenv.operation_failed"]
+other = "环境操作失败。"
+
+["shellenv.recover"]
+other = "重试前检查已确认副作用。数据版本：{{.Commit}}。已确认提交后先运行 target sync 刷新本机缓存，再执行 activate；不要盲目重复写入。"
+
+["shellenv.operation_event"]
+other = "环境阶段 {{.Operation}} 已结束。"
+
+["config.invalid_identity_path"]
+other = "age identity 必须使用绝对路径。"
+
+["cli.identity_path"]
+other = "--age-identity 必须使用绝对路径。"
+
+["cli.target_command_example"]
+other = "{{.Name}} target capture mise\n{{.Name}} target diff\n{{.Name}} target sync"
+
+["cli.target_capture_example"]
+other = "{{.Name}} target capture mise codex-settings\n{{.Name}} target capture --all"
+
+["cli.target_diff_example"]
+other = "{{.Name}} target diff --json"
+
+["cli.target_sync_example"]
+other = "{{.Name}} target sync"
+
+["cli.target_resolve_example"]
+other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote"
+
+["cli.target_remove_example"]
+other = "{{.Name}} target remove topgrade"
+
+["cli.env_example"]
+other = "printf '%s' 'nvim' | {{.Name}} env set EDITOR\n{{.Name}} env list"
+
+["cli.env_set_example"]
+other = "printf '%s' 'nvim' | {{.Name}} env set EDITOR"
+
+["cli.env_remove_example"]
+other = "{{.Name}} env remove EDITOR"
+
+["cli.env_list_example"]
+other = "{{.Name}} env list --json"
+
+["cli.activate_example"]
+other = "{{.Name}} activate bash"

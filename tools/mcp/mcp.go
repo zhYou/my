@@ -13,14 +13,24 @@ import (
 	"github.com/zhYou/my/tools/internal/scaffold"
 )
 
-// checkMCP 与 Codex 复用 mcp:serve，真实调用不能由配置存在或 CLI 回退替代。
-func checkMCP() (resultErr error) {
+// checkMCP 与 Codex 复用两个服务 task，真实调用不能由配置存在或 CLI 回退替代。
+func checkMCP() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	root, err := os.Getwd()
 	if err != nil {
 		return err
 	}
+	if err := checkSerenaMCP(ctx, root); err != nil {
+		return fmt.Errorf("验收 Serena MCP：%w", err)
+	}
+	if err := checkGraphifyMCP(ctx, root); err != nil {
+		return fmt.Errorf("验收 Graphify MCP：%w", err)
+	}
+	return nil
+}
+
+func checkSerenaMCP(ctx context.Context, root string) (resultErr error) {
 	configPath := filepath.Join(root, serenaDirectory, serenaProjectFile)
 	//nolint:gosec // G304：只读取当前 checkout 的固定 Serena 项目配置，检测意外迁移。
 	configBefore, err := os.ReadFile(configPath)
@@ -43,14 +53,17 @@ func checkMCP() (resultErr error) {
 	defer func() {
 		resultErr = errors.Join(resultErr, os.RemoveAll(temporary))
 	}()
-	client, closeClient, err := startMCP(ctx, root, filepath.Join(temporary, "serena-home"))
+	client, closeClient, err := startMCP(ctx, root, "mcp:serve", "SERENA_HOME="+filepath.Join(temporary, "serena-home"))
 	if err != nil {
 		return err
 	}
 	defer func() {
 		resultErr = errors.Join(resultErr, closeClient())
 	}()
-	if err := client.initialize(); err != nil {
+	if err := client.initialize(
+		"initial_instructions", "activate_project", "get_current_config", "find_symbol", "get_symbols_overview",
+		"find_referencing_symbols", "rename_symbol", "get_diagnostics_for_file", "search_for_pattern",
+	); err != nil {
 		return err
 	}
 	instructions, err := client.tool("initial_instructions", map[string]any{})
@@ -80,26 +93,26 @@ func checkMCP() (resultErr error) {
 	}
 	// 必须在 MCP 连接建立后创建；路径嵌套在已激活项目内，且含空格。
 	linked := filepath.Join(base, ".worktrees", "new checkout")
-	if err := fixtureGit(ctx, base, "worktree", "add", quietFlag, "--detach", linked, "HEAD"); err != nil {
+	if err := fixtureGit(ctx, base, "worktree", gitAddCommand, quietFlag, "--detach", linked, "HEAD"); err != nil {
 		return err
 	}
-	if err := writeMCPFiles(linked, "Linked"); err != nil {
+	if err := writeMCPFiles(linked, linkedPrefix); err != nil {
 		return err
 	}
 	if err := client.activate(linked, session); err != nil {
 		return err
 	}
-	if err := verifyMCPFixture(client, "Linked"); err != nil {
+	if err := verifyMCPFixture(client, linkedPrefix); err != nil {
 		return err
 	}
 	result, err := client.tool(
 		"find_symbol",
-		map[string]any{"name_path_pattern": "BaseGoMarker", relativePathField: goFixtureFile},
+		map[string]any{"name_path_pattern": baseGoMarker, relativePathField: goFixtureFile},
 	)
 	if err != nil {
 		return err
 	}
-	if strings.Contains(result, "BaseGoMarker") {
+	if strings.Contains(result, baseGoMarker) {
 		return fmt.Errorf("worktree 查询混入原 checkout：%s", result)
 	}
 	if err := verifyGoReferencesAndDiagnostics(client, linked); err != nil {

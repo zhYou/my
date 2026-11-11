@@ -234,7 +234,7 @@ func TestUnknownInitializationDoesNotReportBaseAsCommitted(t *testing.T) {
 	var event map[string]any
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(output.Bytes()), &event))
 	require.Equal(t, "unknown", event["outcome"])
-	require.Empty(t, event["commit"], "未知提交不得把读取基线标记为确认提交")
+	require.Empty(t, event["data_commit"], "未知提交不得把读取基线标记为确认提交")
 }
 
 func TestRetireSameRepositoryCaseClearsBinding(t *testing.T) {

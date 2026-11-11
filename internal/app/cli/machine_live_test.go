@@ -42,10 +42,12 @@ func TestGitHubMachineAcceptance(t *testing.T) {
 			t.Context(),
 			args,
 			Options{
-				Name:         "my",
-				Out:          &out,
-				ErrOut:       &stderr,
-				LookupEnv:    func(k string) (string, bool) { return home, k == "MY_HOME" },
+				Name:   "my",
+				Out:    &out,
+				ErrOut: &stderr,
+				LookupEnv: func(k string) (string, bool) {
+					return home, k == "MY_HOME"
+				},
 				Dependencies: deps,
 			},
 		)
@@ -114,7 +116,9 @@ func TestGitHubMachineAcceptance(t *testing.T) {
 			id = "accept-unknown-" + suffix
 			deps.DataTransport = &lostLiveResponse{next: http.DefaultTransport}
 		} else {
-			deps.State = func(path string) machine.State { return workflowFailedState{machine.NewFileState(path)} }
+			deps.State = func(path string) machine.State {
+				return workflowFailedState{machine.NewFileState(path)}
+			}
 		}
 		failed := run(isolated, deps, 1, "machine", "register", id, "--kind", "vm", "--note", "private-note-marker")
 		effects := failed.Diagnostics[0].Effects
@@ -162,29 +166,6 @@ func liveHome(t *testing.T, repo, branch string) string {
 	// #nosec G703 -- 路径仅由 t.TempDir 与固定文件名组成。
 	require.NoError(t, os.WriteFile(filepath.Join(home, "config.toml"), []byte(content), 0o600))
 	return home
-}
-
-func verifyDiagnosticFiles(t *testing.T, home string) {
-	t.Helper()
-	files, err := filepath.Glob(filepath.Join(home, "state", "logs", "*", "events.jsonl"))
-	require.NoError(t, err)
-	require.NotEmpty(t, files)
-	for _, file := range files {
-		data, err := os.ReadFile(file) // #nosec G304 -- 测试私有目录的固定模式。
-		require.NoError(t, err)
-		require.NotContains(t, string(data), "private-note-marker")
-		require.NotContains(t, string(data), "private-response-marker")
-		require.NotContains(t, string(data), "private-local-marker")
-		runID := filepath.Base(filepath.Dir(file))
-		require.Contains(t, string(data), runID)
-		trace, err := os.ReadFile(filepath.Join(filepath.Dir(file), "trace.jsonl")) // #nosec G304 -- 测试私有目录。
-		require.NoError(t, err)
-		require.Contains(t, string(trace), runID)
-		require.NotContains(t, string(trace), "private-note-marker")
-		require.NotContains(t, string(trace), "private-response-marker")
-		require.NotContains(t, string(trace), "private-local-marker")
-		t.Logf("观测关联通过 run_id=%s", runID)
-	}
 }
 
 type liveOutput struct {

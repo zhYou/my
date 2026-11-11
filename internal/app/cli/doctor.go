@@ -148,7 +148,9 @@ func (call *invocation) configureDoctor(options *doctor.Options) {
 			ctx,
 			cfg,
 			datarepo.Options{
-				Token:     func(context.Context) (string, error) { return token, nil },
+				Token: func(context.Context) (string, error) {
+					return token, nil
+				},
 				Transport: call.deps.DataTransport,
 			},
 		)

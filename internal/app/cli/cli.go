@@ -195,6 +195,10 @@ func buildRoot(
 		if cmd.Flags().Changed(flagLogLevel) {
 			override = &call.logLevel
 		}
+		var identityOverride *string
+		if cmd.Flags().Changed(flagAgeIdentity) {
+			identityOverride = &call.ageIdentity
+		}
 		call.setPhase("configuration")
 		cfg, err := call.deps.LoadConfig(
 			cmd.Context(),
@@ -207,6 +211,7 @@ func buildRoot(
 				Validator:     call.deps.Validator,
 				LookupEnv:     opts.LookupEnv,
 				LogLevel:      override,
+				AgeIdentity:   identityOverride,
 			},
 		)
 		if err != nil {
@@ -250,7 +255,9 @@ func buildRoot(
 				NewLogger:      call.deps.NewLogger,
 				Localizer:      call.localizer,
 			},
-			func(err error) { call.reportDiagnostic(opts.ErrOut, diagnosticWarning, err, 0) },
+			func(err error) {
+				call.reportDiagnostic(opts.ErrOut, diagnosticWarning, err, 0)
+			},
 		)
 		call.setSession(owned)
 		call.logger = owned.Logger
@@ -273,7 +280,7 @@ func buildRoot(
 		doctorCommand,
 		newDataCommand(call),
 		newMachineCommand(call),
-		newConfigCommand(call),
+		newTargetCommand(call),
 		newEnvCommand(call),
 		newActivateCommand(call),
 	)
@@ -386,6 +393,9 @@ func skipsConfig(cmd, root *cobra.Command) bool {
 
 // validateFlags 在配置/资源入口前根据 Cobra 元数据检查必填和组合。
 func validateFlags(cmd *cobra.Command, call *invocation) error {
+	if err := validateAgeIdentity(cmd, call); err != nil {
+		return err
+	}
 	if f := cmd.Flags().Lookup(flagLogLevel); f != nil && f.Changed {
 		switch f.Value.String() {
 		case "debug", defaultLogLevel, "warn", "error":

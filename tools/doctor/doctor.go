@@ -159,7 +159,7 @@ func doctor() error {
 		}
 	}
 	fmt.Println("用户工具：superpowers，请确认用户级技能在 Codex 中可用，项目不限定安装路径。")
-	fmt.Println("运行 mise run mcp:check 检查 Serena 的实际连接。")
+	fmt.Println("运行 mise run mcp:check 检查 Serena、Graphify 的实际连接。")
 	return err
 }
 

@@ -1,47 +1,16 @@
 package shellenv
 
 import (
-	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"testing"
 
-	"filippo.io/age"
+	"github.com/zhYou/my/internal/base/fault"
+
 	"github.com/stretchr/testify/require"
-	"github.com/zhYou/my/internal/base/agecrypt"
-	"github.com/zhYou/my/internal/datarepo"
 )
-
-type memoryRepository struct {
-	snapshot datarepo.Snapshot
-	commits  int
-	reads    int
-}
-
-func (r *memoryRepository) Read(context.Context) (datarepo.Snapshot, error) {
-	r.reads++
-	return cloneSnapshot(r.snapshot), nil
-}
-
-func (r *memoryRepository) CommitChanges(
-	_ context.Context,
-	snapshot datarepo.Snapshot,
-	changes datarepo.Changes,
-) (datarepo.Metadata, error) {
-	if snapshot.Metadata.Commit != r.snapshot.Metadata.Commit {
-		return snapshot.Metadata, fmt.Errorf("cas conflict")
-	}
-	r.commits++
-	for name, data := range changes.Files {
-		r.snapshot.Files[name] = append([]byte(nil), data...)
-	}
-	for _, name := range changes.Deletions {
-		delete(r.snapshot.Files, name)
-	}
-	r.snapshot.Metadata.Commit = fmt.Sprintf("commit-%d", r.commits)
-	r.snapshot.ConfigInitialized = true
-	return r.snapshot.Metadata, nil
-}
 
 func TestSetOrdinaryEnvironmentWritesRepositoryAndOfflineActivate(t *testing.T) {
 	service, repository := newEnvironmentService(t, "workstation")
@@ -108,12 +77,12 @@ func TestSyncCacheCopiesSecretCiphertextWithoutAgeIdentity(t *testing.T) {
 	cache := filepath.Join(t.TempDir(), "cache")
 	download := New(Options{
 		Repository: repository,
-		Cache:      NewFileCache(cache),
+		Cache:      NewFileCache(cache, "workstation"),
 		MachineID:  "workstation",
 	})
 	require.NoError(t, download.SyncCache(t.Context()))
 	activated := New(Options{
-		Cache:     NewFileCache(cache),
+		Cache:     NewFileCache(cache, "workstation"),
 		AgeKey:    service.options.AgeKey,
 		MachineID: "workstation",
 	})
@@ -134,22 +103,24 @@ func TestMachineScopeFiltersActivate(t *testing.T) {
 
 	second := New(Options{
 		Repository:    repository,
-		Cache:         NewFileCache(cache),
+		Cache:         NewFileCache(cache, "workstation"),
 		AgeKey:        first.options.AgeKey,
 		MachineID:     "workstation",
 		KnownMachines: []string{"workstation", "laptop"},
 	})
+	require.NoError(t, second.SyncCache(t.Context()))
 	output, err := second.Activate(t.Context(), "bash")
 	require.NoError(t, err)
 	require.Empty(t, output)
 
 	laptop := New(Options{
 		Repository:    repository,
-		Cache:         NewFileCache(cache),
+		Cache:         NewFileCache(cache, "laptop"),
 		AgeKey:        first.options.AgeKey,
 		MachineID:     "laptop",
 		KnownMachines: []string{"workstation", "laptop"},
 	})
+	require.NoError(t, laptop.SyncCache(t.Context()))
 	output, err = laptop.Activate(t.Context(), "zsh")
 	require.NoError(t, err)
 	require.Equal(t, "export EDITOR='nvim'\n", output)
@@ -162,7 +133,7 @@ func TestActivateRejectsCacheFromDifferentBinding(t *testing.T) {
 	require.NoError(t, err)
 	other := New(Options{
 		Repository:     repository,
-		Cache:          NewFileCache(cache),
+		Cache:          NewFileCache(cache, "workstation"),
 		MachineID:      "workstation",
 		RepositoryName: "owner/other",
 		Branch:         "main",
@@ -172,41 +143,111 @@ func TestActivateRejectsCacheFromDifferentBinding(t *testing.T) {
 	require.Error(t, err)
 }
 
-func newEnvironmentService(t *testing.T, machineID string) (*Service, *memoryRepository) {
-	t.Helper()
-	return newEnvironmentServiceAt(t, filepath.Join(t.TempDir(), "cache"), machineID)
+func TestActivateRejectsCacheFromOtherRepositoryID(t *testing.T) {
+	service, _ := newEnvironmentService(t, "workstation")
+	_, err := service.Set(t.Context(), SetOptions{Name: "EDITOR", Value: []byte("nvim")})
+	require.NoError(t, err)
+	service.options.RepositoryName = "owner/data"
+	service.options.RepositoryID = 999
+	service.options.Branch = "main"
+	output, err := service.Activate(t.Context(), "bash")
+	require.Error(t, err)
+	require.Empty(t, output)
 }
 
-func newEnvironmentServiceAt(t *testing.T, cache, machineID string) (*Service, *memoryRepository) {
-	t.Helper()
-	repository := &memoryRepository{snapshot: datarepo.Snapshot{
-		Metadata: datarepo.Metadata{
-			Repository:   "owner/data",
-			RepositoryID: 42,
-			Branch:       "main",
-			Commit:       "base",
-		},
-		Files:       map[string][]byte{"my.toml": []byte("schema_version = 1\n")},
-		Initialized: true,
-	}}
-	identity, err := age.GenerateX25519Identity()
+func TestEnvironmentCachesAreIsolatedByMachine(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "cache")
+	first, repository := newEnvironmentServiceAt(t, root, "workstation")
+	_, err := first.Set(t.Context(), SetOptions{Name: "EDITOR", Value: []byte("nvim")})
 	require.NoError(t, err)
-	key, err := agecrypt.ParseIdentity([]byte(identity.String()))
+	second := New(Options{Repository: repository, Cache: NewFileCache(root, "laptop"), MachineID: "laptop"})
+	output, err := second.Activate(t.Context(), "bash")
+	require.Error(t, err)
+	require.Empty(t, output)
+	require.NoError(t, second.SyncCache(t.Context()))
+	output, err = second.Activate(t.Context(), "bash")
 	require.NoError(t, err)
-	return New(Options{
-		Repository:    repository,
-		Cache:         NewFileCache(cache),
-		AgeKey:        key,
-		MachineID:     machineID,
-		KnownMachines: []string{"workstation", "laptop"},
-	}), repository
+	require.Equal(t, "export EDITOR='nvim'\n", output)
 }
 
-func cloneSnapshot(snapshot datarepo.Snapshot) datarepo.Snapshot {
-	result := snapshot
-	result.Files = make(map[string][]byte, len(snapshot.Files))
-	for name, data := range snapshot.Files {
-		result.Files[name] = append([]byte(nil), data...)
+func TestCacheFailureReportsConfirmedCommitAndPreservesCause(t *testing.T) {
+	service, repository := newEnvironmentService(t, "workstation")
+	cause := errors.New("synthetic-secret-marker")
+	service.options.Cache = failingCache{Cache: service.options.Cache, cause: cause}
+	_, err := service.Set(t.Context(), SetOptions{Name: "EDITOR", Value: []byte("nvim")})
+	require.ErrorIs(t, err, cause)
+	require.NotContains(t, err.Error(), cause.Error())
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Contains(t, diagnostic.CompletedEffects, "data.commit")
+	require.Equal(t, repository.snapshot.Metadata.Commit, diagnostic.Recovery.Params["Commit"])
+}
+
+func TestOrdinaryChangePreservesSecretVersion(t *testing.T) {
+	service, repository := newEnvironmentService(t, "workstation")
+	_, err := service.Set(t.Context(), SetOptions{Name: "API_KEY", Secret: true, Value: []byte("fixture")})
+	require.NoError(t, err)
+	ciphertext := append([]byte(nil), repository.snapshot.Files[secretDataPath()]...)
+	metadata := append([]byte(nil), repository.snapshot.Files[secretMetadataPath()]...)
+	_, err = service.Set(t.Context(), SetOptions{Name: "EDITOR", Value: []byte("nvim")})
+	require.NoError(t, err)
+	require.Equal(t, ciphertext, repository.snapshot.Files[secretDataPath()])
+	require.Equal(t, metadata, repository.snapshot.Files[secretMetadataPath()])
+}
+
+func TestSetRejectsDangerousVariableNames(t *testing.T) {
+	service, repository := newEnvironmentService(t, "workstation")
+	for _, name := range []string{"PATH", "BASH_ENV", "LD_PRELOAD", "NODE_OPTIONS", "PYTHONSTARTUP"} {
+		_, err := service.Set(t.Context(), SetOptions{Name: name, Value: []byte("fixture")})
+		require.Error(t, err)
 	}
-	return result
+	require.Zero(t, repository.commits)
+}
+
+func TestSetRejectsInvalidValues(t *testing.T) {
+	service, _ := newEnvironmentService(t, "workstation")
+	for _, value := range [][]byte{nil, []byte("line\nfeed"), {0}, make([]byte, MaxValueSize+1)} {
+		_, err := service.Set(t.Context(), SetOptions{Name: "EDITOR", Value: value})
+		require.Error(t, err)
+	}
+}
+
+func TestSetRejectsCollectionBeyondReadableLimit(t *testing.T) {
+	for _, secret := range []bool{false, true} {
+		t.Run(fmt.Sprintf("secret=%t", secret), func(t *testing.T) {
+			service, repository := newEnvironmentService(t, "workstation")
+			state := repositoryState{ordinary: map[string]record{}, secret: map[string]record{}}
+			records := state.ordinary
+			if secret {
+				records = state.secret
+			}
+			for i := range 256 {
+				records[fmt.Sprintf("VAR_%d", i)] = record{Value: "x", Machines: []string{"*"}}
+			}
+			files, _, err := service.encodeState(state, secret)
+			require.NoError(t, err)
+			maps.Copy(repository.snapshot.Files, files)
+			_, err = service.Set(
+				t.Context(),
+				SetOptions{Name: "VAR_0", Secret: secret, Value: []byte("updated"), Overwrite: true},
+			)
+			require.NoError(t, err)
+			cacheBefore, _, err := service.options.Cache.Read()
+			require.NoError(t, err)
+			commits := repository.commits
+			_, err = service.Set(t.Context(), SetOptions{Name: "EXTRA", Secret: secret, Value: []byte("x")})
+			require.Error(t, err)
+			require.Equal(t, commits, repository.commits)
+			cacheAfter, _, readErr := service.options.Cache.Read()
+			require.NoError(t, readErr)
+			require.Equal(t, cacheBefore, cacheAfter)
+			list, err := service.List(t.Context())
+			require.NoError(t, err)
+			require.Len(t, list.Variables, 256)
+			_, err = service.Activate(t.Context(), "bash")
+			require.NoError(t, err)
+			_, err = service.Remove(t.Context(), RemoveOptions{Name: "VAR_0", Secret: secret})
+			require.NoError(t, err)
+		})
+	}
 }

@@ -54,7 +54,7 @@ func TestDoctorHelper(t *testing.T) {
 	case "sleep":
 		time.Sleep(30 * time.Second)
 	case "version":
-		if _, err := os.Stdout.WriteString("go version go1.27.3 linux/amd64\n"); err != nil {
+		if _, err := os.Stdout.WriteString("go version go1.27.4 linux/amd64\n"); err != nil {
 			t.Error(err)
 		}
 	}
@@ -82,7 +82,7 @@ func TestDoctorProbesBoundedAndOrdered(t *testing.T) {
 	require.Len(t, results[1].Stderr, 2048)
 	require.True(t, results[1].StdoutTruncated)
 	require.True(t, results[1].StderrTruncated)
-	require.Equal(t, "go version go1.27.3 linux/amd64\n", string(results[2].Stdout))
+	require.Equal(t, "go version go1.27.4 linux/amd64\n", string(results[2].Stdout))
 	require.Contains(t, doctorProbeError("helper", results[0]).Error(), "超时")
 	require.Contains(t, doctorProbeError("helper", results[1]).Error(), "截断")
 	ctx, cancel := context.WithCancel(t.Context())
@@ -98,7 +98,7 @@ func TestDoctorSummaryStableAndExplicit(t *testing.T) {
 	var out bytes.Buffer
 	calls := []doctorProbe{{
 		key:  "go",
-		want: "1.27.3",
+		want: "1.27.4",
 		spec: toolchain.ToolSpec{Name: "go"},
 	}, {
 		key:  "syft",
@@ -106,11 +106,11 @@ func TestDoctorSummaryStableAndExplicit(t *testing.T) {
 		spec: toolchain.ToolSpec{Name: "syft"},
 	}}
 	results := []cmdexec.Result{
-		{Status: cmdexec.Succeeded, Stdout: []byte("go version go1.27.3 linux/amd64\n")},
+		{Status: cmdexec.Succeeded, Stdout: []byte("go version go1.27.4 linux/amd64\n")},
 		{Status: cmdexec.Succeeded, StdoutTruncated: true},
 	}
 	require.Error(t, reportDoctorProbes(&out, calls, results))
-	require.Equal(t, "通过：go 1.27.3\n", out.String())
+	require.Equal(t, "通过：go 1.27.4\n", out.String())
 }
 
 func TestDoctorReportsTimeoutAndTruncationTogether(t *testing.T) {

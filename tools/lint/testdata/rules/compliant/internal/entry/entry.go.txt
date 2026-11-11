@@ -1,0 +1,18 @@
+package entry
+import (
+ "fmt"
+ "io"
+ "os"
+ "{{MODULE}}/internal/base/telemetry"
+ "go.opentelemetry.io/otel/trace"
+)
+func Run(out io.Writer, lookup func(string) (string,bool), span trace.Span, err error) error {
+ _, _ = lookup("SETTING")
+ telemetry.RecordError(span, err)
+ _, writeErr := fmt.Fprintln(out, "result")
+ return writeErr
+}
+func Inspect() int { return os.Getpid() }
+type Local struct{}
+func (Local) RecordError(error) {}
+func SameName(local Local, err error) { local.RecordError(err) }

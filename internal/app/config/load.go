@@ -40,6 +40,7 @@ type Options struct {
 	UserConfigDir string
 	LookupEnv     func(string) (string, bool)
 	LogLevel      *string
+	AgeIdentity   *string
 	Validator     *validation.Validator
 	Explicit      bool
 }
@@ -187,6 +188,11 @@ func Load(ctx context.Context, opts Options) (Config, error) {
 	}
 	if opts.LogLevel != nil {
 		if err := layer(map[string]any{loggingLevelKey: *opts.LogLevel}); err != nil {
+			return cfg, problem(decodeProblem, err, nil)
+		}
+	}
+	if opts.AgeIdentity != nil {
+		if err := layer(map[string]any{"secrets.identity_file": *opts.AgeIdentity}); err != nil {
 			return cfg, problem(decodeProblem, err, nil)
 		}
 	}

@@ -24,3 +24,7 @@ const (
 	schemaObjectType    = "object"
 	flagNote            = "note"
 )
+
+const (
+	codeBindingConflict = "machine.binding_conflict"
+)

@@ -1,6 +1,6 @@
 # 模板升级
 
-模板版本在 `.template-version`，当前为 0.4.0，与应用发布版本独立；同版本内的调整还须按来源提交识别。
+模板版本在 `.template-version`，当前为 0.4.1，与应用发布版本独立；同版本内的调整还须按来源提交识别。
 初始化只对原始模板改名，不升级既有业务。新副本的 `.template-origin.json` 记录原模板、版本、目标身份和可确认的来源提交；
 未知来源使用 unknown，同参数初始化保留来源字节，不拿派生项目 HEAD 冒充来源。无元数据的旧项目仍可构建检查。
 
@@ -105,6 +105,16 @@ Serena 使用 uvx 和独立兼容 Python，关闭 dashboard；后台依赖与真
 setup 继续显式准备 mise 工具与 Go 模块；npx/uvx 可在外部缓存按需下载，不再要求预热或禁止安装。
 不在项目中生成 node_modules、.venv、package.json 或 npm 锁文件，检查不改写源码和配置。
 
+## 项目级 Graphify 与 worktree 路径
+
+合并 Graphify 的 mise 版本变量、CLI/建图/更新/服务 task 和项目 Codex 配置；使用官方 `graphifyy[mcp]` 包及独立兼容 Python。
+同步版本检查、README 表、MCP 验收客户端和模板受管清单；已有 `mcp:check` 同时验收 Serena 与 Graphify，继续沿用三平台 MCP CI。
+合并 `.graphifyignore` 和生成目录忽略规则，各 checkout 按需重建本地代码图，不复制旧索引或用户配置。
+项目不安装用户 Skill，不迁移用户级 MCP；职责、单次会话关闭和故障处理见[开发说明](development.md#graphify-与工具分工)。
+
+协作规则改为新建开发 worktree 固定放主工作区 `.worktrees/`；原生工具不能指定该位置时使用 Git，失败后不自动改放其他目录。
+已有适合本任务且可写的 worktree 可继续复用，不批量搬迁或清理已有工作区。
+
 ## 迁移到 0.4.0：诊断契约
 
 本节对应模板 0.4.0；准确来源提交以已审查 PR 或 Release 的完整提交 SHA 为准，不能仅凭版本号认定已同步。
@@ -118,3 +128,29 @@ setup 继续显式准备 mise 工具与 Go 模块；npx/uvx 可在外部缓存�
 
 my 的已提交兼容决策以 v0.3.1 为基线，本轮目标 v0.4.0 尚未发布；模板与应用版本独立，本次不创建标签或发布。原始模板来源为 88c55dc68019e220368e063dae487017ea8b939c，本次人工同步至 065fc74a424020155f9d849709b0baaa819ca685。
 来源记录与初始化事务格式保持，不把用户配置或诊断数据复制到模板。
+
+## 迁移到 0.4.1：开发约束自动检查
+
+此版本保持产品 CLI、配置、诊断协议和退出码，增加开发门禁；既有项目可能因原有旁路调用或缺失消息而不再通过 lint。
+
+1. 人工合并 .golangci.yml 的入口规则、精确豁免及说明，保留目标项目自己的边界；改名模块需同步既有 loggercheck/depguard 身份。
+2. 同步 tools/lint 的引用检查、目录解析、入口和回归夹具，以及 mise.toml 的任务说明。x/tools 继续固定 v0.51.0，仅改为直接依赖；按模块变更流程 setup、doctor。
+3. 业务改用注入的环境、IO、logger、tracer；直接 Span.RecordError 改为 telemetry.RecordError。基础设施确需新入口时审查精确豁免并增加正反例，不关闭整类检查。
+4. 为 DIAG001 报告的常量消息 ID 同步补齐两种语言。动态 ID、诊断继承及无 Code 的归一化包装保持原行为，仍须提供行为测试。
+5. 同步协作、设计和开发说明；规则范围集中在[静态规则](development.md#静态规则与开发探测)。运行完整 check 和宿主 race，核对改名副本同样执行规则和消息检查。
+
+无需重新运行 template:init 或覆盖业务文件。同步时以 v0.4.1 标签的准确提交作为来源，人工记录本次合并范围；
+不把派生项目 HEAD 写作模板来源，也不改写既有 .template-origin.json。
+
+## my 的模板同步记录
+
+2026-11-11 从模板来源 `065fc74a424020155f9d849709b0baaa819ca685` 人工同步至
+`main@3dcd7c8d9e9632a7857b091afa107ae31a0b3c7b`，模板版本由 0.4.0 更新为 0.4.1。
+`.template-origin.json` 保留最初初始化的版本、来源和目标身份，当前模板版本由 `.template-version` 声明。
+
+本轮合入开发入口与诊断消息静态门禁、Graphify 本地代码图及 MCP 验收、worktree 协作规则，
+以及 Go 1.27.4 安全补丁和相关工具声明。通过旧、新公共模板副本各自的初始化器转换相同 my 身份后进行三方合并，
+保留 my 的业务、文档、配置和原有故障回归，不在业务 checkout 执行初始化。
+
+产品入口继续使用 `machine`、`target`、`env` 与 `activate`；模板同步不改变这些命令的机器契约，
+应用兼容决策仍见[兼容记录](compatibility.md)。新建开发 worktree 使用主工作区 `.worktrees/`，已有任务工作区继续复用。

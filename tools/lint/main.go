@@ -21,7 +21,7 @@ func run(args []string) error {
 	}
 	switch args[0] {
 	case "i18n":
-		return checkI18n(locales.Catalog())
+		return checkProjectMessages(context.Background(), ".", locales.Catalog())
 	case "config":
 		return checkConfig(".")
 	case "style":

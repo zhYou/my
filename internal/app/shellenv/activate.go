@@ -19,14 +19,16 @@ func Render(shell string, variables []ResolvedVariable) (string, error) {
 		return "", invalidInput()
 	}
 	sorted := append([]ResolvedVariable(nil), variables...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
 	var output strings.Builder
 	seen := map[string]struct{}{}
 	for _, variable := range sorted {
 		if !validName(variable.Name) ||
 			dangerousName(variable.Name) ||
 			variable.Value == "" ||
-			len(variable.Value) > maxValueSize ||
+			len(variable.Value) > MaxValueSize ||
 			strings.ContainsAny(variable.Value, unsafeValueControls) {
 			return "", invalidInput()
 		}

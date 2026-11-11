@@ -1,0 +1,36 @@
+package entry
+import (
+ f "fmt"
+ env "os"
+ "io"
+ "log" // want depguard
+ "log/slog" // want depguard
+ "errors"
+ "go.opentelemetry.io/otel"
+ tr "go.opentelemetry.io/otel/trace"
+)
+func Misuse(span tr.Span) {
+ _ = env.Getenv("TOKEN") // want forbidigo
+ _, _ = env.LookupEnv("TOKEN") // want forbidigo
+ _ = env.ExpandEnv("$TOKEN") // want forbidigo
+ _ = env.Environ() // want forbidigo
+ _ = env.Stdout // want forbidigo
+ _ = env.Stderr // want forbidigo
+ _ = env.Stdin // want forbidigo
+ f.Println("debug") // want forbidigo
+ f.Printf("debug") // want forbidigo
+ f.Print("debug") // want forbidigo
+ print("debug") // want forbidigo
+ println("debug") // want forbidigo
+ env.Exit(1) // want forbidigo
+ _ = log.New(io.Discard, "", 0)
+ _ = slog.New(slog.NewTextHandler(io.Discard, nil))
+ _ = otel.GetTracerProvider() // want forbidigo
+ otel.SetTracerProvider(nil) // want forbidigo
+ _ = otel.Tracer("example") // want forbidigo
+ otel.SetErrorHandler(nil) // want forbidigo
+ otel.Handle(errors.New("failure")) // want forbidigo
+ span.RecordError(errors.New("failure")) // want forbidigo
+ record := span.RecordError // want forbidigo
+ record(errors.New("failure"))
+}

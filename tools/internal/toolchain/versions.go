@@ -66,6 +66,8 @@ func VariableLabel(key string) (string, error) {
 		"pre_commit_hooks_version": "pre-commit-hooks",
 		"serena_version":           "Serena",
 		"serena_python_version":    "Serena Python",
+		"graphify_version":         "Graphify",
+		"graphify_python_version":  "Graphify Python",
 	}
 	label, ok := labels[key]
 	if !ok {

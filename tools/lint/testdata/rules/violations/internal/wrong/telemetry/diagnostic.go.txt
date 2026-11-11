@@ -1,0 +1,3 @@
+package telemetry
+import "go.opentelemetry.io/otel/trace"
+func Record(span trace.Span, err error) { span.RecordError(err) } // want forbidigo

@@ -28,10 +28,10 @@ CI 和 Security 检查目标为 main 的 PR 及 main 更新，开发分支普通
 PR 改目标、标题或描述会重新检查；同一 PR 新运行取消旧运行，其他运行按各自 ID 隔离。
 每日 Security 独立运行；推送 `v*` 标签时 Release 先复用同一提交的完整 CI 与 Security，再执行发布。
 
-Linux 源码、race、fuzz/benchmark、snapshot/安装及 MCP 验收分组并行；Linux/macOS/Windows 均真实运行 Serena MCP，
+Linux 源码、race、fuzz/benchmark、snapshot/安装及 MCP 验收分组并行；Linux/macOS/Windows 均真实运行 Serena、Graphify MCP，
 macOS/Windows 保留原生任务。三平台实际验证 npx/uvx、XML/TOML 插件、五类文本与冷/热缓存，不能用命令替换或跨编译代替。
 CI 的 `check` 汇总全部作业，任一失败、取消或跳过都不能通过。平台运行、MCP、漏洞和发布验收独立于本地 `mise run check`。
-基础 CI 无需安装 Codex、RTK 或 superpowers；MCP job 复用统一 setup，再通过 uvx 按需准备 Serena 与后台依赖。
+基础 CI 无需安装 Codex、RTK 或 superpowers；MCP job 复用统一 setup，再通过 uvx 按需准备 Serena、Graphify 与后台依赖。
 源码任务通过统一 lint 运行 actionlint 工作流语义检查，模板副本验收同样复用该入口。
 
 Go 缓存区分 OS、架构、Go 版本和依赖摘要，编译缓存再区分任务及提交；lint 独立缓存，项目工具复用 mise 缓存，npx/uvx 与独立 Python 仅缓存外部工具目录，按 OS、架构及版本声明区分。

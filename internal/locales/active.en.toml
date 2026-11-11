@@ -593,34 +593,34 @@ other = "Inspect the record with machine show; restore with explicit bind flags 
 ["config.file_type"]
 other = "Configuration must be a regular file: {{.Path}}."
 
-["cli.config_command"]
+["cli.target_command"]
 other = "Capture and synchronize managed configuration"
 
-["cli.config_capture"]
+["cli.target_capture"]
 other = "Capture local configuration targets"
 
-["cli.config_diff"]
+["cli.target_diff"]
 other = "Show configuration changes and conflicts without writing"
 
-["cli.config_sync"]
+["cli.target_sync"]
 other = "Synchronize managed configuration"
 
-["cli.config_resolve"]
+["cli.target_resolve"]
 other = "Resolve one configuration conflict"
 
-["cli.config_remove"]
+["cli.target_remove"]
 other = "Stop managing configuration targets"
 
-["cli.config_all"]
+["cli.target_all"]
 other = "Capture all supported non-secret configuration targets"
 
-["cli.config_machine"]
+["cli.target_machine"]
 other = "Restrict a target to machine IDs"
 
-["cli.config_unit"]
-other = "Stable conflict unit returned by config diff"
+["cli.target_unit"]
+other = "Stable conflict unit returned by target diff"
 
-["cli.config_from"]
+["cli.target_from"]
 other = "Conflict source: local or remote"
 
 ["cli.age_identity"]
@@ -647,22 +647,22 @@ other = "Replace an existing variable"
 ["cli.activate"]
 other = "Print shell environment assignments"
 
-["configuration.capture_result"]
-other = "Configuration captured at {{.Commit}}; changed={{.Changed}}."
+["target.capture_result"]
+other = "Targets captured at {{.Commit}}; changed={{.Changed}}."
 
-["configuration.sync_result"]
-other = "Configuration synchronized at {{.Commit}}; changed={{.Changed}}."
+["target.sync_result"]
+other = "Targets synchronized at {{.Commit}}; changed={{.Changed}}."
 
-["configuration.resolve_result"]
-other = "Configuration conflict resolved at {{.Commit}}."
+["target.resolve_result"]
+other = "Target conflict resolved at {{.Commit}}."
 
-["configuration.remove_result"]
-other = "Configuration target removal committed at {{.Commit}}."
+["target.remove_result"]
+other = "Target removal committed at {{.Commit}}."
 
-["configuration.no_changes"]
+["target.no_changes"]
 other = "No configuration changes."
 
-["configuration.diff_line"]
+["target.diff_line"]
 other = "{{.Target}}\t{{.Unit}}\t{{.Action}}"
 
 ["shellenv.set_result"]
@@ -670,3 +670,87 @@ other = "Environment variable {{.Name}} saved; secret={{.Secret}}; changed={{.Ch
 
 ["shellenv.remove_result"]
 other = "Environment variable {{.Name}} removed."
+
+["target.invalid_input"]
+other = "Invalid target selection, unit, source or machine scope."
+
+["target.state_invalid"]
+other = "Target state or content is invalid."
+
+["target.legacy"]
+other = "A legacy target layout requires explicit cleanup."
+
+["target.conflicts"]
+other = "Target conflicts ({{.Count}}) must be resolved explicitly; use target diff to inspect the units."
+
+["target.operation_failed"]
+other = "Target operation failed."
+
+["target.identity"]
+other = "An available age identity is required for this secret operation."
+
+["target.recover"]
+other = "Inspect target diff and the confirmed effects before retrying. Data commit: {{.Commit}}. For auth, keep the pending state and retry target sync; use target resolve to choose a side explicitly."
+
+["target.operation_event"]
+other = "Target phase {{.Operation}} finished."
+
+["shellenv.invalid_input"]
+other = "Invalid environment name, value or machine scope."
+
+["shellenv.invalid_state"]
+other = "Environment state or cache is invalid."
+
+["shellenv.read_input"]
+other = "Failed to read the environment value from standard input."
+
+["shellenv.identity"]
+other = "An available age identity is required for this secret operation."
+
+["shellenv.operation_failed"]
+other = "Environment operation failed."
+
+["shellenv.recover"]
+other = "Inspect the confirmed effects before retrying. Data commit: {{.Commit}}. After a confirmed commit, use target sync to refresh the local cache before activate; do not repeat the write blindly."
+
+["shellenv.operation_event"]
+other = "Environment phase {{.Operation}} finished."
+
+["config.invalid_identity_path"]
+other = "The age identity path must be absolute."
+
+["cli.identity_path"]
+other = "The --age-identity path must be absolute."
+
+["cli.target_command_example"]
+other = "{{.Name}} target capture mise\n{{.Name}} target diff\n{{.Name}} target sync"
+
+["cli.target_capture_example"]
+other = "{{.Name}} target capture mise codex-settings\n{{.Name}} target capture --all"
+
+["cli.target_diff_example"]
+other = "{{.Name}} target diff --json"
+
+["cli.target_sync_example"]
+other = "{{.Name}} target sync"
+
+["cli.target_resolve_example"]
+other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote"
+
+["cli.target_remove_example"]
+other = "{{.Name}} target remove topgrade"
+
+["cli.env_example"]
+other = "printf '%s' 'nvim' | {{.Name}} env set EDITOR\n{{.Name}} env list"
+
+["cli.env_set_example"]
+other = "printf '%s' 'nvim' | {{.Name}} env set EDITOR"
+
+["cli.env_remove_example"]
+other = "{{.Name}} env remove EDITOR"
+
+["cli.env_list_example"]
+other = "{{.Name}} env list --json"
+
+["cli.activate_example"]
+other = "{{.Name}} activate bash"

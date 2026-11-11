@@ -499,3 +499,48 @@ func TestUnclassifiedGraphQLErrorDoesNotClaimNoEffects(t *testing.T) {
 	require.Nil(t, d.CompletedEffects)
 	require.Equal(t, fault.Code("data.commit_unknown"), fault.Details(err)[0].Code)
 }
+
+func TestReadAtAcceptsManifestWithoutTargets(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var body any
+		switch r.URL.Path {
+		case "/repos/owner/data/git/trees/after-remove":
+			body = map[string]any{"tree": []map[string]string{
+				{"path": "my.toml", "type": "blob", "mode": "100644", "sha": "root-manifest"},
+				{"path": "configs", "type": "tree", "mode": "040000", "sha": "config-tree"},
+			}}
+		case "/repos/owner/data/git/trees/config-tree":
+			body = map[string]any{"tree": []map[string]string{
+				{"path": "manifest.toml", "type": "blob", "mode": "100644", "sha": "config-manifest"},
+			}}
+		case "/repos/owner/data/git/blobs/root-manifest", "/repos/owner/data/git/blobs/config-manifest":
+			body = map[string]any{
+				"encoding": "base64",
+				"content":  base64.StdEncoding.EncodeToString([]byte("schema_version=1\n")),
+			}
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		assert.NoError(t, json.NewEncoder(w).Encode(body))
+	}))
+	t.Cleanup(srv.Close)
+	client, err := New(
+		t.Context(),
+		Config{Repository: "owner/data", Branch: "main", RequestTimeout: time.Second},
+		Options{
+			Token:     func(context.Context) (string, error) { return "synthetic-token", nil },
+			Transport: routeTransport{srv.URL},
+		},
+	)
+	require.NoError(t, err)
+	snapshot, err := client.ReadAt(
+		t.Context(),
+		Metadata{Repository: "owner/data", RepositoryID: 42, Branch: "main", Commit: "after-remove"},
+	)
+	require.NoError(t, err)
+	require.True(t, snapshot.ConfigInitialized)
+	require.Equal(t, []byte("schema_version=1\n"), snapshot.Files["configs/manifest.toml"])
+}

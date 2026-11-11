@@ -102,6 +102,7 @@ func (f *helpFormatter) text(id string, params map[string]any) string {
 }
 
 func localizedHelp(cmd *cobra.Command, description bool, l *messages.Localizer) (string, error) {
+	// strings.Builder 的写入不会返回错误；最后统一检查消息渲染结果。
 	var out strings.Builder
 	f := &helpFormatter{localizer: l}
 	if description {

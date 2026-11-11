@@ -52,25 +52,3 @@ func Value[P any](get func(P) string) Arg[P] {
 		return []string{get(input)}
 	}
 }
-
-// Values 插入一组参数；Build 将内容复制到本次调用。
-func Values[P any](get func(P) []string) Arg[P] {
-	return func(input P) []string {
-		return get(input)
-	}
-}
-
-// When 仅在条件满足时插入整个参数片段。
-func When[P any](include func(P) bool, parts ...Arg[P]) Arg[P] {
-	fragments := append([]Arg[P](nil), parts...)
-	return func(input P) []string {
-		if !include(input) {
-			return nil
-		}
-		var values []string
-		for _, part := range fragments {
-			values = append(values, part(input)...)
-		}
-		return values
-	}
-}

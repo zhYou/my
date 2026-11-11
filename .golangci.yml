@@ -46,6 +46,22 @@ linters:
       - path: _test\.go$
         linters:
           - godoclint
+      # 新入口规则只约束 internal 生产代码；不关闭已有 forbidigo 检查。
+      - path-except: "^internal/"
+        linters: [forbidigo]
+        text: "(CFG00[12]|OBS00[1-4]|TRACE001)"
+      - path: '_test\.go$'
+        linters: [forbidigo]
+        text: "(CFG00[12]|OBS00[1-4]|TRACE001)"
+      - path: '^internal/(app/config/load|app/cli/language|base/paths/paths|base/telemetry/environment)\.go$'
+        linters: [forbidigo]
+        text: "CFG001"
+      - path: '^internal/command/process\.go$'
+        linters: [forbidigo]
+        text: "CFG002"
+      - path: '^internal/base/telemetry/diagnostic\.go$'
+        linters: [forbidigo]
+        text: "TRACE001"
   settings:
     errcheck:
       check-blank: true
@@ -125,6 +141,15 @@ linters:
           deny:
             - pkg: github.com/zhYou/my/tools
               desc: 运行时代码及测试不得依赖开发工具包
+        logging-entry:
+          files:
+            - "${base-path}/internal/**/*.go"
+            - "!$test"
+          deny:
+            - pkg: log$
+              desc: 业务日志使用注入的 logging.Logger
+            - pkg: log/slog$
+              desc: 业务日志使用注入的 logging.Logger
         koanf-boundary:
           # 仅豁免精确配置加载文件，同名文件与测试不能绕过边界。
           files:
@@ -156,6 +181,30 @@ linters:
         - pattern: '^koanf\.Koanf\.(Must.*|Int.*|Float.*|String.*|Bool.*|Bytes|Duration|Time|Get|Raw|All|Keys|KeyMap|Sprint|Print|Cut|Copy|Marshal|Slices|Exists|MapKeys)$'
           pkg: '^github\.com/knadh/koanf/v2$'
           msg: 配置必须统一解码到强类型结构体，禁止逐键读取或导出配置容器
+        - pattern: '^os\.(Getenv|LookupEnv|ExpandEnv)$'
+          pkg: "^os$"
+          msg: "CFG001：通过统一配置入口或注入的 LookupEnv 读取环境"
+        - pattern: '^os\.Environ$'
+          pkg: "^os$"
+          msg: "CFG002：仅执行器继承进程环境，业务使用显式环境依赖"
+        - pattern: '^os\.(Stdin|Stdout|Stderr|Exit)$'
+          pkg: "^os$"
+          msg: "OBS001：使用借用 IO；进程标准流和退出由 cmd 入口持有"
+        - pattern: '^fmt\.(Print|Printf|Println)$'
+          pkg: "^fmt$"
+          msg: "OBS002：结果写入注入的 writer，诊断使用调用级 logger"
+        - pattern: "^(print|println)$"
+          pkg: "^$"
+          msg: "OBS002：结果写入注入的 writer，诊断使用调用级 logger"
+        - pattern: '^zap\.(L|S|ReplaceGlobals)$'
+          pkg: '^go\.uber\.org/zap$'
+          msg: "OBS003：使用调用级 logging.Logger，禁止全局 logger"
+        - pattern: '^otel\.(GetTracerProvider|SetTracerProvider|Tracer|GetMeterProvider|SetMeterProvider|Meter|GetErrorHandler|SetErrorHandler|Handle|SetLogger)$'
+          pkg: '^go\.opentelemetry\.io/otel$'
+          msg: "OBS004：使用 Session 注入的私有 provider、tracer 和诊断回调"
+        - pattern: '^trace\.Span\.RecordError$'
+          pkg: '^go\.opentelemetry\.io/otel/trace$'
+          msg: "TRACE001：使用 telemetry.RecordError 保留安全的逐分支诊断"
     godoclint:
       default: basic
       enable:

@@ -73,7 +73,7 @@ func (e finishedEvent) Emit(logger *logging.Logger) {
 		e.outcome,
 		"duration",
 		e.duration,
-		"commit",
+		"data_commit",
 		e.commit,
 		"base_commit", e.baseCommit,
 		"error_code",
