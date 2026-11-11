@@ -1,0 +1,4 @@
+package entry
+import "os"
+import "testing"
+func TestEnvironment(_ *testing.T) { _ = os.Getenv("TEST_VALUE") }

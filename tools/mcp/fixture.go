@@ -36,7 +36,7 @@ func prepareMCPFixture(ctx context.Context, root, base string) error {
 	}
 	if err := os.WriteFile(
 		filepath.Join(base, "go.mod"),
-		[]byte("module example.com/mcp-fixture\n\ngo 1.27.3\n"),
+		[]byte("module example.com/mcp-fixture\n\ngo 1.27.4\n"),
 		0o600,
 	); err != nil {
 		return err
@@ -54,7 +54,7 @@ func prepareMCPFixture(ctx context.Context, root, base string) error {
 	if err := fixtureGit(ctx, base, "-c", "init.templateDir=", "init", quietFlag); err != nil {
 		return err
 	}
-	if err := fixtureGit(ctx, base, "add", "."); err != nil {
+	if err := fixtureGit(ctx, base, gitAddCommand, "."); err != nil {
 		return err
 	}
 	return fixtureGit(
@@ -135,7 +135,7 @@ func verifyGoReferencesAndDiagnostics(client *mcpClient, root string) error {
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(text, "UseMarker") {
+	if !strings.Contains(text, useGoMarker) {
 		return fmt.Errorf("未返回 Go 引用调用方：%s", text)
 	}
 	if _, err := client.tool(

@@ -23,7 +23,7 @@ type mcpClient struct {
 	cause   func() error
 }
 
-func startMCP(parent context.Context, root, home string) (*mcpClient, func() error, error) {
+func startMCP(parent context.Context, root, task string, env ...string) (*mcpClient, func() error, error) {
 	// 使用操作系统管道，执行器直接传递句柄；避免借用 io.Pipe 的复制 goroutine 等待环。
 	requests, input, err := os.Pipe()
 	if err != nil {
@@ -36,9 +36,9 @@ func startMCP(parent context.Context, root, home string) (*mcpClient, func() err
 	ctx, cancel := context.WithCancel(parent)
 	done := make(chan error, 1)
 	go func() {
-		err := cmdexec.Run(ctx, cmdexec.Invocation{Program: miseProgram, Args: []string{"run", quietFlag, "mcp:serve"}},
+		err := cmdexec.Run(ctx, cmdexec.Invocation{Program: miseProgram, Args: []string{"run", quietFlag, task}},
 			cmdexec.Execution{Dir: root, IO: iostreams.IOStreams{In: requests, Out: responses, ErrOut: os.Stderr}}.
-				WithEnv("SERENA_HOME="+home))
+				WithEnv(env...))
 		// 不论启动失败、提前退出或取消，都关闭父进程保留的子端，解除协议读写。
 		done <- errors.Join(err, requests.Close(), responses.Close())
 	}()
@@ -101,7 +101,7 @@ func (c *mcpClient) request(method string, params any) (result json.RawMessage, 
 	}
 }
 
-func (c *mcpClient) initialize() error {
+func (c *mcpClient) initialize(requiredTools ...string) error {
 	if _, err := c.request("initialize", map[string]any{
 		"protocolVersion": "2025-03-26", "capabilities": map[string]any{},
 		"clientInfo": map[string]string{"name": "template-check", mcpVersionField: "1"},
@@ -111,10 +111,9 @@ func (c *mcpClient) initialize() error {
 	if err := c.encoder.Encode(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}); err != nil {
 		return err
 	}
-	required := map[string]bool{
-		"initial_instructions": false, "activate_project": false, "get_current_config": false,
-		"find_symbol": false, "get_symbols_overview": false, "find_referencing_symbols": false,
-		"rename_symbol": false, "get_diagnostics_for_file": false, "search_for_pattern": false,
+	required := make(map[string]bool, len(requiredTools))
+	for _, name := range requiredTools {
+		required[name] = false
 	}
 	params := map[string]any{}
 	for {
@@ -141,7 +140,7 @@ func (c *mcpClient) initialize() error {
 	}
 	for name, found := range required {
 		if !found {
-			return fmt.Errorf("缺少 Serena 必要工具 %s", name)
+			return fmt.Errorf("缺少 MCP 必要工具 %s", name)
 		}
 	}
 	return nil

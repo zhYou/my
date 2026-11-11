@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -31,9 +32,22 @@ type templateAnalyzer struct {
 
 // checkI18n 校验集中目录的语法、双语 ID 和各复数形式参数并集。
 func checkI18n(source fs.FS) error {
-	names, err := catalog.Files(source)
+	_, err := catalogIDs(source)
+	return err
+}
+
+func checkProjectMessages(ctx context.Context, root string, source fs.FS) error {
+	ids, err := catalogIDs(source)
 	if err != nil {
 		return err
+	}
+	return checkDiagnosticReferences(ctx, root, ids)
+}
+
+func catalogIDs(source fs.FS) (map[string]bool, error) {
+	names, err := catalog.Files(source)
+	if err != nil {
+		return nil, err
 	}
 	files := make(map[string]string)
 	for _, name := range names {
@@ -42,10 +56,10 @@ func checkI18n(source fs.FS) error {
 		}
 		base := path.Base(name)
 		if base != "active.en.toml" && base != "active.zh-CN.toml" {
-			return fmt.Errorf("不支持的消息文件 %q", name)
+			return nil, fmt.Errorf("不支持的消息文件 %q", name)
 		}
 		if files[base] != "" {
-			return fmt.Errorf("消息文件 %q 重复", base)
+			return nil, fmt.Errorf("消息文件 %q 重复", base)
 		}
 		files[base] = name
 	}
@@ -67,11 +81,11 @@ func checkI18n(source fs.FS) error {
 	}
 	en, err := read("en")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	zh, err := read("zh-CN")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ids := make([]string, 0, len(en))
 	for id := range en {
@@ -81,26 +95,30 @@ func checkI18n(source fs.FS) error {
 	for _, id := range ids {
 		other, ok := zh[id]
 		if !ok {
-			return fmt.Errorf("zh-CN 缺少消息 %q", id)
+			return nil, fmt.Errorf("zh-CN 缺少消息 %q", id)
 		}
 		enParams, err := parameters(en[id])
 		if err != nil {
-			return fmt.Errorf("消息 %q 的 en 模板：%w", id, err)
+			return nil, fmt.Errorf("消息 %q 的 en 模板：%w", id, err)
 		}
 		zhParams, err := parameters(other)
 		if err != nil {
-			return fmt.Errorf("消息 %q 的 zh-CN 模板：%w", id, err)
+			return nil, fmt.Errorf("消息 %q 的 zh-CN 模板：%w", id, err)
 		}
 		if !slices.Equal(enParams, zhParams) {
-			return fmt.Errorf("消息 %q 的参数不一致：en=%v，zh-CN=%v", id, enParams, zhParams)
+			return nil, fmt.Errorf("消息 %q 的参数不一致：en=%v，zh-CN=%v", id, enParams, zhParams)
 		}
 	}
 	for id := range zh {
 		if _, ok := en[id]; !ok {
-			return fmt.Errorf("en 缺少消息 %q", id)
+			return nil, fmt.Errorf("en 缺少消息 %q", id)
 		}
 	}
-	return nil
+	result := make(map[string]bool, len(en))
+	for id := range en {
+		result[id] = true
+	}
+	return result, nil
 }
 
 func parameters(entry map[string]string) ([]string, error) {

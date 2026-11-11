@@ -1,0 +1,3 @@
+package cli
+import "os"
+func Language() (string,bool) { return os.LookupEnv("LANG") }

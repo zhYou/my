@@ -10,7 +10,7 @@ task.run_auto_install = false
 GOTOOLCHAIN = "local"
 
 [tools]
-go = "1.27.3"
+go = "1.27.4"
 "go:golang.org/x/tools/gopls" = "0.24.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 golangci-lint = "2.15.0"
@@ -38,6 +38,9 @@ pre_commit_hooks_version = "6.0.0"
 # renovate: datasource=pypi depName=serena-agent
 serena_version = "2.1.0"
 serena_python_version = "3.14.10"
+# renovate: datasource=pypi depName=graphifyy
+graphify_version = "0.9.106"
+graphify_python_version = "3.14.10"
 
 # mise 工具由 setup 显式安装；npx/uvx 工具允许在外部缓存按需准备。
 [tasks.setup]
@@ -62,7 +65,7 @@ depends = ["lint:i18n", "lint:config", "lint:doc", "lint:style", "lint:versions"
 run = ["golangci-lint fmt --diff --color=never", "golangci-lint run --allow-serial-runners"]
 
 [tasks."lint:i18n"]
-description = "检查双语消息、模板和参数一致性"
+description = "检查双语消息、模板参数和静态诊断引用"
 run = "go run ./tools/lint i18n"
 
 [tasks."lint:config"]
@@ -108,12 +111,30 @@ description = "在临时副本中验收初始化、lint、测试、构建和安�
 run = "go run ./tools/template check"
 
 [tasks."mcp:check"]
-description = "验收真实 Serena、六类后台服务和同连接 worktree 切换"
+description = "验收 Serena 六后端、Graphify 代码图和同连接 worktree 隔离"
 run = "go run ./tools/mcp"
 
 [tasks."mcp:serve"]
 description = "通过 uvx 启动可动态切换项目的 Serena MCP"
 run = "uvx --isolated --python {{vars.serena_python_version}} --from serena-agent=={{vars.serena_version}} serena start-mcp-server --context codex --language-backend LSP --agent-interface tools --project-from-cwd --enable-web-dashboard false --open-web-dashboard false --enable-gui-log-window false"
+
+[tasks.graphify]
+description = "运行固定版本 Graphify CLI，参数和退出码沿用上游"
+env = { GRAPHIFY_NO_AUTO_REFRESH = "1", GRAPHIFY_OUT = "graphify-out" }
+run = 'uvx --isolated --python {{vars.graphify_python_version}} --from "graphifyy[mcp]=={{vars.graphify_version}}" graphify'
+
+[tasks."graphify:build"]
+description = "构建当前 checkout 的本地代码图，不调用模型"
+run = [{ task = "graphify", args = ["extract", ".", "--code-only"] }]
+
+[tasks."graphify:update"]
+description = "增量更新当前 checkout 的代码图，不调用模型"
+run = [{ task = "graphify", args = ["update", "."] }]
+
+[tasks."graphify:serve"]
+description = "通过 uvx 启动 Graphify MCP，查询时显式传 project_path"
+env = { GRAPHIFY_NO_AUTO_REFRESH = "1", GRAPHIFY_OUT = "graphify-out" }
+run = 'uvx --isolated --python {{vars.graphify_python_version}} --from "graphifyy[mcp]=={{vars.graphify_version}}" graphify-mcp'
 
 [tasks."release:verify"]
 description = "验证六目标归档、SPDX、SHA-256，并隔离安装宿主归档"

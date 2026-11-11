@@ -6,3 +6,19 @@ args = ["run", "--quiet", "mcp:serve"]
 startup_timeout_sec = 300
 tool_timeout_sec = 180
 required = false
+
+[mcp_servers.graphify]
+command = "mise"
+args = ["run", "--quiet", "graphify:serve"]
+startup_timeout_sec = 300
+tool_timeout_sec = 180
+required = false
+enabled_tools = [
+  "query_graph",
+  "get_node",
+  "get_neighbors",
+  "get_community",
+  "god_nodes",
+  "graph_stats",
+  "shortest_path"
+]

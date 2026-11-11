@@ -25,7 +25,7 @@ func TestVersionsLoadUnifiedTools(t *testing.T) {
 	versions, err := toolchain.Load(root)
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{
-		"go":                                   "1.27.3",
+		"go":                                   "1.27.4",
 		"golangci-lint":                        "2.15.0",
 		"actionlint":                           "1.7.12",
 		"goreleaser":                           "2.19.0",
@@ -132,8 +132,8 @@ func TestHistoricalVersionTextIsNotCurrentDeclaration(t *testing.T) {
 		os.WriteFile(
 			file,
 			[]byte(
-				regexp.MustCompile(`(?m)(\|\s*Go\s*\|\s*)1\.27\.3(\s*\|)`).
-					ReplaceAllString(string(data), "${1}1.27.30${2}"),
+				regexp.MustCompile(`(?m)(\|\s*Go\s*\|\s*)1\.27\.4(\s*\|)`).
+					ReplaceAllString(string(data), "${1}1.27.40${2}"),
 			),
 			0o600,
 		),
@@ -148,14 +148,14 @@ func TestVersionsGoToolchain(t *testing.T) {
 		toolchain string
 		wantError bool
 	}{
-		{name: "implicit-matching", minimum: "1.27.3"},
-		{name: "explicit-matching", minimum: "1.27.3", toolchain: "go1.27.3"},
-		{name: "explicit-newer-than-minimum", minimum: "1.27.0", toolchain: "go1.27.3"},
+		{name: "implicit-matching", minimum: "1.27.4"},
+		{name: "explicit-matching", minimum: "1.27.4", toolchain: "go1.27.4"},
+		{name: "explicit-newer-than-minimum", minimum: "1.27.0", toolchain: "go1.27.4"},
 		{name: "implicit-mismatching", minimum: "1.27.0", wantError: true},
-		{name: "explicit-mismatching", minimum: "1.27.3", toolchain: "go1.27.4", wantError: true},
-		{name: "minimum-too-new", minimum: "1.27.4", toolchain: "go1.27.3", wantError: true},
-		{name: "minimum-different-series", minimum: "1.26.0", toolchain: "go1.27.3", wantError: true},
-		{name: "missing-minimum", toolchain: "go1.27.3", wantError: true},
+		{name: "explicit-mismatching", minimum: "1.27.4", toolchain: "go1.27.5", wantError: true},
+		{name: "minimum-too-new", minimum: "1.27.5", toolchain: "go1.27.4", wantError: true},
+		{name: "minimum-different-series", minimum: "1.26.0", toolchain: "go1.27.4", wantError: true},
+		{name: "missing-minimum", toolchain: "go1.27.4", wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

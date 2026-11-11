@@ -28,7 +28,7 @@ CLI 提供文本和 JSON 输出、双语消息、严格 TOML 配置、Schema、s
 ## 本地环境
 
 [安装 mise](https://mise.jdx.dev/getting-started.html)。mise、Git、gh、Codex、RTK 和 superpowers 由用户维护；
-mise 安装声明的运行时、Go 和原生工具；文本工具与 Serena 通过固定版本的 npx/uvx 在外部缓存按需准备。
+mise 安装声明的运行时、Go 和原生工具；文本工具、Serena 与 Graphify 通过固定版本的 npx/uvx 在外部缓存按需准备。
 
 <!-- tool-versions:start -->
 
@@ -42,7 +42,7 @@ mise 安装声明的运行时、Go 和原生工具；文本工具与 Serena 通�
 
 | 工具                 | 固定版本 |
 | -------------------- | -------- |
-| Go                   | 1.27.3   |
+| Go                   | 1.27.4   |
 | golangci-lint        | 2.15.0   |
 | actionlint           | 1.7.12   |
 | GoReleaser           | 2.19.0   |
@@ -61,6 +61,8 @@ mise 安装声明的运行时、Go 和原生工具；文本工具与 Serena 通�
 | pre-commit-hooks     | 6.0.0    |
 | Serena               | 2.1.0    |
 | Serena Python        | 3.14.10  |
+| Graphify             | 0.9.106  |
+| Graphify Python      | 3.14.10  |
 
 <!-- tool-versions:end -->
 
@@ -299,10 +301,20 @@ my activate powershell | Out-String | Invoke-Expression
 ## Codex 开发
 
 环境准备完成后，从仓库根目录启动 `codex`。当前仅支持 Codex，RTK 和 superpowers 使用用户级安装。
-受信任项目通过 `.codex/config.toml` 和统一 `mcp:serve` 启动 uvx Serena，服务启动失败不阻塞 Codex。
+受信任项目通过 `.codex/config.toml` 和 `mcp:serve`、`graphify:serve` 启动 Serena 与 Graphify，服务启动失败不阻塞 Codex。
 Serena 使用独立兼容 Python 并关闭 dashboard，覆盖 Go、JavaScript、JSON、YAML、TOML 和 Markdown。
-创建或切换 worktree 后，以绝对路径激活并核对项目根目录；未覆盖的 Go 能力使用当前 checkout 的 gopls CLI。
-连接验证和 CLI 回退见[开发说明](docs/development.md#实现与检查)；协作、分支及交付规则见 [AGENTS.md](AGENTS.md)。
+Graphify 使用独立兼容 Python 建立本地代码图，CLI 负责建图和更新，MCP 查询关系；不需要 API Key。
+创建或切换 worktree 后，以绝对路径激活 Serena 并核对根目录；Graphify 每次查询传当前 checkout 的绝对 `project_path`。
+未覆盖的 Go 能力使用当前 checkout 的 gopls CLI，精确文本使用 rg；职责与回退见[开发说明](docs/development.md#graphify-与工具分工)。
+
+需要代码图时执行 `mise run graphify:build`，修改后使用 `mise run graphify:update`；索引位于被忽略的 `graphify-out/`，各 checkout 独立维护。
+单次会话不需要这两个 MCP 时：
+
+```sh
+codex -c 'mcp_servers.serena.enabled=false' -c 'mcp_servers.graphify.enabled=false'
+```
+
+连接验收见[开发说明](docs/development.md#实现与检查)，协作、分支及交付规则见 [AGENTS.md](AGENTS.md)。
 
 ## 智能体文档上下文
 
@@ -350,9 +362,10 @@ task 内由 mise 提供工具环境，无需额外包装。
 | [安全报告](SECURITY.md)               | 目标项目须填写的私密报告入口         |
 | [项目待办](docs/backlog.md)           | 明确要求记录的探索想法               |
 
-本项目来源于 [go-cli-starter](https://github.com/zhYou/go-cli-starter) 0.4.0，
-来源提交为 `065fc74a424020155f9d849709b0baaa819ca685`，完整记录见 [.template-origin.json](.template-origin.json)。
-模板版本与应用发布版本独立；已有项目升级见[模板升级](docs/template-upgrades.md)，不运行初始化覆盖业务。
+本项目最初基于 [go-cli-starter](https://github.com/zhYou/go-cli-starter) 0.4.0，
+初始化来源 `065fc74a424020155f9d849709b0baaa819ca685` 保存在 [.template-origin.json](.template-origin.json)。
+当前已人工同步模板 0.4.1，来源提交为 `3dcd7c8d9e9632a7857b091afa107ae31a0b3c7b`。
+模板版本与应用发布版本独立；同步范围见[模板升级](docs/template-upgrades.md#my-的模板同步记录)，不运行初始化覆盖业务。
 
 身份路径按显式 `--age-identity`、非空环境变量、配置文件的顺序选择，仅在实际加解密时读取。
 目标基线和环境缓存按机器隔离；复制状态文件到另一逻辑机器不能复用绑定或缓存。

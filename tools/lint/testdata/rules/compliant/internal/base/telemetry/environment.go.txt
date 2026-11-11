@@ -1,0 +1,3 @@
+package telemetry
+import "os"
+func Environment() string { return os.Getenv("OTEL_VALUE") }

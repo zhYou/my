@@ -1,0 +1,3 @@
+package config
+import "os"
+func Hidden() string { return os.Getenv("TOKEN") } // want forbidigo

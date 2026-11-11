@@ -1,0 +1,7 @@
+package logging
+import "go.uber.org/zap"
+func Global() {
+ _ = zap.L() // want forbidigo
+ _ = zap.S() // want forbidigo
+ _ = zap.ReplaceGlobals(zap.NewNop()) // want forbidigo
+}

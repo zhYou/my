@@ -1,0 +1,3 @@
+package command
+import "os"
+func Environment() []string { return os.Environ() }

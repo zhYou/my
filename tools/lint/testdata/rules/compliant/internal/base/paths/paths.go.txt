@@ -1,0 +1,3 @@
+package paths
+import "os"
+func Home() (string,bool) { return os.LookupEnv("HOME") }

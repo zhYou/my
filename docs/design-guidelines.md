@@ -78,6 +78,7 @@ Cobra 提供命令与元数据；前置顺序、schema 输出及退出码是项�
 数据仓配置为 `[data]` repository、branch、request_timeout；`[secrets] identity_file` 只在秘密
 目标实际读写时加载。默认值及 `MY_DATA_*`、`MY_SECRETS_IDENTITY_FILE` 覆盖规则见 README。
 my 配置、Session 与业务状态默认共用 HOME 布局，MY_HOME 统一覆盖，--config 不改变状态根。
+业务环境输入通过统一加载入口或注入的 LookupEnv 获取；基础设施的直接环境读取保持精确登记，见[静态规则](development.md#静态规则与开发探测)。
 
 凭据由具体业务声明来源，优先通过调用级依赖、注入的 LookupEnv 或受控凭据提供者取得；不预建凭据配置框架。
 age identity 只接受仓外普通文件中的单个原生 X25519 或 Hybrid 身份，不支持插件、SSH 或自动生成。
@@ -174,7 +175,7 @@ if err != nil {
 
 加载失败、缺译、模板错误或缺少参数会返回错误；Format 失败时返回空字符串，不使用部分渲染文本。
 Text/Render 仅用于安全诊断兜底，不能凭非空字符串判断渲染成功；诊断故障不吞掉原始业务错误。
-`mise run lint:i18n` 检查双语目录、模板和参数，细则见[开发说明](development.md#静态规则与开发探测)。
+`mise run lint:i18n` 检查双语目录、模板参数和静态诊断消息引用，细则见[开发说明](development.md#静态规则与开发探测)。
 项目暂不支持运行时翻译覆盖或 `[i18n]` 配置。CLI 按 `--lang` > `<PREFIX>_LANG` > en 选语言，
 zh-CN 是中文、zh 是别名，不从 OS 区域推断。稳定命令、选项、JSON 字段、错误码和状态枚举不翻译；
 第三方错误叶子在经过敏感边界审查后保留原文。Help、version、completion、schema 在坏配置下仍可运行，不创建诊断目录。
@@ -184,7 +185,7 @@ zh-CN 是中文、zh 是别名，不从 OS 区域推断。稳定命令、选项�
 错误与告警协议见[结构化诊断](#结构化诊断)；doctor 的完成负向报告不额外产生错误记录。
 默认文本；帮助为文本、补全为原生脚本、schema 始终为 JSON。错误和告警写 stderr，日志使用独立出口。
 只有 `cmd/<name>` 处理进程退出，业务和日志返回错误。库依据：
-[Go errors](https://pkg.go.dev/errors@go1.27.3)、
+[Go errors](https://pkg.go.dev/errors@go1.27.4)、
 [go-i18n v2.7.0](https://pkg.go.dev/github.com/nicksnyder/go-i18n/v2@v2.7.0/i18n)。
 错误分类、目录组织和语言优先级是项目契约；go-i18n 的 Bundle 在 Localizer 读取时不能继续修改。
 
@@ -239,7 +240,8 @@ call.logger.WithContext(ctx).Record(greetingFinished{
 `Logger.Record(logging.CommandResult{...})` 或 `logging.ToolCall`，普通临时诊断才用 Debugw/Infow。
 工具事件只记录操作、程序名、结果、耗时与结构化错误，不记录 argv、环境和原始输出。
 新领域事件由所属模块实现 `logging.Event` 的 Emit 方法，显式使用调用级 logger 和 tracer；
-telemetry.RecordError 逐分支记录安全错误文本、error.code、error.phase、已知副作用和恢复标识。
+生产代码的全局日志、provider、进程输出和退出入口由[静态规则](development.md#静态规则与开发探测)约束。
+Trace 错误统一通过 telemetry.RecordError 逐分支记录安全错误文本、error.code、error.phase、已知副作用和恢复标识。
 命令结束日志保留既有错误字段，并增加 error_details 数组。日志门面没有 Fatal/Panic，业务不得绕过入口退出进程。
 
 并发工作通过 `Session.Go(context.Context, func(context.Context)) bool` 登记，工作接收本次显式传入的 Context；Finish 开始后拒绝新任务。
@@ -262,7 +264,7 @@ CLI 自有 stderr 路径串行化错误、日志和告警，但不能替嵌入�
 库依据：[zap v1.28.0](https://pkg.go.dev/go.uber.org/zap@v1.28.0)、
 [OTel SDK v1.47.0](https://pkg.go.dev/go.opentelemetry.io/otel/sdk@v1.47.0/trace)、
 [stdouttrace WithWriter](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/stdout/stdouttrace@v1.47.0#WithWriter)、
-[context](https://pkg.go.dev/context@go1.27.3)、[flock v0.13.1](https://pkg.go.dev/github.com/gofrs/flock@v0.13.1)。
+[context](https://pkg.go.dev/context@go1.27.4)、[flock v0.13.1](https://pkg.go.dev/github.com/gofrs/flock@v0.13.1)。
 库提供记录、导出、锁与取消机制；上述生命周期、失败继续策略和删除白名单是项目选择。
 
 ## 调外部工具时保留 argv、错误和取消原因
@@ -318,7 +320,7 @@ SIGKILL，并额外保留一次 WaitDelay 观察进程组退出；确认组不�
 `activate` 读取本机 `state/shellenv` 缓存，不访问远端、不创建 Session、日志或 Trace；
 stdout 只能是目标 shell 的赋值代码，校验失败必须在输出任何字节前返回。
 
-库依据：[os/exec](https://pkg.go.dev/os/exec@go1.27.3)、
+库依据：[os/exec](https://pkg.go.dev/os/exec@go1.27.4)、
 [errgroup v0.24.0](https://pkg.go.dev/golang.org/x/sync@v0.24.0/errgroup)、
 [Windows Job 创建属性](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)。
 CommandContext 默认取消单个进程，并不承诺清理整棵树；errgroup.WithContext 的首错取消也不是 collect-all。

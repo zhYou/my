@@ -1,6 +1,6 @@
 module github.com/zhYou/my
 
-go 1.27.3
+go 1.27.4
 
 require (
 	filippo.io/age v1.3.2
@@ -30,6 +30,7 @@ require (
 	golang.org/x/sync v0.24.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
+	golang.org/x/tools v0.51.0
 )
 
 require (
@@ -61,6 +62,5 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
-	golang.org/x/tools v0.51.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
