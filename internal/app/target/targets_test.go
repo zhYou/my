@@ -1,7 +1,6 @@
-package configuration
+package target
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -9,17 +8,17 @@ import (
 )
 
 func TestDefaultTargetDefinitions(t *testing.T) {
-	targets := DefaultTargets()
+	targets := DefaultDefinitions()
 	require.Len(t, targets, 10)
-	seen := map[TargetID]bool{}
+	seen := map[ID]bool{}
 	for _, target := range targets {
 		require.NoError(t, target.Validate())
 		require.False(t, seen[target.ID])
 		seen[target.ID] = true
 	}
-	require.True(t, targetsByID()[TargetCodexAuth].Secret)
-	require.False(t, targetsByID()[TargetCodexAuth].CaptureAll)
-	require.True(t, targetsByID()[TargetShellEnv].RemoteAuthoritative)
+	require.True(t, targetsByID()[CodexAuth].Secret)
+	require.False(t, targetsByID()[CodexAuth].CaptureAll)
+	require.True(t, targetsByID()[ShellEnv].RemoteAuthoritative)
 }
 
 func TestReadMiseFieldUnitsIgnoresUnmanagedContent(t *testing.T) {
@@ -34,7 +33,7 @@ http_timeout = "120s"
 [tasks.unmanaged]
 run = "echo keep"
 `)
-	definition := targetsByID()[TargetMise]
+	definition := targetsByID()[Mise]
 	snapshot, err := definition.ReadLocal(home, "linux")
 	require.NoError(t, err)
 	require.Equal(t, stringValue("24").Digest, snapshot.Units[FieldUnitID("tools", "node")].Digest)
@@ -53,10 +52,10 @@ func TestReadCodexRulesAndDetectLegacyFile(t *testing.T) {
 		filepath.Join(rules, "git-rtk.rules"),
 		"prefix_rule(pattern=[\"rtk\", \"git\"], decision=\"allow\")\n",
 	)
-	definition := targetsByID()[TargetCodexRules]
+	definition := targetsByID()[CodexRules]
 	_, err := definition.ReadLocal(home, "linux")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "configuration.legacy")
+	require.Contains(t, err.Error(), "target.legacy")
 }
 
 func TestCodexFilesystemLogicalPathsAreStableAcrossPlatforms(t *testing.T) {
@@ -70,12 +69,6 @@ func TestCodexFilesystemLogicalPathsAreStableAcrossPlatforms(t *testing.T) {
 }
 
 func TestTargetDataRejectsMalformedJSONAndYAML(t *testing.T) {
-	require.Error(t, validateTargetData(TargetFile{Format: FormatJSON}, []byte("{broken")))
-	require.Error(t, validateTargetData(TargetFile{Format: FormatYAML}, []byte("key: [unterminated\n")))
-}
-
-func writeFixture(t *testing.T, path, content string) {
-	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	require.Error(t, validateTargetData(File{Format: FormatJSON}, []byte("{broken")))
+	require.Error(t, validateTargetData(File{Format: FormatYAML}, []byte("key: [unterminated\n")))
 }

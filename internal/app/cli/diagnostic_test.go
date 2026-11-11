@@ -80,9 +80,11 @@ func TestJSONPartialCompletionPreservesDiagnosticsAndCause(t *testing.T) {
 			var failure error
 			var out, stderr bytes.Buffer
 			code := Run(ctx, []string{"greet", "--name", "fixture", "--json", "--lang", "zh-CN"}, Options{
-				Out:       &out,
-				ErrOut:    &stderr,
-				LookupEnv: func(key string) (string, bool) { return home, key == "MY_HOME" },
+				Out:    &out,
+				ErrOut: &stderr,
+				LookupEnv: func(key string) (string, bool) {
+					return home, key == "MY_HOME"
+				},
 				Dependencies: &Dependencies{Greet: func(context.Context, greeting.Options) (greeting.Result, error) {
 					require.NoError(t, os.WriteFile(marker, []byte("saved"), 0o600))
 					if cancelled {
@@ -152,7 +154,9 @@ func TestBootstrapFailureUsesJSONFallback(t *testing.T) {
 		t.Context(),
 		[]string{"--json", "greet", "--name", "fixture"},
 		Options{Out: &out, ErrOut: &stderr, LookupEnv: noFixtureEnv},
-		func() (*messages.Bundle, error) { return nil, errors.New("private-catalog-data") },
+		func() (*messages.Bundle, error) {
+			return nil, errors.New("private-catalog-data")
+		},
 	)
 	require.Equal(t, 1, code)
 	require.Empty(t, out.String())
@@ -219,7 +223,10 @@ func TestDiagnosticWarningsUseSynchronizedInvocationState(t *testing.T) {
 					return cfg, nil
 				},
 				NewLogger: func(_ logging.RunInfo, _ logging.Options, warn func(error)) *logging.Logger {
-					go func() { defer close(done); warn(errors.New("fixture warning")) }()
+					go func() {
+						defer close(done)
+						warn(errors.New("fixture warning"))
+					}()
 					return logging.NewNop()
 				},
 				Greet: func(context.Context, greeting.Options) (greeting.Result, error) {
@@ -292,7 +299,9 @@ func TestCompletionFlagValuesDoNotSelectJSONDiagnostics(t *testing.T) {
 			t.Context(),
 			tc.args,
 			Options{Out: &out, ErrOut: &stderr, LookupEnv: noFixtureEnv},
-			func() (*messages.Bundle, error) { return nil, errors.New("private bootstrap data") },
+			func() (*messages.Bundle, error) {
+				return nil, errors.New("private bootstrap data")
+			},
 		)
 		require.Equal(t, 1, code)
 		require.Empty(t, out.String())

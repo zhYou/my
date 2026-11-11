@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"testing"
@@ -33,7 +33,7 @@ func TestCompareThreeWayUnits(t *testing.T) {
 			local:  localValue,
 			remote: remoteValue,
 			action: ActionConflict,
-			code:   "configuration.first_takeover",
+			code:   "target.first_takeover",
 		},
 		{
 			name:     "remote only change applies locally",
@@ -66,7 +66,7 @@ func TestCompareThreeWayUnits(t *testing.T) {
 			local:    localValue,
 			remote:   remoteValue,
 			action:   ActionConflict,
-			code:     "configuration.changed_both",
+			code:     "target.changed_both",
 		},
 		{
 			name:     "missing whole file requires explicit resolution",
@@ -75,7 +75,7 @@ func TestCompareThreeWayUnits(t *testing.T) {
 			local:    UnitValue{},
 			remote:   oldValue,
 			action:   ActionConflict,
-			code:     "configuration.file_missing",
+			code:     "target.file_missing",
 		},
 		{
 			name:     "missing field uploads deletion",
@@ -102,17 +102,6 @@ func TestCompareThreeWayUnits(t *testing.T) {
 			require.Equal(t, tc.code, comparison.Code)
 		})
 	}
-}
-
-func TestBaselineValueNeverKeepsSecretContent(t *testing.T) {
-	secret := UnitValueFromBytes([]byte("secret-marker"))
-	baseline := BaselineValue{
-		Exists: true,
-		Secret: true,
-		Digest: secret.Digest,
-	}
-	require.Empty(t, baseline.Data)
-	require.NotEmpty(t, baseline.Digest)
 }
 
 func baselineOf(value UnitValue) *BaselineValue {

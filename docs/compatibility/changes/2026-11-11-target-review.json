@@ -1,0 +1,14 @@
+{
+  "id": "2026-11-11-target-review",
+  "compatibility": "breaking",
+  "summary": "业务 config 命令改名为 target，机器基线和环境缓存隔离；数据观测版本使用 data_commit。",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli config",
+    "/schema/commands/contract-cli/commands/contract-cli target",
+    "/schema/commands/contract-cli/commands/contract-cli env",
+    "/schema/commands/contract-cli/commands/contract-cli activate"
+  ],
+  "previous_version": "v0.5.0",
+  "target_version": "v0.6.0",
+  "migration": "尚未部署的 config 入口直接移除，使用 target capture/diff/sync/resolve/remove，无别名。CLI 自身 --config 和 config.toml 不变，远端 configs/ 及 schema_version=1 不变。本机 target 基线与 shellenv 缓存按机器隔离，重新 target sync；认证中断保留 pending 后重试。age identity flag 覆盖配置并仅在实际加解密时读取。日志 build commit 保留，业务数据版本改为 data_commit。"
+}

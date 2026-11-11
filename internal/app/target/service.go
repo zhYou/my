@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"crypto/sha256"

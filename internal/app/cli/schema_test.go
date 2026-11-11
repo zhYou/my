@@ -101,9 +101,11 @@ func TestDiagnosticSchemaMatchesActualErrorAndWarnings(t *testing.T) {
 		t.Context(),
 		[]string{"--json", "greet", "--name", "fixture"},
 		Options{
-			Out:       &stdout,
-			ErrOut:    &diagnostics,
-			LookupEnv: func(key string) (string, bool) { return home, key == "MY_HOME" },
+			Out:    &stdout,
+			ErrOut: &diagnostics,
+			LookupEnv: func(key string) (string, bool) {
+				return home, key == "MY_HOME"
+			},
 			Dependencies: &Dependencies{Greet: func(context.Context, greeting.Options) (greeting.Result, error) {
 				return greeting.Result{}, errors.New("fixture failure")
 			}},

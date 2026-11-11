@@ -31,7 +31,7 @@ func problem(code fault.Code, phase string, cause error) error {
 			fault.Diagnostic{
 				Phase:            phase,
 				CompletedEffects: []string{},
-				Recovery:         &fault.Recovery{Code: "shellenv.recover"},
+				Recovery:         &fault.Recovery{Code: "shellenv.recover", Params: fault.Params{"Commit": ""}},
 			},
 		),
 	}

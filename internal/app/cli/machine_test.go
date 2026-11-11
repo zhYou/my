@@ -34,7 +34,9 @@ func TestBusinessDoctorReportsBadConfigurationWithoutSideEffects(t *testing.T) {
 	home := t.TempDir()
 	var out, stderr bytes.Buffer
 	options := isolatedOptions(home, &out, &stderr)
-	options.Dependencies.ProbeGH = func(context.Context) error { return nil }
+	options.Dependencies.ProbeGH = func(context.Context) error {
+		return nil
+	}
 	options.Dependencies.Credential = func(context.Context) (string, error) {
 		t.Fatal("bad configuration must not read credentials")
 		return "", nil

@@ -18,10 +18,18 @@ func newEnvCommand(call *invocation) *cobra.Command {
 		Use:         "env",
 		Args:        noArgs,
 		Annotations: map[string]string{annotationSkipConfig: annotationEnabled},
-		RunE:        func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
 	}
 	group.AddCommand(newEnvSetCommand(call), newEnvRemoveCommand(call), newEnvListCommand(call))
-	call.bindCommand(group, commandTexts{short: message("cli.env")})
+	call.bindCommand(
+		group,
+		commandTexts{
+			short:   message("cli.env"),
+			example: textMessage{id: "cli.env_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
 	return group
 }
 
@@ -35,14 +43,20 @@ func newEnvSetCommand(call *invocation) *cobra.Command {
 				return err
 			}
 			input.Name = args[0]
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			value, err := io.ReadAll(io.LimitReader(cmd.InOrStdin(), 64<<10))
+			if err := validateAgeIdentity(cmd, call); err != nil {
+				return err
+			}
+			if err := input.ValidateSelection(); err != nil {
+				return err
+			}
+			value, err := shellenv.ReadValue(cmd.InOrStdin())
 			if err != nil {
 				return err
 			}
 			input.Value = value
+			return input.Validate()
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			service, _, err := call.environmentService(cmd.Context())
 			if err != nil {
 				return err
@@ -62,14 +76,20 @@ func newEnvSetCommand(call *invocation) *cobra.Command {
 	cmd.Flags().BoolVar(&input.Overwrite, "overwrite", false, "覆盖同名变量")
 	cmd.Flags().StringSliceVar(&input.Machines, flagMachine, nil, "限制变量适用的机器 ID")
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.env_set")})
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short:   message("cli.env_set"),
+			example: textMessage{id: "cli.env_set_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
 	for _, binding := range []struct {
 		flag string
 		id   string
 	}{
 		{flagSecret, "cli.env_secret"},
 		{"overwrite", "cli.env_overwrite"},
-		{flagMachine, "cli.config_machine"},
+		{flagMachine, "cli.target_machine"},
 	} {
 		call.bindFlag(cmd.Flags().Lookup(binding.flag), message(binding.id))
 	}
@@ -87,7 +107,7 @@ func newEnvRemoveCommand(call *invocation) *cobra.Command {
 				return err
 			}
 			input.Name = args[0]
-			return nil
+			return input.Validate()
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			service, _, err := call.environmentService(cmd.Context())
@@ -105,7 +125,13 @@ func newEnvRemoveCommand(call *invocation) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&input.Secret, flagSecret, false, "删除秘密变量")
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.env_remove")})
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short:   message("cli.env_remove"),
+			example: textMessage{id: "cli.env_remove_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
 	call.bindFlag(cmd.Flags().Lookup(flagSecret), message("cli.env_secret"))
 	registerOrPanic[shellenv.Result](call, cmd)
 	return cmd
@@ -151,7 +177,13 @@ func newEnvListCommand(call *invocation) *cobra.Command {
 		},
 	}
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.env_list")})
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short:   message("cli.env_list"),
+			example: textMessage{id: "cli.env_list_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
 	registerOrPanic[shellenv.ListResult](call, cmd)
 	return cmd
 }
@@ -159,40 +191,23 @@ func newEnvListCommand(call *invocation) *cobra.Command {
 func (call *invocation) environmentService(
 	ctx context.Context,
 ) (*shellenv.Service, machine.Binding, error) {
-	client, err := call.dataRepository(ctx)
+	data, err := call.businessData(ctx)
 	if err != nil {
 		return nil, machine.Binding{}, err
 	}
-	binding, err := call.requireBinding()
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
-	snapshot, err := client.Read(ctx)
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
-	records, err := machine.Records(snapshot)
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
-	known := make([]string, 0, len(records))
-	for id, record := range records {
-		if record.Status == machine.Active {
-			known = append(known, id)
-		}
-	}
-	sort.Strings(known)
-	ageKey, err := call.loadAgeKey()
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
+	binding, client, known := data.binding, data.repository, data.machines
 	return shellenv.New(shellenv.Options{
-		Repository:     client,
-		Cache:          shellenv.NewFileCache(filepath.Join(call.directories.State, shellenvStateDirectory)),
-		AgeKey:         ageKey,
+		Logger: call.logger, Tracer: call.sessionTracer(), Localizer: call.localizer,
+		Repository: client,
+		Cache: guardedCache{Cache: shellenv.NewFileCache(
+			filepath.Join(call.directories.State, shellenvStateDirectory),
+			binding.MachineID,
+		), guard: data.guard},
+		LoadAgeKey:     call.loadAgeKey,
 		MachineID:      binding.MachineID,
 		KnownMachines:  known,
 		RepositoryName: binding.Repository,
+		RepositoryID:   binding.RepositoryID,
 		Branch:         binding.Branch,
 	}), binding, nil
 }

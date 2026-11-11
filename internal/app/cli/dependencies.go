@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zhYou/my/internal/app/machine"
+	"github.com/zhYou/my/internal/base/agecrypt"
 	"github.com/zhYou/my/internal/base/paths"
 
 	"github.com/zhYou/my/internal/app/config"
@@ -51,6 +52,9 @@ type invocation struct {
 	configPath      string
 	logLevel        string
 	ageIdentity     string
+	ageOnce         sync.Once
+	ageKey          *agecrypt.Key
+	ageErr          error
 	deps            Dependencies
 	logger          *logging.Logger
 	session         *session.Session

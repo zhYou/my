@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"encoding/json"
@@ -52,54 +52,54 @@ var codexRuleFiles = []string{
 	"rtk.rules",
 }
 
-// TargetFile 描述目标中的一个本机文件。
-type TargetFile struct {
+// File 描述目标中的一个本机文件。
+type File struct {
 	Name         string
 	RelativePath string
 	Format       FileFormat
 	Required     bool
 }
 
-// TargetDefinition 是 CLI、同步和适配器共享的静态目标声明。
-type TargetDefinition struct {
-	ID                  TargetID
+// Definition 是 CLI、同步和适配器共享的静态目标声明。
+type Definition struct {
+	ID                  ID
 	Kind                UnitKind
 	Secret              bool
 	CaptureAll          bool
 	RemoteAuthoritative bool
 	DefaultCurrent      bool
-	Files               []TargetFile
+	Files               []File
 }
 
-// TargetSnapshot 是目标在当前机器上的单位和默认范围。
-type TargetSnapshot struct {
-	Target TargetID
+// Snapshot 是目标在当前机器上的单位和默认范围。
+type Snapshot struct {
+	Target ID
 	Scope  MachineScope
 	Units  map[UnitID]UnitValue
 }
 
-// DefaultTargets 返回稳定的内建目标顺序。
-func DefaultTargets() []TargetDefinition {
-	return []TargetDefinition{
+// DefaultDefinitions 返回稳定的内建目标顺序。
+func DefaultDefinitions() []Definition {
+	return []Definition{
 		{
-			ID:         TargetCodexSettings,
+			ID:         CodexSettings,
 			Kind:       UnitField,
 			CaptureAll: true,
-			Files: []TargetFile{
+			Files: []File{
 				{Name: "config.toml", RelativePath: ".codex/config.toml", Format: FormatTOMLFields, Required: true},
 			},
 		},
 		{
-			ID:         TargetCodexRules,
+			ID:         CodexRules,
 			Kind:       UnitFile,
 			CaptureAll: true,
 			Files:      codexRuleTargetFiles(),
 		},
 		{
-			ID:         TargetCodexDeepSeek,
+			ID:         CodexDeepSeek,
 			Kind:       UnitFile,
 			CaptureAll: true,
-			Files: []TargetFile{
+			Files: []File{
 				{
 					Name:         "deepseek.config.toml",
 					RelativePath: ".codex/deepseek.config.toml",
@@ -115,18 +115,18 @@ func DefaultTargets() []TargetDefinition {
 			},
 		},
 		{
-			ID:   TargetCodexAuth,
+			ID:   CodexAuth,
 			Kind: UnitSecret,
-			Files: []TargetFile{
+			Files: []File{
 				{Name: "auth.json", RelativePath: ".codex/auth.json", Format: FormatAgeFile, Required: true},
 			},
 			Secret: true,
 		},
 		{
-			ID:         TargetMise,
+			ID:         Mise,
 			Kind:       UnitField,
 			CaptureAll: true,
-			Files: []TargetFile{
+			Files: []File{
 				{
 					Name:         "config.toml",
 					RelativePath: ".config/mise/config.toml",
@@ -136,18 +136,18 @@ func DefaultTargets() []TargetDefinition {
 			},
 		},
 		{
-			ID:         TargetTopgrade,
+			ID:         Topgrade,
 			Kind:       UnitFile,
 			CaptureAll: true,
-			Files: []TargetFile{
+			Files: []File{
 				{Name: "topgrade.toml", RelativePath: ".config/topgrade.toml", Format: FormatTOML, Required: true},
 			},
 		},
 		{
-			ID:         TargetClashGlobal,
+			ID:         ClashGlobal,
 			Kind:       UnitFile,
 			CaptureAll: true,
-			Files: []TargetFile{
+			Files: []File{
 				{
 					Name:         "global.js",
 					RelativePath: ".config/clash-verge/zeus-global-extend.js",
@@ -157,11 +157,11 @@ func DefaultTargets() []TargetDefinition {
 			},
 		},
 		{
-			ID:             TargetClashLAN,
+			ID:             ClashLAN,
 			Kind:           UnitFile,
 			CaptureAll:     true,
 			DefaultCurrent: true,
-			Files: []TargetFile{
+			Files: []File{
 				{
 					Name:         "lan.yaml",
 					RelativePath: ".config/clash-verge/zeus-canonical-lan-merge.yaml",
@@ -171,12 +171,12 @@ func DefaultTargets() []TargetDefinition {
 			},
 		},
 		{
-			ID:                  TargetShellEnv,
+			ID:                  ShellEnv,
 			Kind:                UnitField,
 			RemoteAuthoritative: true,
 		},
 		{
-			ID:                  TargetShellEnvSecret,
+			ID:                  ShellEnvSecret,
 			Kind:                UnitSecret,
 			Secret:              true,
 			RemoteAuthoritative: true,
@@ -184,10 +184,10 @@ func DefaultTargets() []TargetDefinition {
 	}
 }
 
-func codexRuleTargetFiles() []TargetFile {
-	result := make([]TargetFile, 0, len(codexRuleFiles))
+func codexRuleTargetFiles() []File {
+	result := make([]File, 0, len(codexRuleFiles))
 	for _, name := range codexRuleFiles {
-		result = append(result, TargetFile{
+		result = append(result, File{
 			Name:         name,
 			RelativePath: ".codex/rules/" + name,
 			Format:       FormatText,
@@ -196,9 +196,9 @@ func codexRuleTargetFiles() []TargetFile {
 	return result
 }
 
-func targetsByID() map[TargetID]TargetDefinition {
-	targets := DefaultTargets()
-	result := make(map[TargetID]TargetDefinition, len(targets))
+func targetsByID() map[ID]Definition {
+	targets := DefaultDefinitions()
+	result := make(map[ID]Definition, len(targets))
 	for _, target := range targets {
 		result[target.ID] = target
 	}
@@ -206,7 +206,7 @@ func targetsByID() map[TargetID]TargetDefinition {
 }
 
 // Validate 检查目标声明的内部一致性。
-func (d TargetDefinition) Validate() error {
+func (d Definition) Validate() error {
 	if err := d.ID.Validate(); err != nil {
 		return err
 	}
@@ -238,7 +238,7 @@ func (d TargetDefinition) Validate() error {
 }
 
 // DefaultScope 根据目标规则和当前机器构造默认适用范围。
-func (d TargetDefinition) DefaultScope(machineID string) MachineScope {
+func (d Definition) DefaultScope(machineID string) MachineScope {
 	if d.DefaultCurrent {
 		return MachineScope{IDs: []string{machineID}}
 	}
@@ -246,20 +246,20 @@ func (d TargetDefinition) DefaultScope(machineID string) MachineScope {
 }
 
 // ReadLocal 读取当前机器上的目标单位；返回内容只用于本次调用。
-func (d TargetDefinition) ReadLocal(home, goos string) (TargetSnapshot, error) {
+func (d Definition) ReadLocal(home, goos string) (Snapshot, error) {
 	if err := d.Validate(); err != nil {
-		return TargetSnapshot{}, err
+		return Snapshot{}, err
 	}
 	if d.RemoteAuthoritative {
-		return TargetSnapshot{}, problem(codeInvalidInput, phaseValidate, nil)
+		return Snapshot{}, problem(codeInvalidInput, phaseValidate, nil)
 	}
 	if !filepath.IsAbs(home) {
-		return TargetSnapshot{}, invalidInput()
+		return Snapshot{}, invalidInput()
 	}
 	if goos == "" {
 		goos = runtime.GOOS
 	}
-	snapshot := TargetSnapshot{
+	snapshot := Snapshot{
 		Target: d.ID,
 		Scope:  MachineScope{All: true},
 		Units:  map[UnitID]UnitValue{},
@@ -267,26 +267,26 @@ func (d TargetDefinition) ReadLocal(home, goos string) (TargetSnapshot, error) {
 	if d.DefaultCurrent {
 		snapshot.Scope = MachineScope{}
 	}
-	if d.ID == TargetCodexRules {
+	if d.ID == CodexRules {
 		if err := detectLegacyRules(filepath.Join(home, ".codex", "rules")); err != nil {
-			return TargetSnapshot{}, err
+			return Snapshot{}, err
 		}
 	}
 	for _, file := range d.Files {
 		data, err := readTargetFile(filepath.Join(home, filepath.FromSlash(file.RelativePath)), file.Required)
 		if err != nil {
-			return TargetSnapshot{}, err
+			return Snapshot{}, err
 		}
 		if data == nil {
 			continue
 		}
 		if err := validateTargetData(file, data); err != nil {
-			return TargetSnapshot{}, err
+			return Snapshot{}, err
 		}
 		if file.Format == FormatTOMLFields {
 			units, err := d.readFieldUnits(data, goos)
 			if err != nil {
-				return TargetSnapshot{}, err
+				return Snapshot{}, err
 			}
 			maps.Copy(snapshot.Units, units)
 			continue
@@ -300,11 +300,11 @@ func (d TargetDefinition) ReadLocal(home, goos string) (TargetSnapshot, error) {
 	return snapshot, nil
 }
 
-func (d TargetDefinition) readFieldUnits(data []byte, goos string) (map[UnitID]UnitValue, error) {
+func (d Definition) readFieldUnits(data []byte, goos string) (map[UnitID]UnitValue, error) {
 	switch d.ID {
-	case TargetMise:
+	case Mise:
 		return readMiseUnits(data)
-	case TargetCodexSettings:
+	case CodexSettings:
 		return readCodexSettingUnits(data, goos)
 	default:
 		return nil, invalidInput()
@@ -317,21 +317,21 @@ func readMiseUnits(data []byte) (map[UnitID]UnitValue, error) {
 		return nil, invalidTOML(err)
 	}
 	result := map[UnitID]UnitValue{}
-	if tools, ok := document["tools"].(map[string]any); ok {
+	if tools, ok := document[miseToolsTable].(map[string]any); ok {
 		for _, name := range SortedTOMLKeys(tools) {
-			value, err := TOMLValue(data, []string{"tools", name})
+			value, err := TOMLValue(data, []string{miseToolsTable, name})
 			if err != nil {
 				return nil, err
 			}
-			result[FieldUnitID("tools", name)] = value
+			result[FieldUnitID(miseToolsTable, name)] = value
 		}
 	}
 	for _, name := range []string{"http_timeout", "url_replacements"} {
-		value, err := TOMLValue(data, []string{"settings", name})
+		value, err := TOMLValue(data, []string{miseSettingsTable, name})
 		if err != nil {
 			return nil, err
 		}
-		result[FieldUnitID("settings", name)] = value
+		result[FieldUnitID(miseSettingsTable, name)] = value
 	}
 	return result, nil
 }
@@ -376,7 +376,7 @@ func hasLegacySandbox(data []byte) bool {
 	return mode || roots
 }
 
-func validateTargetData(file TargetFile, data []byte) error {
+func validateTargetData(file File, data []byte) error {
 	if !utf8.Valid(data) {
 		return invalidInput()
 	}
@@ -443,7 +443,7 @@ func detectLegacyRules(directory string) error {
 //nolint:goconst // 路径映射按平台分组，重复的稳定键用于表达不同平台的同一逻辑目录。
 func codexFilesystemUnits(goos string) map[string]string {
 	switch goos {
-	case "linux":
+	case platformLinux:
 		return map[string]string{
 			"gradle": "~/.gradle", "m2": "~/.m2", "ivy2": "~/.ivy2", "sbt": "~/.sbt",
 			"coursier": "~/.coursier", "coursier-cache": "~/.cache/coursier", "jbang": "~/.jbang",
@@ -466,7 +466,7 @@ func codexFilesystemUnits(goos string) map[string]string {
 			"dotnet": "~/.dotnet", "nuget": "~/.nuget", "nuget-data": "~/.local/share/NuGet",
 			"nuget-cache": "~/.cache/NuGet",
 		}
-	case "darwin":
+	case platformDarwin:
 		return map[string]string{
 			"gradle": "~/.gradle", "m2": "~/.m2", "ivy2": "~/.ivy2", "sbt": "~/.sbt",
 			"coursier": "~/.coursier", "jbang": "~/.jbang", "konan": "~/.konan", "java": "~/.java",
@@ -489,7 +489,7 @@ func codexFilesystemUnits(goos string) map[string]string {
 			"nuget-data": "~/Library/Application Support/NuGet", "nuget-data-local": "~/.local/share/NuGet",
 			"uv-cache-local": "~/.cache/uv", "mise-cache-local": "~/.cache/mise",
 		}
-	case "windows":
+	case platformWindows:
 		return map[string]string{
 			"gradle": "~/.gradle", "m2": "~/.m2", "ivy2": "~/.ivy2", "sbt": "~/.sbt",
 			"coursier": "~/.coursier", "jbang": "~/.jbang", "konan": "~/.konan", "java": "~/.java",

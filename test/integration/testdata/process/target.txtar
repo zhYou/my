@@ -1,0 +1,17 @@
+# 新命令可发现；旧入口、无效组合和环境变量在配置读取前失败。
+cli 0 target --help
+stdout 'capture'
+stdout 'resolve'
+! exists $MY_HOME/state
+cli 2 config diff --json
+! stdout .
+stderr 'cli.usage'
+cli 2 target resolve codex-settings --unit field:features.network_proxy --from bad --json
+! stdout .
+stderr 'cli.usage'
+cli 2 env remove PATH --json
+! stdout .
+stderr 'cli.usage'
+! exists $MY_HOME/state
+cli 0 schema target sync
+stdout 'target sync'

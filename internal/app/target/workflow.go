@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"context"
@@ -11,7 +11,11 @@ import (
 	"strings"
 
 	"github.com/zhYou/my/internal/base/agecrypt"
+	"github.com/zhYou/my/internal/base/logging"
+	"github.com/zhYou/my/internal/base/messages"
 	"github.com/zhYou/my/internal/datarepo"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Repository 是配置业务使用的一致快照和 CAS 提交边界。
@@ -27,14 +31,18 @@ type EnvironmentCacheSyncer interface {
 
 // Options 显式注入配置业务依赖。
 type Options struct {
+	Logger           *logging.Logger
+	Tracer           trace.Tracer
+	Localizer        *messages.Localizer
 	Repository       Repository
 	State            State
 	Home             string
 	OS               string
 	MachineID        string
 	KnownMachines    []string
-	Definitions      []TargetDefinition
+	Definitions      []Definition
 	AgeKey           *agecrypt.Key
+	LoadAgeKey       func() (*agecrypt.Key, error)
 	EnvironmentCache EnvironmentCacheSyncer
 }
 
@@ -45,19 +53,19 @@ type Service struct {
 
 // CaptureOptions 声明首次收录目标和机器范围。
 type CaptureOptions struct {
-	Targets  []TargetID
+	Targets  []ID
 	All      bool
 	Machines []string
 }
 
 // DiffOptions 选择只读比较的目标。
 type DiffOptions struct {
-	Targets []TargetID
+	Targets []ID
 }
 
 // SyncOptions 选择双向同步的目标。
 type SyncOptions struct {
-	Targets []TargetID
+	Targets []ID
 }
 
 // ResolveSource 选择冲突的本地或远端来源。
@@ -72,48 +80,48 @@ const (
 
 // ResolveOptions 指定一个稳定冲突单位。
 type ResolveOptions struct {
-	Target TargetID
+	Target ID
 	Unit   UnitID
 	From   ResolveSource
 }
 
 // RemoveOptions 指定需要取消纳管的目标。
 type RemoveOptions struct {
-	Targets []TargetID
+	Targets []ID
 }
 
-// TargetResult 汇总一个目标的变化。
-type TargetResult struct {
-	Target    TargetID `json:"target"`
-	Changed   bool     `json:"changed"`
-	Changes   int      `json:"changes"`
-	Conflicts int      `json:"conflicts"`
+// ItemResult 汇总一个目标的变化。
+type ItemResult struct {
+	Target    ID   `json:"target"`
+	Changed   bool `json:"changed"`
+	Changes   int  `json:"changes"`
+	Conflicts int  `json:"conflicts"`
 }
 
 // Result 是写操作完成后返回的稳定结果。
 type Result struct {
 	Snapshot datarepo.Metadata `json:"snapshot"`
-	Targets  []TargetResult    `json:"targets"`
+	Targets  []ItemResult      `json:"targets"`
 	Changed  bool              `json:"changed"`
 }
 
 // DiffChange 描述一个单位的只读比较结果。
 type DiffChange struct {
-	Target   TargetID `json:"target"`
-	Unit     UnitID   `json:"unit"`
-	Action   Action   `json:"action"`
-	Baseline string   `json:"baseline,omitempty"`
-	Local    string   `json:"local,omitempty"`
-	Remote   string   `json:"remote,omitempty"`
-	Diff     string   `json:"diff,omitempty"`
-	Secret   bool     `json:"secret"`
+	Target   ID     `json:"target"`
+	Unit     UnitID `json:"unit"`
+	Action   Action `json:"action"`
+	Baseline string `json:"baseline,omitempty"`
+	Local    string `json:"local,omitempty"`
+	Remote   string `json:"remote,omitempty"`
+	Diff     string `json:"diff,omitempty"`
+	Secret   bool   `json:"secret"`
 }
 
 // Conflict 描述需要显式来源选择的单位。
 type Conflict struct {
-	Target TargetID `json:"target"`
-	Unit   UnitID   `json:"unit"`
-	Code   string   `json:"code"`
+	Target ID     `json:"target"`
+	Unit   UnitID `json:"unit"`
+	Code   string `json:"code"`
 }
 
 // DiffResult 是只读差异报告。
@@ -130,14 +138,15 @@ type ConflictError struct {
 
 // Error 实现 error。
 func (e *ConflictError) Error() string {
-	return "configuration.conflicts"
+	return "target.conflicts"
 }
 
 type targetPlan struct {
-	target             TargetDefinition
+	target             Definition
 	scope              MachineScope
 	local              map[UnitID]UnitValue
 	remote             map[UnitID]UnitValue
+	allRemote          map[UnitID]UnitValue
 	baseline           Baseline
 	hasBaseline        bool
 	missingLocal       bool
@@ -147,21 +156,38 @@ type targetPlan struct {
 	recipient          string
 	localFileDigest    string
 	secretStateUnknown bool
+	preparedRemote     map[UnitID]UnitValue
 }
 
 // New 补齐运行平台和默认目标，资源仍在调用时使用。
 func New(options Options) *Service {
+	if options.Logger == nil {
+		options.Logger = logging.NewNop()
+	}
+	if options.Tracer == nil {
+		options.Tracer = noop.NewTracerProvider().Tracer("my/target")
+	}
 	if options.OS == "" {
 		options.OS = runtime.GOOS
 	}
 	if len(options.Definitions) == 0 {
-		options.Definitions = DefaultTargets()
+		options.Definitions = DefaultDefinitions()
 	}
 	return &Service{options: options}
 }
 
 // Capture 首次把显式目标的本机值发布到数据仓。
 func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Result, err error) {
+	ctx, progress := s.begin(ctx, "target.capture")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	if err := input.Validate(s.options.Definitions); err != nil {
+		return result, err
+	}
+
 	if err = s.validate(); err != nil {
 		return result, err
 	}
@@ -172,7 +198,9 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 	if err != nil {
 		return result, err
 	}
-	defer func() { err = errors.Join(err, unlock()) }()
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
 
 	snapshot, err := s.options.Repository.Read(ctx)
 	if err != nil {
@@ -186,7 +214,7 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		return result, err
 	}
 	definitions := s.definitions()
-	targetIDs := append([]TargetID(nil), input.Targets...)
+	targetIDs := append([]ID(nil), input.Targets...)
 	if input.All {
 		targetIDs = targetIDs[:0]
 		for _, definition := range s.options.Definitions {
@@ -202,8 +230,8 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 	if !snapshot.ConfigInitialized {
 		files[configManifestFile] = []byte("schema_version = 1\n")
 	}
-	baselines := map[TargetID]Baseline{}
-	changedTargets := map[TargetID]bool{}
+	baselines := map[ID]Baseline{}
+	changedTargets := map[ID]bool{}
 	for _, id := range targetIDs {
 		definition, ok := definitions[id]
 		if !ok || definition.RemoteAuthoritative {
@@ -229,8 +257,9 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		}
 		target := remoteTarget{id: id, scope: scope, units: existingUnits(local.Units), target: definition}
 		if definition.Secret {
-			if s.options.AgeKey == nil {
-				return result, problem(codeInvalidInput, phaseValidate, nil)
+			key, err := s.ageKey()
+			if err != nil {
+				return result, err
 			}
 			unit, exists := local.Units[SecretUnitID]
 			if !exists || !unit.Exists {
@@ -241,7 +270,7 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 				baselines[id] = baselineFromUnits(id, local.Units)
 				continue
 			}
-			ciphertext, encryptErr := s.options.AgeKey.Encrypt(unit.Data)
+			ciphertext, encryptErr := key.Encrypt(unit.Data)
 			if encryptErr != nil {
 				return result, problem(codeStateInvalid, phaseStateWrite, encryptErr)
 			}
@@ -250,7 +279,7 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 			}
 			target.files = map[string][]byte{definition.Files[0].Name: ciphertext}
 			target.version = unit.Digest
-			target.recipient = s.options.AgeKey.Recipient()
+			target.recipient = key.Recipient()
 		}
 		targetFiles, encodeErr := remoteFilesForTarget(target)
 		if encodeErr != nil {
@@ -263,17 +292,29 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 	if len(baselines) == 0 {
 		return result, invalidInput()
 	}
+	for _, baseline := range baselines {
+		if err := baseline.Validate(); err != nil {
+			return result, err
+		}
+	}
+	progress.commit = snapshot.Metadata.Commit
+	progress.step(ctx, "target.commit")
 	metadata := snapshot.Metadata
 	if len(files) != 0 {
 		metadata, err = s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-			Message: "my: capture configuration",
+			Message: "my: 收录目标",
 			Files:   files,
 		})
 		if err != nil {
 			return result, err
 		}
 	}
-	result = Result{Snapshot: metadata, Changed: len(files) != 0, Targets: make([]TargetResult, 0, len(baselines))}
+	if metadata.Commit != snapshot.Metadata.Commit {
+		progress.confirmed(effectDataCommit)
+	}
+	progress.commit = metadata.Commit
+	progress.step(ctx, phaseStateWrite)
+	result = Result{Snapshot: metadata, Changed: len(files) != 0, Targets: make([]ItemResult, 0, len(baselines))}
 	for _, id := range targetIDs {
 		baseline, selected := baselines[id]
 		if !selected {
@@ -282,7 +323,8 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		if err := s.options.State.Write(metadata, baseline); err != nil {
 			return result, err
 		}
-		result.Targets = append(result.Targets, TargetResult{
+		progress.confirmed("target.baseline:" + string(id))
+		result.Targets = append(result.Targets, ItemResult{
 			Target: id, Changed: changedTargets[id], Changes: len(baseline.Units),
 		})
 		if changedTargets[id] {
@@ -293,12 +335,23 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 }
 
 // Diff 返回只读三方比较结果，不修改远端或本机状态。
-func (s *Service) Diff(ctx context.Context, input DiffOptions) (DiffResult, error) {
+func (s *Service) Diff(ctx context.Context, input DiffOptions) (result DiffResult, err error) {
+	ctx, progress := s.begin(ctx, "target.diff")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	if err := input.Validate(s.options.Definitions); err != nil {
+		return DiffResult{}, err
+	}
+
 	if err := s.validate(); err != nil {
 		return DiffResult{}, err
 	}
+	progress.step(ctx, phaseCompare)
 	snapshot, plans, err := s.plan(ctx, input.Targets)
-	result := DiffResult{Snapshot: snapshot.Metadata, Changes: []DiffChange{}, Conflicts: []Conflict{}}
+	result = DiffResult{Snapshot: snapshot.Metadata, Changes: []DiffChange{}, Conflicts: []Conflict{}}
 	if err != nil {
 		return result, err
 	}
@@ -362,6 +415,16 @@ func unitValueFromBaseline(value BaselineValue, exists bool) UnitValue {
 
 // Sync 自动应用无冲突变化；存在冲突时不写本机或远端。
 func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, err error) {
+	ctx, progress := s.begin(ctx, "target.sync")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	if err := input.Validate(s.options.Definitions); err != nil {
+		return result, err
+	}
+
 	if err = s.validate(); err != nil {
 		return result, err
 	}
@@ -369,8 +432,11 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 	if err != nil {
 		return result, err
 	}
-	defer func() { err = errors.Join(err, unlock()) }()
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
 
+	progress.step(ctx, phaseCompare)
 	snapshot, plans, err := s.plan(ctx, input.Targets)
 	if err != nil {
 		return result, err
@@ -378,6 +444,17 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 	conflicts := planConflicts(plans)
 	if len(conflicts) != 0 {
 		return result, &ConflictError{Conflicts: conflicts}
+	}
+	// 在提交本轮普通变更前，先验证所有需要实际应用的秘密快照。
+	for i := range plans {
+		plan := &plans[i]
+		values := valuesForAction(plan.comparisons, plan.remote, ActionApplyRemote)
+		if plan.target.Kind == UnitSecret && len(values) != 0 {
+			plan.preparedRemote, err = s.decryptSecretUnits(*plan, values)
+			if err != nil {
+				return result, err
+			}
+		}
 	}
 	remoteChanges := map[string][]byte{}
 	for i := range plans {
@@ -394,7 +471,7 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 		target := remoteTarget{
 			id:     plan.target.ID,
 			scope:  plan.scope,
-			units:  unitOverlay(plan.remote, changedUnits),
+			units:  unitOverlay(plan.allRemote, changedUnits),
 			target: plan.target,
 		}
 		files, err := remoteFilesForTarget(target)
@@ -402,20 +479,28 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 			return result, err
 		}
 		maps.Copy(remoteChanges, files)
-		plan.remote = target.units
+		plan.allRemote = target.units
+		plan.remote = unitOverlay(plan.remote, changedUnits)
 	}
+	progress.commit = snapshot.Metadata.Commit
+	progress.step(ctx, "target.commit")
 	metadata := snapshot.Metadata
 	remoteCommitted := len(remoteChanges) != 0
 	if remoteCommitted {
 		metadata, err = s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-			Message: "my: sync configuration",
+			Message: "my: 同步目标",
 			Files:   remoteChanges,
 		})
 		if err != nil {
 			return result, err
 		}
 	}
-	result = Result{Snapshot: metadata, Changed: remoteCommitted, Targets: []TargetResult{}}
+	if metadata.Commit != snapshot.Metadata.Commit {
+		progress.confirmed(effectDataCommit)
+	}
+	progress.commit = metadata.Commit
+	progress.step(ctx, phaseStateWrite)
+	result = Result{Snapshot: metadata, Changed: remoteCommitted, Targets: []ItemResult{}}
 	for _, plan := range plans {
 		targetChanged := remoteCommitted && targetHasRemoteAction(plan)
 		for _, comparison := range plan.comparisons {
@@ -426,23 +511,23 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 		remoteOnly := valuesForAction(plan.comparisons, plan.remote, ActionApplyRemote)
 		if len(remoteOnly) != 0 {
 			if plan.target.Kind == UnitSecret {
-				decrypted, decryptErr := s.decryptSecretUnits(plan, remoteOnly)
-				if decryptErr != nil {
-					return result, decryptErr
-				}
+				decrypted := plan.preparedRemote
 				plaintext := decrypted[SecretUnitID].Data
 				pendingBaseline := plan.baseline
 				pendingBaseline.Pending = &PendingSecret{
 					Version:        plan.remote[SecretUnitID].Digest,
 					BeforeDigest:   plan.localFileDigest,
+					BeforeExists:   !plan.missingLocal,
 					SnapshotDigest: UnitValueFromBytes(plaintext).Digest,
 				}
 				if err := s.options.State.Write(metadata, pendingBaseline); err != nil {
 					return result, err
 				}
+				progress.confirmed("target.pending:" + string(plan.target.ID))
 				remoteOnly = decrypted
 			}
-			if err := s.applyLocalUnits(plan.target, remoteOnly); err != nil {
+			progress.step(ctx, "target.local_write")
+			if err := s.applyLocalUnits(plan.target, remoteOnly, progress); err != nil {
 				return result, err
 			}
 			targetChanged = true
@@ -451,7 +536,8 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 		if err := s.options.State.Write(metadata, baselineFromUnits(plan.target.ID, finalUnits)); err != nil {
 			return result, err
 		}
-		result.Targets = append(result.Targets, TargetResult{
+		progress.confirmed("target.baseline:" + string(plan.target.ID))
+		result.Targets = append(result.Targets, ItemResult{
 			Target:  plan.target.ID,
 			Changed: targetChanged,
 			Changes: len(plan.comparisons),
@@ -461,6 +547,7 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 		}
 	}
 	if s.options.EnvironmentCache != nil {
+		progress.step(ctx, "target.environment_cache")
 		if err := s.options.EnvironmentCache.SyncCache(ctx); err != nil {
 			return result, err
 		}
@@ -470,6 +557,16 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 
 // Resolve 显式采用一个冲突单位的一侧来源。
 func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Result, err error) {
+	ctx, progress := s.begin(ctx, "target.resolve")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	if err := input.Validate(s.options.Definitions); err != nil {
+		return result, err
+	}
+
 	if err = input.Target.Validate(); err != nil {
 		return result, err
 	}
@@ -486,8 +583,10 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	if err != nil {
 		return result, err
 	}
-	defer func() { err = errors.Join(err, unlock()) }()
-	snapshot, plans, err := s.plan(ctx, []TargetID{input.Target})
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
+	snapshot, plans, err := s.plan(ctx, []ID{input.Target})
 	if err != nil {
 		return result, err
 	}
@@ -516,19 +615,23 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 		updated := remoteTarget{
 			id:     plan.target.ID,
 			scope:  plan.scope,
-			units:  unitOverlay(plan.remote, map[UnitID]UnitValue{input.Unit: chosen}),
+			units:  unitOverlay(plan.allRemote, map[UnitID]UnitValue{input.Unit: chosen}),
 			target: plan.target,
 		}
 		if plan.target.Kind == UnitSecret {
-			if s.options.AgeKey == nil || len(chosen.Data) == 0 {
+			key, err := s.ageKey()
+			if err != nil {
+				return result, err
+			}
+			if len(chosen.Data) == 0 {
 				return result, problem(codeInvalidInput, phaseValidate, nil)
 			}
-			ciphertext, encryptErr := s.options.AgeKey.Encrypt(chosen.Data)
+			ciphertext, encryptErr := key.Encrypt(chosen.Data)
 			if encryptErr != nil {
 				return result, problem(codeStateInvalid, phaseStateWrite, encryptErr)
 			}
 			updated.version = chosen.Digest
-			updated.recipient = s.options.AgeKey.Recipient()
+			updated.recipient = key.Recipient()
 			updated.files = map[string][]byte{plan.target.Files[0].Name: ciphertext}
 			updated.units[input.Unit] = UnitValue{Exists: true, Digest: chosen.Digest}
 		}
@@ -537,12 +640,14 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 			return result, encodeErr
 		}
 		metadata, commitErr := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-			Message: "my: resolve configuration conflict",
+			Message: "my: 解决目标冲突",
 			Files:   files,
 		})
 		if commitErr != nil {
 			return result, commitErr
 		}
+		progress.confirmed(effectDataCommit)
+		progress.commit = metadata.Commit
 		snapshot.Metadata = metadata
 		plan.remote = updated.units
 	case ResolveRemote:
@@ -559,22 +664,27 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 			pendingBaseline.Pending = &PendingSecret{
 				Version:        chosen.Digest,
 				BeforeDigest:   plan.localFileDigest,
+				BeforeExists:   !plan.missingLocal,
 				SnapshotDigest: chosen.Digest,
 			}
 			if err := s.options.State.Write(snapshot.Metadata, pendingBaseline); err != nil {
 				return result, err
 			}
+			progress.confirmed("target.pending:" + string(plan.target.ID))
 			chosen = decrypted[input.Unit]
 		}
-		if err := s.applyLocalUnits(plan.target, map[UnitID]UnitValue{input.Unit: chosen}); err != nil {
+		progress.step(ctx, "target.local_write")
+		if err := s.applyLocalUnits(plan.target, map[UnitID]UnitValue{input.Unit: chosen}, progress); err != nil {
 			return result, err
 		}
 		plan.local[input.Unit] = chosen
 	}
+	progress.commit = snapshot.Metadata.Commit
+	progress.step(ctx, phaseStateWrite)
 	baseline.Pending = nil
 	baseline.Units[input.Unit] = baselineValueFromUnit(
 		chosen,
-		input.Target == TargetCodexAuth || input.Target == TargetShellEnvSecret,
+		input.Target == CodexAuth || input.Target == ShellEnvSecret,
 	)
 	if err := s.options.State.Write(snapshot.Metadata, baseline); err != nil {
 		return result, err
@@ -582,12 +692,22 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	return Result{
 		Snapshot: snapshot.Metadata,
 		Changed:  true,
-		Targets:  []TargetResult{{Target: input.Target, Changed: true, Changes: 1}},
+		Targets:  []ItemResult{{Target: input.Target, Changed: true, Changes: 1}},
 	}, nil
 }
 
 // Remove 取消目标纳管并删除远端声明，保留本机文件。
 func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Result, err error) {
+	ctx, progress := s.begin(ctx, "target.remove")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	if err := input.Validate(s.options.Definitions); err != nil {
+		return result, err
+	}
+
 	if err = s.validate(); err != nil {
 		return result, err
 	}
@@ -598,7 +718,9 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 	if err != nil {
 		return result, err
 	}
-	defer func() { err = errors.Join(err, unlock()) }()
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
 	snapshot, err := s.options.Repository.Read(ctx)
 	if err != nil {
 		return result, err
@@ -615,30 +737,36 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 		deletions = append(deletions, paths...)
 	}
 	metadata, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-		Message:   "my: remove configuration target",
+		Message:   "my: 移除目标",
 		Deletions: deletions,
 	})
 	if err != nil {
 		return result, err
 	}
-	result = Result{Snapshot: metadata, Changed: true, Targets: []TargetResult{}}
+	if metadata.Commit != snapshot.Metadata.Commit {
+		progress.confirmed(effectDataCommit)
+	}
+	progress.commit = metadata.Commit
+	progress.step(ctx, phaseStateWrite)
+	result = Result{Snapshot: metadata, Changed: true, Targets: []ItemResult{}}
 	for _, target := range input.Targets {
 		if err := s.options.State.Clear(metadata, target); err != nil {
 			return result, err
 		}
-		result.Targets = append(result.Targets, TargetResult{Target: target, Changed: true})
+		progress.confirmed("target.baseline_removed:" + string(target))
+		result.Targets = append(result.Targets, ItemResult{Target: target, Changed: true})
 	}
 	return result, nil
 }
 
 // String 返回用于诊断的稳定服务摘要。
 func (s *Service) String() string {
-	return fmt.Sprintf("configuration service for %s", s.options.MachineID)
+	return fmt.Sprintf("target service for %s", s.options.MachineID)
 }
 
 func (s *Service) plan(
 	ctx context.Context,
-	targets []TargetID,
+	targets []ID,
 ) (datarepo.Snapshot, []targetPlan, error) {
 	snapshot, err := s.options.Repository.Read(ctx)
 	if err != nil {
@@ -709,7 +837,18 @@ func (s *Service) plan(
 				}
 			}
 		}
-		ids := unitIDSet(localUnits, remoteTarget.units, baseline.Units)
+		remoteUnits := applicableUnits(definition, remoteTarget.units, s.options.OS)
+		baselineUnits := make(map[UnitID]BaselineValue, len(baseline.Units))
+		for unit, value := range baseline.Units {
+			if definition.Kind == UnitField {
+				if _, ok := localTOMLPath(definition, unit, s.options.OS); !ok {
+					continue
+				}
+			}
+			baselineUnits[unit] = value
+		}
+		baseline.Units = baselineUnits
+		ids := unitIDSet(localUnits, remoteUnits, baseline.Units)
 		comparisons := make(map[UnitID]Comparison, len(ids))
 		for _, unit := range ids {
 			var baselinePtr *BaselineValue
@@ -718,21 +857,27 @@ func (s *Service) plan(
 				baselinePtr = &baselineCopy
 			}
 			localValue := localUnits[unit]
-			remoteValue := remoteTarget.units[unit]
+			remoteValue := remoteUnits[unit]
 			comparison := Compare(definition.Kind, baselinePtr, localValue, remoteValue)
 			if missingLocal && hasBaseline {
 				comparison = Comparison{Action: ActionConflict, Code: fileMissingCode}
 			}
 			if secretStateUnknown {
-				comparison = Comparison{Action: ActionConflict, Code: "configuration.secret_state_unknown"}
+				comparison = Comparison{Action: ActionConflict, Code: "target.secret_state_unknown"}
 			}
+			if definition.Kind == UnitSecret && missingLocal && hasBaseline && baseline.Pending != nil &&
+				!baseline.Pending.BeforeExists && baseline.Pending.Version == remoteValue.Digest {
+				comparison = Comparison{Action: ActionApplyRemote}
+			}
+
 			comparisons[unit] = comparison
 		}
 		plans = append(plans, targetPlan{
 			target:             definition,
 			scope:              remoteTarget.scope,
 			local:              localUnits,
-			remote:             remoteTarget.units,
+			remote:             remoteUnits,
+			allRemote:          remoteTarget.units,
 			baseline:           baseline,
 			hasBaseline:        hasBaseline,
 			missingLocal:       missingLocal,
@@ -748,22 +893,27 @@ func (s *Service) plan(
 }
 
 func (s *Service) applyLocalUnits(
-	definition TargetDefinition,
+	definition Definition,
 	units map[UnitID]UnitValue,
+	progress *operation,
 ) error {
 	if definition.Kind == UnitSecret {
 		value, exists := units[SecretUnitID]
 		if !exists || !value.Exists || len(value.Data) == 0 || len(definition.Files) != 1 {
 			return invalidInput()
 		}
-		return AtomicWriteFile(
+		err := AtomicWriteFile(
 			localFilePath(s.options.Home, definition.Files[0]),
 			value.Data,
 			0o600,
 		)
+		if err == nil {
+			progress.confirmed("target.local_write:" + string(definition.ID))
+		}
+		return err
 	}
 	if definition.Kind == UnitFile {
-		for id := range units {
+		for _, id := range sortedUnitIDs(units) {
 			body := strings.TrimPrefix(string(id), fileUnitPrefix)
 			file, ok := targetFileByName(definition, body)
 			if !ok || !units[id].Exists {
@@ -772,6 +922,7 @@ func (s *Service) applyLocalUnits(
 			if err := AtomicWriteFile(localFilePath(s.options.Home, file), units[id].Data, 0o600); err != nil {
 				return err
 			}
+			progress.confirmed("target.local_write:" + string(definition.ID))
 		}
 		return nil
 	}
@@ -806,6 +957,7 @@ func (s *Service) applyLocalUnits(
 		if err := AtomicWriteFile(path, updated, 0o600); err != nil {
 			return err
 		}
+		progress.confirmed("target.local_write:" + string(definition.ID))
 	}
 	return nil
 }
@@ -814,40 +966,82 @@ func (s *Service) decryptSecretUnits(
 	plan targetPlan,
 	values map[UnitID]UnitValue,
 ) (map[UnitID]UnitValue, error) {
-	if s.options.AgeKey == nil || len(plan.ciphertext) == 0 {
+	key, err := s.ageKey()
+	if err != nil {
+		return nil, err
+	}
+	if len(plan.ciphertext) == 0 {
 		return nil, problem(codeInvalidInput, phaseValidate, nil)
 	}
-	plaintext, err := s.options.AgeKey.Decrypt(plan.ciphertext, plan.recipient)
+	plaintext, err := key.Decrypt(plan.ciphertext, plan.recipient)
 	if err != nil {
 		return nil, problem(codeStateInvalid, phaseStateRead, err)
 	}
+	if len(plan.target.Files) != 1 {
+		return nil, invalidInput()
+	}
+	if err := validateTargetData(plan.target.Files[0], plaintext); err != nil {
+		return nil, err
+	}
 	result := make(map[UnitID]UnitValue, len(values))
 	for id, value := range values {
+		if digestBytes(plaintext) != value.Digest {
+			return nil, problem(codeStateInvalid, phaseStateRead, nil)
+		}
 		value.Data = plaintext
 		result[id] = value
 	}
 	return result, nil
 }
 
-func localTOMLPath(definition TargetDefinition, id UnitID, goos string) ([]string, bool) {
-	body := strings.TrimPrefix(string(id), fieldUnitPrefix)
-	if body == string(id) || body == "" {
+func localTOMLPath(definition Definition, id UnitID, goos string) ([]string, bool) {
+	parts, ok := fieldUnitPath(id)
+	if !ok {
 		return nil, false
 	}
-	if definition.ID == TargetCodexSettings && strings.HasPrefix(body, codexFilesystemTable+".") {
-		logical := strings.TrimPrefix(body, codexFilesystemTable+".")
-		local, ok := codexFilesystemUnits(goos)[logical]
-		if !ok {
-			return nil, false
+	switch definition.ID {
+	case CodexSettings:
+		if len(parts) == 2 && parts[0] == codexFilesystemTable {
+			local, ok := codexFilesystemUnits(goos)[parts[1]]
+			if !ok {
+				return nil, false
+			}
+			return []string{codexPermissionsTable, codexDevelopmentPermission, codexFilesystemTable, local}, true
 		}
-		return []string{codexPermissionsTable, codexDevelopmentPermission, codexFilesystemTable, local}, true
+		switch string(id) {
+		case "field:default_permissions", "field:permissions.development.extends",
+			"field:permissions.development.network.enabled", "field:features.network_proxy":
+			return parts, true
+		}
+	case Mise:
+		if len(parts) == 2 && parts[0] == miseToolsTable {
+			return parts, true
+		}
+		if len(parts) == 2 && parts[0] == miseSettingsTable &&
+			(parts[1] == "http_timeout" || parts[1] == "url_replacements") {
+			return parts, true
+		}
 	}
-	return strings.Split(body, "."), true
+	return nil, false
+}
+
+// applicableUnits 仅比较本平台可应用的单位，其他平台声明仍由 allRemote 原样保留。
+func applicableUnits(definition Definition, units map[UnitID]UnitValue, goos string) map[UnitID]UnitValue {
+	if definition.Kind != UnitField {
+		return units
+	}
+	result := make(map[UnitID]UnitValue, len(units))
+	for id, value := range units {
+		if _, ok := localTOMLPath(definition, id, goos); ok {
+			result[id] = value
+		}
+	}
+	return result
 }
 
 //nolint:goconst // 工具组关键词同时参与跨平台路径命名，集中为列表更易审查。
-func localTOMLComment(definition TargetDefinition, id UnitID) string {
-	if definition.ID != TargetCodexSettings {
+func localTOMLComment(definition Definition, id UnitID) string {
+	if definition.ID != CodexSettings {
 		return ""
 	}
 	switch string(id) {
@@ -899,7 +1093,7 @@ func containsAny(value string, parts ...string) bool {
 }
 
 func (s *Service) captureScope(
-	definition TargetDefinition,
+	definition Definition,
 	explicit []string,
 ) (MachineScope, error) {
 	if len(explicit) == 0 {
@@ -932,8 +1126,8 @@ func (s *Service) validate() error {
 	return nil
 }
 
-func (s *Service) definitions() map[TargetID]TargetDefinition {
-	result := make(map[TargetID]TargetDefinition, len(s.options.Definitions))
+func (s *Service) definitions() map[ID]Definition {
+	result := make(map[ID]Definition, len(s.options.Definitions))
 	for _, definition := range s.options.Definitions {
 		result[definition.ID] = definition
 	}
@@ -950,8 +1144,8 @@ func existingUnits(values map[UnitID]UnitValue) map[UnitID]UnitValue {
 	return result
 }
 
-func baselineFromUnits(target TargetID, units map[UnitID]UnitValue) Baseline {
-	secret := target == TargetCodexAuth || target == TargetShellEnvSecret
+func baselineFromUnits(target ID, units map[UnitID]UnitValue) Baseline {
+	secret := target == CodexAuth || target == ShellEnvSecret
 	result := Baseline{Target: target, Units: make(map[UnitID]BaselineValue, len(units))}
 	for id, value := range units {
 		result.Units[id] = baselineValueFromUnit(value, secret)
@@ -993,7 +1187,7 @@ func unitIDSet(sources ...any) []UnitID {
 	return result
 }
 
-func sortedUnitIDs(values map[UnitID]Comparison) []UnitID {
+func sortedUnitIDs[V any](values map[UnitID]V) []UnitID {
 	result := make([]UnitID, 0, len(values))
 	for id := range values {
 		result = append(result, id)

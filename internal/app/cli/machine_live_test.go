@@ -42,10 +42,12 @@ func TestGitHubMachineAcceptance(t *testing.T) {
 			t.Context(),
 			args,
 			Options{
-				Name:         "my",
-				Out:          &out,
-				ErrOut:       &stderr,
-				LookupEnv:    func(k string) (string, bool) { return home, k == "MY_HOME" },
+				Name:   "my",
+				Out:    &out,
+				ErrOut: &stderr,
+				LookupEnv: func(k string) (string, bool) {
+					return home, k == "MY_HOME"
+				},
 				Dependencies: deps,
 			},
 		)
@@ -114,7 +116,9 @@ func TestGitHubMachineAcceptance(t *testing.T) {
 			id = "accept-unknown-" + suffix
 			deps.DataTransport = &lostLiveResponse{next: http.DefaultTransport}
 		} else {
-			deps.State = func(path string) machine.State { return workflowFailedState{machine.NewFileState(path)} }
+			deps.State = func(path string) machine.State {
+				return workflowFailedState{machine.NewFileState(path)}
+			}
 		}
 		failed := run(isolated, deps, 1, "machine", "register", id, "--kind", "vm", "--note", "private-note-marker")
 		effects := failed.Diagnostics[0].Effects

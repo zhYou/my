@@ -114,7 +114,7 @@ JSON、XML、TOML 的语法由 pre-commit-hooks 包的 `check-json`、`check-xml
 | `internal/app/cli`                                          | 独立命令树、参数、输出和退出码映射                                                             |
 | `internal/app/config`                                       | 模块配置组合与严格加载                                                                         |
 | `internal/app/session`                                      | 自建日志、Trace、诊断及工作收尾                                                                |
-| `internal/app/configuration`                                | 配置目标、三方比较、基线和冲突解决                                                             |
+| `internal/app/target`                                       | 配置目标、三方比较、基线和冲突解决                                                             |
 | `internal/app/shellenv`                                     | 数据仓权威环境变量、本机缓存和 shell activate                                                  |
 | `internal/app/greeting`                                     | 可移除业务示例                                                                                 |
 | `internal/base`                                             | fault、messages、paths、validation、agecrypt、IO、logging、telemetry、diagnostics、结果 schema |

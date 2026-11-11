@@ -36,4 +36,8 @@ doctor 从空报告改为实际只读检查，未就绪返回完整报告与退�
 
 [配置同步与环境激活记录](compatibility/changes/2026-11-09-config-sync.json)新增 `config`、`env` 和
 `activate` 命令，以及可选的 `[secrets] identity_file`。既有命令、数据仓根标记、机器记录和退出码保持兼容；
-配置首次进入数据仓使用显式 `config capture`，不自动迁移旧 `machine-config` 字段或文件。
+配置首次进入数据仓使用显式 `target capture`，不自动迁移旧 `machine-config` 字段或文件。
+
+[目标管理命名与状态隔离记录](compatibility/changes/2026-11-11-target-review.json)将业务入口统一为
+`target`，移除尚未部署的 `config` 入口；CLI 自身 `--config` 和配置文件职责不变。
+远端仍使用 `configs/` 和 `schema_version=1`，本机基线与缓存按机器身份隔离。

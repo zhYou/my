@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"github.com/aymanbagabas/go-udiff"

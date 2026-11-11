@@ -35,15 +35,16 @@ func newActivateCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ageKey, err := call.loadAgeKey()
-			if err != nil {
-				return err
-			}
 			service := shellenv.New(shellenv.Options{
-				Cache:          shellenv.NewFileCache(filepath.Join(call.directories.State, shellenvStateDirectory)),
-				AgeKey:         ageKey,
+				Logger: call.logger, Tracer: call.sessionTracer(), Localizer: call.localizer,
+				Cache: shellenv.NewFileCache(
+					filepath.Join(call.directories.State, shellenvStateDirectory),
+					binding.MachineID,
+				),
+				LoadAgeKey:     call.loadAgeKey,
 				MachineID:      binding.MachineID,
 				RepositoryName: binding.Repository,
+				RepositoryID:   binding.RepositoryID,
 				Branch:         binding.Branch,
 			})
 			output, err := service.Activate(cmd.Context(), args[0])
@@ -57,6 +58,12 @@ func newActivateCommand(call *invocation) *cobra.Command {
 		},
 	}
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.activate")})
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short:   message("cli.activate"),
+			example: textMessage{id: "cli.activate_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
 	return cmd
 }

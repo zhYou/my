@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"bytes"
@@ -23,18 +23,18 @@ const (
 )
 
 type remoteTarget struct {
-	id        TargetID
+	id        ID
 	scope     MachineScope
 	units     map[UnitID]UnitValue
 	files     map[string][]byte
-	target    TargetDefinition
+	target    Definition
 	version   string
 	recipient string
 }
 
 type remoteMetadata struct {
 	SchemaVersion int      `toml:"schema_version"`
-	Target        TargetID `toml:"target"`
+	Target        ID       `toml:"target"`
 	Machines      []string `toml:"machines"`
 	Version       string   `toml:"version,omitempty"`
 	Recipient     string   `toml:"recipient,omitempty"`
@@ -42,9 +42,9 @@ type remoteMetadata struct {
 
 func parseRemoteTargets(
 	snapshot datarepo.Snapshot,
-	definitions map[TargetID]TargetDefinition,
-) (map[TargetID]remoteTarget, error) {
-	result := map[TargetID]remoteTarget{}
+	definitions map[ID]Definition,
+) (map[ID]remoteTarget, error) {
+	result := map[ID]remoteTarget{}
 	if !snapshot.ConfigInitialized {
 		return result, nil
 	}
@@ -56,7 +56,7 @@ func parseRemoteTargets(
 		if len(parts) < 4 {
 			return nil, problem(codeStateInvalid, phaseStateRead, nil)
 		}
-		id := TargetID(parts[2])
+		id := ID(parts[2])
 		if _, known := definitions[id]; !known {
 			return nil, problem(codeStateInvalid, phaseStateRead, nil)
 		}
@@ -110,6 +110,18 @@ func parseRemoteTargets(
 				if err != nil {
 					return nil, err
 				}
+				for id := range units {
+					declared := false
+					for _, goos := range []string{platformLinux, platformDarwin, platformWindows} {
+						if _, ok := localTOMLPath(definition, id, goos); ok {
+							declared = true
+							break
+						}
+					}
+					if !declared {
+						return nil, problem(codeStateInvalid, phaseStateRead, nil)
+					}
+				}
 				target.units = units
 				target.files[fieldValuesFile] = data
 			}
@@ -119,6 +131,9 @@ func parseRemoteTargets(
 				data, ok := snapshot.Files[name]
 				if !ok {
 					continue
+				}
+				if err := validateTargetData(file, data); err != nil {
+					return nil, err
 				}
 				target.units[FileUnitID(file.Name)] = UnitValueFromBytes(data)
 				target.files[file.Name] = data
@@ -162,12 +177,12 @@ func encodeScope(scope MachineScope) ([]string, error) {
 	return append([]string(nil), scope.IDs...), nil
 }
 
-func encodeRemoteMetadata(target TargetID, scope MachineScope) ([]byte, error) {
+func encodeRemoteMetadata(target ID, scope MachineScope) ([]byte, error) {
 	return encodeRemoteMetadataWithSecret(target, scope, "", "")
 }
 
 func encodeRemoteMetadataWithSecret(
-	target TargetID,
+	target ID,
 	scope MachineScope,
 	version string,
 	recipient string,
@@ -214,6 +229,12 @@ func decodeFieldValues(data []byte) (map[UnitID]UnitValue, error) {
 func encodeFieldValues(units map[UnitID]UnitValue) ([]byte, error) {
 	values := map[string]any{}
 	for id, value := range units {
+		if err := id.Validate(); err != nil {
+			return nil, err
+		}
+		if !strings.HasPrefix(string(id), fieldUnitPrefix) {
+			return nil, invalidInput()
+		}
 		if !value.Exists {
 			continue
 		}
@@ -281,11 +302,11 @@ func remoteFilesForTarget(target remoteTarget) (map[string][]byte, error) {
 	return files, nil
 }
 
-func remoteTargetPrefix(target TargetID) string {
+func remoteTargetPrefix(target ID) string {
 	return path.Join(configTargetsRoot, string(target))
 }
 
-func targetPaths(snapshot datarepo.Snapshot, target TargetID) []string {
+func targetPaths(snapshot datarepo.Snapshot, target ID) []string {
 	prefix := remoteTargetPrefix(target) + "/"
 	result := make([]string, 0)
 	for name := range snapshot.Files {
@@ -297,8 +318,8 @@ func targetPaths(snapshot datarepo.Snapshot, target TargetID) []string {
 	return result
 }
 
-func sortedTargetIDs(definitions map[TargetID]TargetDefinition) []TargetID {
-	result := make([]TargetID, 0, len(definitions))
+func sortedTargetIDs(definitions map[ID]Definition) []ID {
+	result := make([]ID, 0, len(definitions))
 	for id := range definitions {
 		result = append(result, id)
 	}
@@ -306,16 +327,16 @@ func sortedTargetIDs(definitions map[TargetID]TargetDefinition) []TargetID {
 	return result
 }
 
-func targetFileByName(definition TargetDefinition, name string) (TargetFile, bool) {
+func targetFileByName(definition Definition, name string) (File, bool) {
 	for _, file := range definition.Files {
 		if file.Name == name {
 			return file, true
 		}
 	}
-	return TargetFile{}, false
+	return File{}, false
 }
 
-func localFilePath(home string, file TargetFile) string {
+func localFilePath(home string, file File) string {
 	return filepath.Join(home, filepath.FromSlash(file.RelativePath))
 }
 

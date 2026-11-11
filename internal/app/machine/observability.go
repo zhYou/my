@@ -95,7 +95,7 @@ func (e operationEvent) Emit(logger *logging.Logger) {
 		e.phase,
 		"outcome",
 		e.outcome,
-		"commit",
+		"data_commit",
 		e.commit,
 		"duration",
 		e.duration,

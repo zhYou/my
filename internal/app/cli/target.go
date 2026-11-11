@@ -7,13 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/zhYou/my/internal/app/configuration"
 	"github.com/zhYou/my/internal/app/machine"
 	"github.com/zhYou/my/internal/app/shellenv"
+	"github.com/zhYou/my/internal/app/target"
 	"github.com/zhYou/my/internal/base/agecrypt"
 	"github.com/zhYou/my/internal/base/fault"
 	"github.com/zhYou/my/internal/base/messages"
@@ -21,42 +20,50 @@ import (
 
 const flagAgeIdentity = "age-identity"
 
-func newConfigCommand(call *invocation) *cobra.Command {
+func newTargetCommand(call *invocation) *cobra.Command {
 	group := &cobra.Command{
-		Use:         "config",
+		Use:         "target",
 		Args:        noArgs,
 		Annotations: map[string]string{annotationSkipConfig: annotationEnabled},
-		RunE:        func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
 	}
 	group.AddCommand(
-		newConfigCaptureCommand(call),
-		newConfigDiffCommand(call),
-		newConfigSyncCommand(call),
-		newConfigResolveCommand(call),
-		newConfigRemoveCommand(call),
+		newTargetCaptureCommand(call),
+		newTargetDiffCommand(call),
+		newTargetSyncCommand(call),
+		newTargetResolveCommand(call),
+		newTargetRemoveCommand(call),
 	)
-	call.bindCommand(group, commandTexts{short: message("cli.config_command")})
+	call.bindCommand(
+		group,
+		commandTexts{
+			short: message("cli.target_command"),
+			example: textMessage{
+				id:     "cli.target_command_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
 	return group
 }
 
-func newConfigCaptureCommand(call *invocation) *cobra.Command {
-	input := configuration.CaptureOptions{}
+func newTargetCaptureCommand(call *invocation) *cobra.Command {
+	input := target.CaptureOptions{}
 	cmd := &cobra.Command{
 		Use:         "capture [target...]",
 		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
 		Args: func(_ *cobra.Command, args []string) error {
-			if (len(args) == 0) == !input.All {
-				return usageProblem("config_target_scope", nil)
-			}
 			targets, err := parseTargetIDs(args)
 			if err != nil {
 				return err
 			}
 			input.Targets = targets
-			return nil
+			return input.Validate(target.DefaultDefinitions())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			service, _, err := call.configurationService(cmd.Context())
+			service, _, err := call.targetService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -64,7 +71,7 @@ func newConfigCaptureCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return businessOutput(cmd, call, result, "configuration.capture_result", map[string]any{
+			return businessOutput(cmd, call, result, "target.capture_result", map[string]any{
 				paramCommit:  result.Snapshot.Commit,
 				paramChanged: result.Changed,
 			})
@@ -73,25 +80,37 @@ func newConfigCaptureCommand(call *invocation) *cobra.Command {
 	cmd.Flags().BoolVar(&input.All, "all", false, "收录所有现有普通配置目标")
 	cmd.Flags().StringSliceVar(&input.Machines, flagMachine, nil, "限制目标适用的机器 ID")
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.config_capture")})
-	call.bindFlag(cmd.Flags().Lookup("all"), message("cli.config_all"))
-	call.bindFlag(cmd.Flags().Lookup(flagMachine), message("cli.config_machine"))
-	registerOrPanic[configuration.Result](call, cmd)
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short: message("cli.target_capture"),
+			example: textMessage{
+				id:     "cli.target_capture_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
+	call.bindFlag(cmd.Flags().Lookup("all"), message("cli.target_all"))
+	call.bindFlag(cmd.Flags().Lookup(flagMachine), message("cli.target_machine"))
+	registerOrPanic[target.Result](call, cmd)
 	return cmd
 }
 
-func newConfigDiffCommand(call *invocation) *cobra.Command {
-	input := configuration.DiffOptions{}
+func newTargetDiffCommand(call *invocation) *cobra.Command {
+	input := target.DiffOptions{}
 	cmd := &cobra.Command{
 		Use:         "diff [target...]",
 		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
 		Args: func(_ *cobra.Command, args []string) error {
 			targets, err := parseTargetIDs(args)
 			input.Targets = targets
-			return err
+			if err != nil {
+				return err
+			}
+			return input.Validate(target.DefaultDefinitions())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			service, _, err := call.configurationService(cmd.Context())
+			service, _, err := call.targetService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -104,7 +123,7 @@ func newConfigDiffCommand(call *invocation) *cobra.Command {
 			}
 			return writeText(cmd.OutOrStdout(), func(w io.Writer) error {
 				if len(result.Changes) == 0 {
-					text, err := call.localizer.Format("configuration.no_changes", messages.FormatOptions{})
+					text, err := call.localizer.Format("target.no_changes", messages.FormatOptions{})
 					if err != nil {
 						return err
 					}
@@ -113,7 +132,7 @@ func newConfigDiffCommand(call *invocation) *cobra.Command {
 				}
 				for _, change := range result.Changes {
 					text, err := call.localizer.Format(
-						"configuration.diff_line",
+						"target.diff_line",
 						messages.FormatOptions{Params: map[string]any{
 							"Target": change.Target,
 							"Unit":   change.Unit,
@@ -137,23 +156,32 @@ func newConfigDiffCommand(call *invocation) *cobra.Command {
 		},
 	}
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.config_diff")})
-	registerOrPanic[configuration.DiffResult](call, cmd)
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short:   message("cli.target_diff"),
+			example: textMessage{id: "cli.target_diff_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
+	registerOrPanic[target.DiffResult](call, cmd)
 	return cmd
 }
 
-func newConfigSyncCommand(call *invocation) *cobra.Command {
-	input := configuration.SyncOptions{}
+func newTargetSyncCommand(call *invocation) *cobra.Command {
+	input := target.SyncOptions{}
 	cmd := &cobra.Command{
 		Use:         "sync [target...]",
 		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
 		Args: func(_ *cobra.Command, args []string) error {
 			targets, err := parseTargetIDs(args)
 			input.Targets = targets
-			return err
+			if err != nil {
+				return err
+			}
+			return input.Validate(target.DefaultDefinitions())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			service, _, err := call.configurationService(cmd.Context())
+			service, _, err := call.targetService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -161,20 +189,26 @@ func newConfigSyncCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return businessOutput(cmd, call, result, "configuration.sync_result", map[string]any{
+			return businessOutput(cmd, call, result, "target.sync_result", map[string]any{
 				paramCommit:  result.Snapshot.Commit,
 				paramChanged: result.Changed,
 			})
 		},
 	}
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.config_sync")})
-	registerOrPanic[configuration.Result](call, cmd)
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short:   message("cli.target_sync"),
+			example: textMessage{id: "cli.target_sync_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
+	registerOrPanic[target.Result](call, cmd)
 	return cmd
 }
 
-func newConfigResolveCommand(call *invocation) *cobra.Command {
-	input := configuration.ResolveOptions{}
+func newTargetResolveCommand(call *invocation) *cobra.Command {
+	input := target.ResolveOptions{}
 	cmd := &cobra.Command{
 		Use:         "resolve <target> --unit <id> --from local|remote",
 		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
@@ -182,17 +216,14 @@ func newConfigResolveCommand(call *invocation) *cobra.Command {
 			if err := cobra.ExactArgs(1)(command, args); err != nil {
 				return err
 			}
-			input.Target = configuration.TargetID(args[0])
-			return input.Target.Validate()
+			input.Target = target.ID(args[0])
+			if !command.Flags().Changed(flagUnit) || !command.Flags().Changed(flagFrom) {
+				return input.Target.Validate()
+			}
+			return input.Validate(target.DefaultDefinitions())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := input.Unit.Validate(); err != nil {
-				return err
-			}
-			if input.From != configuration.ResolveLocal && input.From != configuration.ResolveRemote {
-				return usageProblem("config_resolve_source", nil)
-			}
-			service, _, err := call.configurationService(cmd.Context())
+			service, _, err := call.targetService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -200,7 +231,7 @@ func newConfigResolveCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return businessOutput(cmd, call, result, "configuration.resolve_result", map[string]any{
+			return businessOutput(cmd, call, result, "target.resolve_result", map[string]any{
 				paramCommit: result.Snapshot.Commit,
 			})
 		},
@@ -213,28 +244,37 @@ func newConfigResolveCommand(call *invocation) *cobra.Command {
 		}
 	}
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.config_resolve")})
-	call.bindFlag(cmd.Flags().Lookup(flagUnit), message("cli.config_unit"))
-	call.bindFlag(cmd.Flags().Lookup(flagFrom), message("cli.config_from"))
-	registerOrPanic[configuration.Result](call, cmd)
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short: message("cli.target_resolve"),
+			example: textMessage{
+				id:     "cli.target_resolve_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
+	call.bindFlag(cmd.Flags().Lookup(flagUnit), message("cli.target_unit"))
+	call.bindFlag(cmd.Flags().Lookup(flagFrom), message("cli.target_from"))
+	registerOrPanic[target.Result](call, cmd)
 	return cmd
 }
 
-func newConfigRemoveCommand(call *invocation) *cobra.Command {
-	input := configuration.RemoveOptions{}
+func newTargetRemoveCommand(call *invocation) *cobra.Command {
+	input := target.RemoveOptions{}
 	cmd := &cobra.Command{
 		Use:         "remove <target>...",
 		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
 		Args: func(_ *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return usageProblem("config_target_count", nil)
-			}
 			targets, err := parseTargetIDs(args)
 			input.Targets = targets
-			return err
+			if err != nil {
+				return err
+			}
+			return input.Validate(target.DefaultDefinitions())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			service, _, err := call.configurationService(cmd.Context())
+			service, _, err := call.targetService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -242,80 +282,65 @@ func newConfigRemoveCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return businessOutput(cmd, call, result, "configuration.remove_result", map[string]any{
+			return businessOutput(cmd, call, result, "target.remove_result", map[string]any{
 				paramCommit: result.Snapshot.Commit,
 			})
 		},
 	}
 	call.addAgeIdentityFlag(cmd)
-	call.bindCommand(cmd, commandTexts{short: message("cli.config_remove")})
-	registerOrPanic[configuration.Result](call, cmd)
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short:   message("cli.target_remove"),
+			example: textMessage{id: "cli.target_remove_example", params: map[string]any{paramName: call.options.Name}},
+		},
+	)
+	registerOrPanic[target.Result](call, cmd)
 	return cmd
 }
 
-func (call *invocation) configurationService(
+func (call *invocation) targetService(
 	ctx context.Context,
-) (*configuration.Service, machine.Binding, error) {
-	client, err := call.dataRepository(ctx)
+) (*target.Service, machine.Binding, error) {
+	data, err := call.businessData(ctx)
 	if err != nil {
 		return nil, machine.Binding{}, err
 	}
-	binding, err := call.requireBinding()
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
-	snapshot, err := client.Read(ctx)
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
-	records, err := machine.Records(snapshot)
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
-	known := make([]string, 0, len(records))
-	for id, record := range records {
-		if record.Status == machine.Active {
-			known = append(known, id)
-		}
-	}
-	sort.Strings(known)
-	record, exists := records[binding.MachineID]
-	if !exists || record.Status != machine.Active {
-		return nil, machine.Binding{}, problemForCLI("machine.not_active", nil)
-	}
-	ageKey, err := call.loadAgeKey()
-	if err != nil {
-		return nil, machine.Binding{}, err
-	}
+	binding, client, known := data.binding, data.repository, data.machines
 	home, err := call.userHome()
 	if err != nil {
 		return nil, machine.Binding{}, err
 	}
 	environment := shellenv.New(shellenv.Options{
-		Repository:    client,
-		Cache:         shellenv.NewFileCache(filepath.Join(call.directories.State, shellenvStateDirectory)),
-		AgeKey:        ageKey,
+		Logger: call.logger, Tracer: call.sessionTracer(), Localizer: call.localizer,
+		Repository: client,
+		Cache: shellenv.NewFileCache(
+			filepath.Join(call.directories.State, shellenvStateDirectory),
+			binding.MachineID,
+		),
+		LoadAgeKey:    call.loadAgeKey,
 		MachineID:     binding.MachineID,
 		KnownMachines: known,
 	})
-	service := configuration.New(configuration.Options{
-		Repository:       client,
-		State:            configuration.NewFileState(call.directories.State),
+	service := target.New(target.Options{
+		Logger: call.logger, Tracer: call.sessionTracer(), Localizer: call.localizer,
+		Repository: client,
+		State: guardedTargetState{
+			State: target.NewFileState(call.directories.State, binding.MachineID),
+			guard: data.guard,
+		},
 		Home:             home,
 		OS:               runtime.GOOS,
 		MachineID:        binding.MachineID,
 		KnownMachines:    known,
-		AgeKey:           ageKey,
+		LoadAgeKey:       call.loadAgeKey,
 		EnvironmentCache: environment,
 	})
 	return service, binding, nil
 }
 
 func (call *invocation) requireBinding() (machine.Binding, error) {
-	var state machine.State = machine.NewFileState(call.directories.State)
-	if call.deps.State != nil {
-		state = call.deps.State(call.directories.State)
-	}
+	state := call.machineState()
 	binding, exists, err := state.Read()
 	if err != nil {
 		return machine.Binding{}, err
@@ -325,7 +350,7 @@ func (call *invocation) requireBinding() (machine.Binding, error) {
 	}
 	if !strings.EqualFold(binding.Repository, call.config.Data.Repository) ||
 		binding.Branch != call.config.Data.Branch {
-		return machine.Binding{}, problemForCLI("machine.binding_conflict", nil)
+		return machine.Binding{}, problemForCLI(codeBindingConflict, nil)
 	}
 	return binding, nil
 }
@@ -351,35 +376,32 @@ func (call *invocation) addAgeIdentityFlag(cmd *cobra.Command) {
 	call.bindFlag(cmd.Flags().Lookup(flagAgeIdentity), message("cli.age_identity"))
 }
 
-func (call *invocation) loadAgeKey() (*agecrypt.Key, error) {
-	path := call.ageIdentity
-	if path == "" {
-		path = call.config.Secrets.IdentityFile
+func validateAgeIdentity(cmd *cobra.Command, call *invocation) error {
+	if cmd.Flags().Changed(flagAgeIdentity) && call.ageIdentity != "" && !filepath.IsAbs(call.ageIdentity) {
+		return usageProblem("identity_path", nil)
 	}
-	if path == "" {
-		return nil, nil
-	}
-	if !filepath.IsAbs(path) {
-		return nil, problemForCLI("secrets.identity_path", nil)
-	}
-	return agecrypt.LoadIdentity(path)
+	return nil
 }
 
-func parseTargetIDs(args []string) ([]configuration.TargetID, error) {
-	targets := make([]configuration.TargetID, 0, len(args))
-	seen := map[configuration.TargetID]struct{}{}
+func (call *invocation) loadAgeKey() (*agecrypt.Key, error) {
+	call.ageOnce.Do(func() {
+		if path := call.config.Secrets.IdentityFile; path != "" {
+			call.ageKey, call.ageErr = agecrypt.LoadIdentity(path)
+		}
+	})
+	return call.ageKey, call.ageErr
+}
+
+func parseTargetIDs(args []string) ([]target.ID, error) {
+	ids := make([]target.ID, 0, len(args))
 	for _, value := range args {
-		target := configuration.TargetID(value)
-		if err := target.Validate(); err != nil {
+		id := target.ID(value)
+		if err := id.Validate(); err != nil {
 			return nil, err
 		}
-		if _, duplicate := seen[target]; duplicate {
-			return nil, usageProblem("config_target_duplicate", nil)
-		}
-		seen[target] = struct{}{}
-		targets = append(targets, target)
+		ids = append(ids, id)
 	}
-	return targets, nil
+	return ids, nil
 }
 
 func problemForCLI(code string, cause error) error {

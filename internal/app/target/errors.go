@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"github.com/zhYou/my/internal/base/fault"
@@ -23,7 +23,7 @@ func problem(code fault.Code, phase string, cause error) error {
 			fault.Diagnostic{
 				Phase:            phase,
 				CompletedEffects: []string{},
-				Recovery:         &fault.Recovery{Code: recoverConfiguration},
+				Recovery:         &fault.Recovery{Code: recoverConfiguration, Params: fault.Params{"Commit": ""}},
 			},
 		),
 	}

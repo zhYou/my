@@ -102,8 +102,8 @@ go install github.com/zhYou/my/cmd/my@latest
 ./bin/my schema
 ./bin/my schema greet
 ./bin/my doctor --json
-./bin/my config diff --json
-./bin/my config sync --json
+./bin/my target diff --json
+./bin/my target sync --json
 ./bin/my env list --json
 ./bin/my activate bash
 ./bin/my help completion bash
@@ -233,17 +233,21 @@ cp configs/config.example.toml "$example_home/config.toml"
 MY_HOME="$example_home" ./bin/my greet --name Codex --lang zh-CN --json
 ```
 
-## 配置同步与环境激活
+## 目标同步与环境激活
+
+目标用于管理配置文件、结构化字段及认证快照等个人资源。机器、目标、环境分别由 `machine`、`target`、`env` 管理。
+每个目标共享一份内容，按机器集合限定范围；Windows、WSL、remote dev 使用独立机器身份和本机状态。
+平台适配映射路径和纳管单位，不增加通用覆盖层或环境分组。
 
 配置首次进入数据仓必须显式收录；`capture --all` 不包含秘密目标：
 
 ```sh
-my config capture codex-settings codex-rules mise
-my config capture --all
-my config diff
-my config sync
-my config resolve codex-settings --unit field:features.network_proxy --from remote
-my config remove topgrade
+my target capture codex-settings codex-rules mise
+my target capture --all
+my target diff
+my target sync
+my target resolve codex-settings --unit field:features.network_proxy --from remote
+my target remove topgrade
 ```
 
 内建目标为 `codex-settings`、`codex-rules`、`codex-deepseek`、`codex-auth`、`mise`、
@@ -349,3 +353,9 @@ task 内由 mise 提供工具环境，无需额外包装。
 本项目来源于 [go-cli-starter](https://github.com/zhYou/go-cli-starter) 0.4.0，
 来源提交为 `065fc74a424020155f9d849709b0baaa819ca685`，完整记录见 [.template-origin.json](.template-origin.json)。
 模板版本与应用发布版本独立；已有项目升级见[模板升级](docs/template-upgrades.md)，不运行初始化覆盖业务。
+
+身份路径按显式 `--age-identity`、非空环境变量、配置文件的顺序选择，仅在实际加解密时读取。
+目标基线和环境缓存按机器隔离；复制状态文件到另一逻辑机器不能复用绑定或缓存。
+远端提交成功而本机失败时，错误报告确认的副作用和数据版本；先检查 `target diff` 与恢复建议。
+认证替换中断时保留 pending 状态，修复本机写入问题后重试 `target sync`。
+环境写入已确认、缓存更新失败时，先运行 `target sync` 刷新缓存，再执行 `activate`。

@@ -387,7 +387,7 @@ func (c *Client) readConfiguration(ctx context.Context, snapshot *Snapshot, sha 
 			return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 		}
 	}
-	if manifestSHA == "" || targetsSHA == "" {
+	if manifestSHA == "" {
 		return failure(codeFormat, phaseRead, nil, []string{}, recoverFormat)
 	}
 	manifest, err := c.blob(ctx, manifestSHA)
@@ -404,6 +404,10 @@ func (c *Client) readConfiguration(ctx context.Context, snapshot *Snapshot, sha 
 	}
 	snapshot.ConfigInitialized = true
 	snapshot.Files[configurationManifestPath] = manifest
+	// Git 不保存空目录，合法 manifest 也可以表示空目标集合。
+	if targetsSHA == "" {
+		return nil
+	}
 	targets, err := c.tree(ctx, targetsSHA)
 	if err != nil {
 		return err

@@ -10,12 +10,15 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/zhYou/my/internal/app/machine"
 	"github.com/zhYou/my/internal/base/agecrypt"
+	"github.com/zhYou/my/internal/base/logging"
+	"github.com/zhYou/my/internal/base/messages"
 	"github.com/zhYou/my/internal/datarepo"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Repository 是环境变量数据仓的 CAS 边界。
@@ -26,11 +29,16 @@ type Repository interface {
 
 // Options 显式注入环境业务依赖。
 type Options struct {
+	Logger         *logging.Logger
+	Tracer         trace.Tracer
+	Localizer      *messages.Localizer
 	Repository     Repository
 	Cache          Cache
 	AgeKey         *agecrypt.Key
+	LoadAgeKey     func() (*agecrypt.Key, error)
 	MachineID      string
 	KnownMachines  []string
+	RepositoryID   int64
 	RepositoryName string
 	Branch         string
 }
@@ -106,13 +114,31 @@ type repositoryState struct {
 
 // New 构造环境变量服务。
 func New(options Options) *Service {
+	if options.Logger == nil {
+		options.Logger = logging.NewNop()
+	}
+	if options.Tracer == nil {
+		options.Tracer = noop.NewTracerProvider().Tracer("my/shellenv")
+	}
 	return &Service{options: options}
 }
 
 // Set 在线写入一个普通或秘密变量并刷新本机缓存。
 func (s *Service) Set(ctx context.Context, input SetOptions) (result Result, err error) {
-	if err := s.validateWrite(input.Name, input.Value, input.Machines); err != nil {
+	ctx, progress := s.begin(ctx, "shellenv.set")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
 		return result, err
+	}
+	progress.step(ctx, phaseRead)
+
+	if err := input.Validate(); err != nil {
+		return result, err
+	}
+	if len(input.Machines) != 0 {
+		if err := (machineScope{IDs: input.Machines}).validate(s.options.KnownMachines); err != nil {
+			return result, err
+		}
 	}
 	if s.options.Repository == nil || s.options.Cache == nil {
 		return result, invalidInput()
@@ -121,7 +147,9 @@ func (s *Service) Set(ctx context.Context, input SetOptions) (result Result, err
 	if err != nil {
 		return result, err
 	}
-	defer func() { err = errors.Join(err, unlock()) }()
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
 	snapshot, err := s.options.Repository.Read(ctx)
 	if err != nil {
 		return result, err
@@ -166,17 +194,23 @@ func (s *Service) Set(ctx context.Context, input SetOptions) (result Result, err
 	if !snapshot.ConfigInitialized {
 		files[configManifest] = []byte("schema_version = 1\n")
 	}
+	progress.step(ctx, "shellenv.commit")
 	metadata, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-		Message: "my: set shell environment",
+		Message: "my: 设置环境变量",
 		Files:   files,
 	})
 	if err != nil {
 		return result, err
 	}
+	progress.confirmed(effectDataCommit)
+	progress.commit = metadata.Commit
+	progress.step(ctx, phaseCacheWrite)
 	cache.Snapshot = metadata
+	cache.MachineID = s.options.MachineID
 	if err := s.options.Cache.Write(cache); err != nil {
 		return result, err
 	}
+	progress.confirmed(phaseCacheWrite)
 	return Result{
 		Snapshot: metadata,
 		Name:     input.Name,
@@ -188,8 +222,15 @@ func (s *Service) Set(ctx context.Context, input SetOptions) (result Result, err
 
 // Remove 在线删除一个普通或秘密变量。
 func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Result, err error) {
-	if !validName(input.Name) || dangerousName(input.Name) {
-		return result, invalidInput()
+	ctx, progress := s.begin(ctx, "shellenv.remove")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	progress.step(ctx, phaseRead)
+
+	if err := input.Validate(); err != nil {
+		return result, err
 	}
 	if s.options.Repository == nil || s.options.Cache == nil {
 		return result, invalidInput()
@@ -198,7 +239,9 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 	if err != nil {
 		return result, err
 	}
-	defer func() { err = errors.Join(err, unlock()) }()
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
 	snapshot, err := s.options.Repository.Read(ctx)
 	if err != nil {
 		return result, err
@@ -227,17 +270,23 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 	if err != nil {
 		return result, err
 	}
+	progress.step(ctx, "shellenv.commit")
 	metadata, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-		Message: "my: remove shell environment",
+		Message: "my: 移除环境变量",
 		Files:   files,
 	})
 	if err != nil {
 		return result, err
 	}
+	progress.confirmed(effectDataCommit)
+	progress.commit = metadata.Commit
+	progress.step(ctx, phaseCacheWrite)
 	cache.Snapshot = metadata
+	cache.MachineID = s.options.MachineID
 	if err := s.options.Cache.Write(cache); err != nil {
 		return result, err
 	}
+	progress.confirmed(phaseCacheWrite)
 	return Result{
 		Snapshot: metadata,
 		Name:     input.Name,
@@ -248,7 +297,14 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 }
 
 // List 在线列出变量名称、敏感性和机器范围，不返回值。
-func (s *Service) List(ctx context.Context) (ListResult, error) {
+func (s *Service) List(ctx context.Context) (result ListResult, err error) {
+	ctx, progress := s.begin(ctx, "shellenv.list")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	progress.step(ctx, phaseRead)
+
 	if s.options.Repository == nil {
 		return ListResult{}, invalidInput()
 	}
@@ -260,7 +316,7 @@ func (s *Service) List(ctx context.Context) (ListResult, error) {
 	if err != nil {
 		return ListResult{}, err
 	}
-	result := ListResult{Snapshot: snapshot.Metadata, Variables: []Variable{}}
+	result = ListResult{Snapshot: snapshot.Metadata, Variables: []Variable{}}
 	for name, entry := range state.ordinary {
 		result.Variables = append(result.Variables, Variable{
 			Name: name, Machines: append([]string(nil), entry.Machines...),
@@ -271,12 +327,21 @@ func (s *Service) List(ctx context.Context) (ListResult, error) {
 			Name: name, Secret: true, Machines: append([]string(nil), entry.Machines...),
 		})
 	}
-	sort.Slice(result.Variables, func(i, j int) bool { return result.Variables[i].Name < result.Variables[j].Name })
+	sort.Slice(result.Variables, func(i, j int) bool {
+		return result.Variables[i].Name < result.Variables[j].Name
+	})
 	return result, nil
 }
 
 // SyncCache 下载普通声明和秘密密文，不要求 age 身份。
-func (s *Service) SyncCache(ctx context.Context) error {
+func (s *Service) SyncCache(ctx context.Context) (err error) {
+	ctx, progress := s.begin(ctx, "shellenv.synccache")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	progress.step(ctx, phaseRead)
+
 	if s.options.Repository == nil || s.options.Cache == nil {
 		return invalidInput()
 	}
@@ -284,7 +349,9 @@ func (s *Service) SyncCache(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, unlock()) }()
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
 	snapshot, err := s.options.Repository.Read(ctx)
 	if err != nil {
 		return err
@@ -294,7 +361,14 @@ func (s *Service) SyncCache(ctx context.Context) error {
 		return err
 	}
 	cache := cacheFromState(snapshot.Metadata, state)
-	return s.options.Cache.Write(cache)
+	cache.MachineID = s.options.MachineID
+	progress.commit = snapshot.Metadata.Commit
+	progress.step(ctx, phaseCacheWrite)
+	if err := s.options.Cache.Write(cache); err != nil {
+		return err
+	}
+	progress.confirmed(phaseCacheWrite)
+	return nil
 }
 
 // Activate 从本机缓存离线渲染指定 shell 的变量赋值。
@@ -312,8 +386,12 @@ func (s *Service) Activate(ctx context.Context, shell string) (string, error) {
 	if !exists {
 		return "", problem(codeState, phaseRead, nil)
 	}
+	if cache.MachineID != s.options.MachineID {
+		return "", problem(codeState, phaseRead, nil)
+	}
 	if s.options.RepositoryName != "" &&
-		(!strings.EqualFold(cache.Snapshot.Repository, s.options.RepositoryName) ||
+		(cache.Snapshot.RepositoryID != s.options.RepositoryID ||
+			!strings.EqualFold(cache.Snapshot.Repository, s.options.RepositoryName) ||
 			cache.Snapshot.Branch != s.options.Branch) {
 		return "", problem(codeState, phaseRead, nil)
 	}
@@ -323,10 +401,11 @@ func (s *Service) Activate(ctx context.Context, shell string) (string, error) {
 	}
 	secret := map[string]record{}
 	if len(cache.SecretCiphertext) != 0 {
-		if s.options.AgeKey == nil {
-			return "", problem(codeState, phaseRead, nil)
+		key, err := s.ageKey()
+		if err != nil {
+			return "", err
 		}
-		plaintext, err := s.options.AgeKey.Decrypt(cache.SecretCiphertext, cache.SecretRecipient)
+		plaintext, err := key.Decrypt(cache.SecretCiphertext, cache.SecretRecipient)
 		if err != nil || versionOf(plaintext) != cache.SecretVersion {
 			return "", problem(codeState, phaseRead, err)
 		}
@@ -352,22 +431,6 @@ func (s *Service) Activate(ctx context.Context, shell string) (string, error) {
 		}
 	}
 	return Render(shell, resolved)
-}
-
-func (s *Service) validateWrite(name string, value []byte, machines []string) error {
-	if !validName(name) || dangerousName(name) ||
-		len(value) == 0 ||
-		len(value) > maxValueSize ||
-		!utf8.Valid(value) ||
-		strings.ContainsAny(string(value), unsafeValueControls) {
-		return invalidInput()
-	}
-	if len(machines) != 0 {
-		if err := (machineScope{IDs: machines}).validate(s.options.KnownMachines); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *Service) readRepositoryState(snapshot datarepo.Snapshot, decrypt bool) (repositoryState, error) {
@@ -410,10 +473,11 @@ func (s *Service) readRepositoryState(snapshot datarepo.Snapshot, decrypt bool) 
 	if !decrypt {
 		return result, nil
 	}
-	if s.options.AgeKey == nil {
-		return result, problem(codeState, phaseRead, nil)
+	key, err := s.ageKey()
+	if err != nil {
+		return result, err
 	}
-	plaintext, err := s.options.AgeKey.Decrypt(ciphertext, metadata.Recipient)
+	plaintext, err := key.Decrypt(ciphertext, metadata.Recipient)
 	if err != nil || versionOf(plaintext) != metadata.Version {
 		return result, problem(codeState, phaseRead, err)
 	}
@@ -425,11 +489,11 @@ func (s *Service) readRepositoryState(snapshot datarepo.Snapshot, decrypt bool) 
 	return result, nil
 }
 
-func (s *Service) encodeState(state repositoryState, touchSecret bool) (map[string][]byte, cacheState, error) {
+func (s *Service) encodeState(state repositoryState, touchSecret bool) (map[string][]byte, CacheState, error) {
 	files := map[string][]byte{}
 	ordinaryData, err := encodeRecords(state.ordinary)
 	if err != nil {
-		return nil, cacheState{}, err
+		return nil, CacheState{}, err
 	}
 	state.ordinaryData = ordinaryData
 	files[ordinaryDataPath()] = ordinaryData
@@ -439,21 +503,22 @@ func (s *Service) encodeState(state repositoryState, touchSecret bool) (map[stri
 		Machines:      []string{"*"},
 	})
 	if err != nil {
-		return nil, cacheState{}, problem(codeState, phaseWrite, err)
+		return nil, CacheState{}, problem(codeState, phaseWrite, err)
 	}
 	files[ordinaryMetadataPath()] = ordinaryMetadata
 
-	if len(state.secret) != 0 || touchSecret || len(state.secretCiphertext) != 0 {
-		if s.options.AgeKey == nil {
-			return nil, cacheState{}, problem(codeState, phaseWrite, nil)
+	if touchSecret {
+		key, err := s.ageKey()
+		if err != nil {
+			return nil, CacheState{}, err
 		}
 		plaintext, err := encodeRecords(state.secret)
 		if err != nil {
-			return nil, cacheState{}, err
+			return nil, CacheState{}, err
 		}
-		ciphertext, err := s.options.AgeKey.Encrypt(plaintext)
+		ciphertext, err := key.Encrypt(plaintext)
 		if err != nil {
-			return nil, cacheState{}, problem(codeState, phaseWrite, err)
+			return nil, CacheState{}, problem(codeState, phaseWrite, err)
 		}
 		version := versionOf(plaintext)
 		metadata, err := toml.Marshal(targetMetadata{
@@ -461,22 +526,22 @@ func (s *Service) encodeState(state repositoryState, touchSecret bool) (map[stri
 			Target:        targetSecret,
 			Machines:      []string{"*"},
 			Version:       version,
-			Recipient:     s.options.AgeKey.Recipient(),
+			Recipient:     key.Recipient(),
 		})
 		if err != nil {
-			return nil, cacheState{}, problem(codeState, phaseWrite, err)
+			return nil, CacheState{}, problem(codeState, phaseWrite, err)
 		}
 		files[secretMetadataPath()] = metadata
 		files[secretDataPath()] = ciphertext
 		state.secretCiphertext = ciphertext
 		state.secretVersion = version
-		state.secretRecipient = s.options.AgeKey.Recipient()
+		state.secretRecipient = key.Recipient()
 	}
 	return files, cacheFromState(datarepo.Metadata{}, state), nil
 }
 
-func cacheFromState(metadata datarepo.Metadata, state repositoryState) cacheState {
-	return cacheState{
+func cacheFromState(metadata datarepo.Metadata, state repositoryState) CacheState {
+	return CacheState{
 		Snapshot:         metadata,
 		Ordinary:         append([]byte(nil), state.ordinaryData...),
 		SecretCiphertext: append([]byte(nil), state.secretCiphertext...),
@@ -505,7 +570,7 @@ func decodeRecords(data []byte) (map[string]record, error) {
 		if !validName(name) ||
 			dangerousName(name) ||
 			entry.Value == "" ||
-			len(entry.Value) > maxValueSize ||
+			len(entry.Value) > MaxValueSize ||
 			strings.ContainsAny(entry.Value, unsafeValueControls) ||
 			(len(entry.Machines) != 0 && entry.Machines[0] == "*" && len(entry.Machines) != 1) {
 			return nil, problem(codeState, phaseRead, nil)

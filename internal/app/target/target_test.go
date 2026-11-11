@@ -1,4 +1,4 @@
-package configuration
+package target
 
 import (
 	"testing"
@@ -7,22 +7,22 @@ import (
 )
 
 func TestTargetIDsAndUnitIDs(t *testing.T) {
-	for _, id := range []TargetID{
-		TargetCodexSettings,
-		TargetCodexRules,
-		TargetCodexDeepSeek,
-		TargetCodexAuth,
-		TargetMise,
-		TargetTopgrade,
-		TargetClashGlobal,
-		TargetClashLAN,
-		TargetShellEnv,
-		TargetShellEnvSecret,
+	for _, id := range []ID{
+		CodexSettings,
+		CodexRules,
+		CodexDeepSeek,
+		CodexAuth,
+		Mise,
+		Topgrade,
+		ClashGlobal,
+		ClashLAN,
+		ShellEnv,
+		ShellEnvSecret,
 	} {
 		require.NoError(t, id.Validate())
 	}
-	require.Error(t, TargetID("../escape").Validate())
-	require.Error(t, TargetID("Codex").Validate())
+	require.Error(t, ID("../escape").Validate())
+	require.Error(t, ID("Codex").Validate())
 
 	require.Equal(t, UnitID("field:tools.go"), FieldUnitID("tools", "go"))
 	require.Equal(t, UnitID("file:go.rules"), FileUnitID("go.rules"))
