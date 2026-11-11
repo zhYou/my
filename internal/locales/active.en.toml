@@ -681,7 +681,7 @@ other = "Target state or content is invalid."
 other = "A legacy target layout requires explicit cleanup."
 
 ["target.conflicts"]
-other = "Target conflicts must be resolved explicitly."
+other = "Target conflicts ({{.Count}}) must be resolved explicitly; use target diff to inspect the units."
 
 ["target.operation_failed"]
 other = "Target operation failed."

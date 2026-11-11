@@ -2,6 +2,7 @@ package target
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -202,4 +203,36 @@ func (r unknownCommitRepository) CommitChanges(
 			},
 		),
 	)
+}
+
+type stopAfterPending struct{ State }
+
+func (s stopAfterPending) Write(metadata datarepo.Metadata, baseline Baseline) error {
+	if err := s.State.Write(metadata, baseline); err != nil {
+		return err
+	}
+	if baseline.Pending != nil {
+		return errors.New("synthetic interruption after pending")
+	}
+	return nil
+}
+
+type failedWriteAndUnlock struct {
+	State
+	writeCause  error
+	unlockCause error
+}
+
+func (s failedWriteAndUnlock) Write(datarepo.Metadata, Baseline) error {
+	return s.writeCause
+}
+
+func (s failedWriteAndUnlock) Lock(ctx context.Context) (func() error, error) {
+	unlock, err := s.State.Lock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return func() error {
+		return errors.Join(unlock(), s.unlockCause)
+	}, nil
 }

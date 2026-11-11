@@ -43,7 +43,7 @@ func newEnvSetCommand(call *invocation) *cobra.Command {
 				return err
 			}
 			input.Name = args[0]
-			if err := validateAgeIdentity(cmd, call); err != nil {
+			if err := validateFlags(cmd, call); err != nil {
 				return err
 			}
 			if err := input.ValidateSelection(); err != nil {

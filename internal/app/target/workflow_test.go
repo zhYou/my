@@ -562,3 +562,124 @@ func TestCapturePreservesUnknownCommitAcrossUnlock(t *testing.T) {
 	require.Equal(t, "data.recover_verify", diagnostic.Recovery.Code)
 	require.Len(t, repository.commits, 1)
 }
+
+func TestSyncPreservesConflictDiagnostic(t *testing.T) {
+	_, _, service := conflictingTopgrade(t)
+	_, err := service.Sync(t.Context(), SyncOptions{})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.conflicts"), details[0].Code)
+	_, ok := errors.AsType[*ConflictError](err)
+	require.True(t, ok)
+}
+
+func TestFirstAuthTakeoverResumesBeforeExistingFileReplacement(t *testing.T) {
+	_, repository, source := capturedCodexAuth(t)
+	home := t.TempDir()
+	path := filepath.Join(home, ".codex", "auth.json")
+	before := `{"tokens":{"access_token":"local-unmanaged"}}`
+	writeFixture(t, path, before)
+	service := newAuthTestService(home, repository, source.options.AgeKey)
+	service.options.State = stopAfterPending{State: service.options.State}
+	_, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexAuth, Unit: SecretUnitID, From: ResolveRemote})
+	require.Error(t, err)
+	require.Equal(t, before, readFixture(t, path))
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, CodexAuth)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.NotNil(t, baseline.Pending)
+	require.True(t, baseline.Pending.BeforeExists)
+	resumed := newAuthTestService(home, repository, source.options.AgeKey)
+	_, err = resumed.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.Contains(t, readFixture(t, path), "initial-version")
+}
+
+func TestResolveLocalPublishesRealAuthAfterPendingRefresh(t *testing.T) {
+	home, repository, service := capturedCodexAuth(t)
+	setRemoteAuthVersion(t, repository, service.options.AgeKey, []byte(`{"tokens":{"access_token":"remote-version"}}`))
+	service.options.State = &failingFinalBaseline{State: service.options.State, fail: true}
+	_, err := service.Sync(t.Context(), SyncOptions{})
+	require.Error(t, err)
+	refreshed := []byte(`{"tokens":{"access_token":"refreshed-after-apply"}}`)
+	writeFixture(t, filepath.Join(home, ".codex", "auth.json"), string(refreshed))
+	resumed := newAuthTestService(home, repository, service.options.AgeKey)
+	diff, err := resumed.Diff(t.Context(), DiffOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, diff.Conflicts)
+	require.Equal(t, "target.secret_state_unknown", diff.Conflicts[0].Code)
+	commits := len(repository.commits)
+	_, err = resumed.Resolve(t.Context(), ResolveOptions{Target: CodexAuth, Unit: SecretUnitID, From: ResolveLocal})
+	require.NoError(t, err)
+	require.Len(t, repository.commits, commits+1)
+	remote, err := parseRemoteTargets(repository.snapshot, resumed.definitions())
+	require.NoError(t, err)
+	target := remote[CodexAuth]
+	plaintext, err := service.options.AgeKey.Decrypt(target.files[target.target.Files[0].Name], target.recipient)
+	require.NoError(t, err)
+	require.Equal(t, refreshed, plaintext)
+	require.Equal(t, UnitValueFromBytes(refreshed).Digest, target.version)
+	baseline, _, err := resumed.options.State.Read(repository.snapshot.Metadata, CodexAuth)
+	require.NoError(t, err)
+	require.Nil(t, baseline.Pending)
+}
+
+func TestPartialFailureKeepsEachDomainCodeAndCause(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+	writeCause := (fault.Definition{Code: "target.state_invalid", Kind: fault.Runtime}).New()
+	unlockCause := (fault.Definition{Code: "machine.state_invalid", Kind: fault.Runtime}).New()
+	service.options.State = failedWriteAndUnlock{
+		State:       service.options.State,
+		writeCause:  writeCause,
+		unlockCause: unlockCause,
+	}
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Topgrade}})
+	require.ErrorIs(t, err, writeCause)
+	require.ErrorIs(t, err, unlockCause)
+	details := fault.Details(err)
+	require.Len(t, details, 2)
+	require.Equal(t, fault.Code("target.state_invalid"), details[0].Code)
+	require.Equal(t, fault.Code("machine.state_invalid"), details[1].Code)
+	for _, detail := range details {
+		require.Contains(t, detail.Diagnostic.CompletedEffects, "data.commit")
+	}
+}
+
+func TestPendingAuthTakeoverRejectsChangedEvidence(t *testing.T) {
+	for _, changed := range []string{"local", "remote"} {
+		t.Run(changed, func(t *testing.T) {
+			_, repository, source := capturedCodexAuth(t)
+			home := t.TempDir()
+			path := filepath.Join(home, ".codex", "auth.json")
+			writeFixture(t, path, `{"tokens":{"access_token":"unmanaged-before"}}`)
+			service := newAuthTestService(home, repository, source.options.AgeKey)
+			service.options.State = stopAfterPending{State: service.options.State}
+			_, err := service.Resolve(
+				t.Context(),
+				ResolveOptions{Target: CodexAuth, Unit: SecretUnitID, From: ResolveRemote},
+			)
+			require.Error(t, err)
+			if changed == "local" {
+				writeFixture(t, path, `{"tokens":{"access_token":"unknown-after"}}`)
+			} else {
+				setRemoteAuthVersion(
+					t,
+					repository,
+					source.options.AgeKey,
+					[]byte(`{"tokens":{"access_token":"another-version"}}`),
+				)
+			}
+			before := readFixture(t, path)
+			commits := len(repository.commits)
+			resumed := newAuthTestService(home, repository, source.options.AgeKey)
+			_, err = resumed.Sync(t.Context(), SyncOptions{})
+			require.Error(t, err)
+			require.Equal(t, before, readFixture(t, path))
+			require.Len(t, repository.commits, commits)
+		})
+	}
+}

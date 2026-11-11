@@ -4,6 +4,7 @@ const (
 	schemaVersion = 1
 	// MaxValueSize 是单个环境变量值允许的最大字节数。
 	MaxValueSize        = 8 << 10
+	maxRecords          = 256
 	maxOutputSize       = 32 << 10
 	unsafeValueControls = "\r\n\x00"
 

@@ -155,6 +155,7 @@ type targetPlan struct {
 	version            string
 	recipient          string
 	localFileDigest    string
+	localSecret        UnitValue
 	secretStateUnknown bool
 	preparedRemote     map[UnitID]UnitValue
 }
@@ -609,6 +610,9 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	switch input.From {
 	case ResolveLocal:
 		chosen = plan.local[input.Unit]
+		if plan.target.Kind == UnitSecret {
+			chosen = plan.localSecret
+		}
 		if !chosen.Exists && plan.target.Kind == UnitFile {
 			return result, invalidInput()
 		}
@@ -809,6 +813,7 @@ func (s *Service) plan(
 		if !missingLocal {
 			localUnits = local.Units
 		}
+		localSecret := localUnits[SecretUnitID]
 		localFileDigest := ""
 		secretStateUnknown := false
 		if definition.Kind == UnitSecret {
@@ -865,9 +870,14 @@ func (s *Service) plan(
 			if secretStateUnknown {
 				comparison = Comparison{Action: ActionConflict, Code: "target.secret_state_unknown"}
 			}
-			if definition.Kind == UnitSecret && missingLocal && hasBaseline && baseline.Pending != nil &&
-				!baseline.Pending.BeforeExists && baseline.Pending.Version == remoteValue.Digest {
-				comparison = Comparison{Action: ActionApplyRemote}
+			if definition.Kind == UnitSecret && hasBaseline && baseline.Pending != nil &&
+				baseline.Pending.Version == remoteValue.Digest {
+				pending := baseline.Pending
+				beforeStillExists := pending.BeforeExists && !missingLocal && localFileDigest == pending.BeforeDigest
+				beforeStillMissing := !pending.BeforeExists && missingLocal
+				if beforeStillExists || beforeStillMissing {
+					comparison = Comparison{Action: ActionApplyRemote}
+				}
 			}
 
 			comparisons[unit] = comparison
@@ -886,6 +896,7 @@ func (s *Service) plan(
 			version:            remoteTarget.version,
 			recipient:          remoteTarget.recipient,
 			localFileDigest:    localFileDigest,
+			localSecret:        localSecret,
 			secretStateUnknown: secretStateUnknown,
 		})
 	}

@@ -46,48 +46,11 @@ func (p *operation) confirmed(effect string) {
 }
 
 func (p *operation) finish(result *error) {
-	if err := *result; err != nil {
-		details := fault.Details(err)
-		diagnostic, known := fault.DiagnosticOf(err)
-		if !known {
-			for _, detail := range details {
-				child, exists := fault.DiagnosticOf(detail)
-				if !exists {
-					continue
-				}
-				if !known {
-					diagnostic, known = child, true
-					continue
-				}
-				if child.CompletedEffects == nil {
-					diagnostic = child
-				} else if diagnostic.CompletedEffects != nil {
-					diagnostic.CompletedEffects = append(diagnostic.CompletedEffects, child.CompletedEffects...)
-				}
-			}
-		}
-		if !known {
-			diagnostic.CompletedEffects = []string{}
-		}
-		if diagnostic.CompletedEffects != nil {
-			diagnostic.CompletedEffects = append(slices.Clone(p.effects), diagnostic.CompletedEffects...)
-		}
-		if diagnostic.Phase == "" || len(p.effects) > 0 {
-			diagnostic.Phase = p.phase
-		}
-		if len(p.effects) > 0 && diagnostic.CompletedEffects != nil || diagnostic.Recovery == nil {
-			diagnostic.Recovery = &fault.Recovery{Code: "shellenv.recover", Params: fault.Params{"Commit": p.commit}}
-		}
-		code := fault.Code("shellenv.operation_failed")
-		if diagnostic.CompletedEffects == nil {
+	if *result != nil {
+		*result = p.normalize(*result)
+		if diagnostic, _ := fault.DiagnosticOf(*result); diagnostic.CompletedEffects == nil {
 			p.commit = ""
 		}
-		params := fault.Params{}
-		if len(details) == 1 && details[0].Code != "" {
-			code, params = details[0].Code, details[0].Params
-		}
-		*result = (fault.Definition{Code: code, Kind: fault.KindOf(err)}).Wrap(err,
-			fault.WithParams(params), fault.WithSensitiveCause(), fault.WithDiagnostic(diagnostic))
 	}
 	p.endPhase(*result)
 	if *result != nil {
@@ -96,6 +59,61 @@ func (p *operation) finish(result *error) {
 	}
 	p.span.SetAttributes(attribute.String(effectDataCommit, p.commit))
 	p.span.End()
+}
+
+// normalize 逐分支保留安全领域码，原始聚合仅用于错误链检查。
+func (p *operation) normalize(err error) error {
+	details := fault.Details(err)
+	normalized := make([]*fault.Error, 0, len(details))
+	combined := fault.Diagnostic{Phase: p.phase, CompletedEffects: []string{}}
+	for _, detail := range details {
+		diagnostic := p.failureDiagnostic(detail)
+		if diagnostic.CompletedEffects == nil {
+			combined.CompletedEffects = nil
+			combined.Recovery = diagnostic.Recovery
+		} else if combined.CompletedEffects != nil {
+			combined.CompletedEffects = append(combined.CompletedEffects, diagnostic.CompletedEffects...)
+			combined.Recovery = diagnostic.Recovery
+		}
+		code, params := detail.Code, detail.Params
+		if code == "" {
+			code = "shellenv.operation_failed"
+		}
+
+		safe := (fault.Definition{Code: code, Kind: detail.Kind}).New(
+			fault.WithParams(params),
+			fault.WithSensitiveCause(),
+			fault.WithDiagnostic(diagnostic),
+		)
+		safe.Cause = detail
+		normalized = append(normalized, safe)
+	}
+	if len(normalized) == 1 {
+		normalized[0].Cause = err
+		return normalized[0]
+	}
+	return (fault.Definition{Kind: fault.KindOf(err)}).Wrap(
+		err,
+		fault.WithDetails(normalized),
+		fault.WithDiagnostic(combined),
+	)
+}
+
+func (p *operation) failureDiagnostic(err error) fault.Diagnostic {
+	diagnostic, known := fault.DiagnosticOf(err)
+	if !known {
+		diagnostic.CompletedEffects = []string{}
+	}
+	if diagnostic.CompletedEffects != nil {
+		diagnostic.CompletedEffects = append(slices.Clone(p.effects), diagnostic.CompletedEffects...)
+	}
+	if diagnostic.Phase == "" || len(p.effects) > 0 {
+		diagnostic.Phase = p.phase
+	}
+	if len(p.effects) > 0 && diagnostic.CompletedEffects != nil || diagnostic.Recovery == nil {
+		diagnostic.Recovery = &fault.Recovery{Code: "shellenv.recover", Params: fault.Params{"Commit": p.commit}}
+	}
+	return diagnostic
 }
 
 func (p *operation) endPhase(err error) {

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/zhYou/my/internal/app/config"
 	"github.com/zhYou/my/internal/app/machine"
@@ -232,6 +233,7 @@ func TestTargetAndEnvironmentCommandsCompleteHTTPWorkflow(t *testing.T) {
 			require.Equal(t, 1, code, stderr)
 			require.Empty(t, out)
 			require.NotContains(t, stderr, "Operation failed [")
+			require.Contains(t, stderr, "target.conflicts")
 			call("target", "resolve", "topgrade", "--unit", "file:topgrade.toml", "--from", "remote")
 			call("target", "remove", "topgrade")
 			code, _, stderr = workflowInput(
@@ -347,4 +349,14 @@ func TestSecretIdentityFailureDoesNotExposeSensitiveMarkers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnvironmentFlagsAreValidatedBeforeStdin(t *testing.T) {
+	var out, stderr bytes.Buffer
+	opts := isolatedOptions(t.TempDir(), &out, &stderr)
+	opts.In = iotest.ErrReader(errors.New("stdin must not be read"))
+	code := Run(t.Context(), []string{"env", "set", "EDITOR", "--log-level", "invalid", "--json"}, opts)
+	require.Equal(t, 2, code, stderr.String())
+	require.Empty(t, out.String())
+	require.Contains(t, stderr.String(), "debug|info|warn|error")
 }

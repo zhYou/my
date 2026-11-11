@@ -3,6 +3,7 @@ package shellenv
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"testing"
 
@@ -208,5 +209,45 @@ func TestSetRejectsInvalidValues(t *testing.T) {
 	for _, value := range [][]byte{nil, []byte("line\nfeed"), {0}, make([]byte, MaxValueSize+1)} {
 		_, err := service.Set(t.Context(), SetOptions{Name: "EDITOR", Value: value})
 		require.Error(t, err)
+	}
+}
+
+func TestSetRejectsCollectionBeyondReadableLimit(t *testing.T) {
+	for _, secret := range []bool{false, true} {
+		t.Run(fmt.Sprintf("secret=%t", secret), func(t *testing.T) {
+			service, repository := newEnvironmentService(t, "workstation")
+			state := repositoryState{ordinary: map[string]record{}, secret: map[string]record{}}
+			records := state.ordinary
+			if secret {
+				records = state.secret
+			}
+			for i := range 256 {
+				records[fmt.Sprintf("VAR_%d", i)] = record{Value: "x", Machines: []string{"*"}}
+			}
+			files, _, err := service.encodeState(state, secret)
+			require.NoError(t, err)
+			maps.Copy(repository.snapshot.Files, files)
+			_, err = service.Set(
+				t.Context(),
+				SetOptions{Name: "VAR_0", Secret: secret, Value: []byte("updated"), Overwrite: true},
+			)
+			require.NoError(t, err)
+			cacheBefore, _, err := service.options.Cache.Read()
+			require.NoError(t, err)
+			commits := repository.commits
+			_, err = service.Set(t.Context(), SetOptions{Name: "EXTRA", Secret: secret, Value: []byte("x")})
+			require.Error(t, err)
+			require.Equal(t, commits, repository.commits)
+			cacheAfter, _, readErr := service.options.Cache.Read()
+			require.NoError(t, readErr)
+			require.Equal(t, cacheBefore, cacheAfter)
+			list, err := service.List(t.Context())
+			require.NoError(t, err)
+			require.Len(t, list.Variables, 256)
+			_, err = service.Activate(t.Context(), "bash")
+			require.NoError(t, err)
+			_, err = service.Remove(t.Context(), RemoveOptions{Name: "VAR_0", Secret: secret})
+			require.NoError(t, err)
+		})
 	}
 }

@@ -563,23 +563,17 @@ func decodeRecords(data []byte) (map[string]record, error) {
 	if document.Env == nil {
 		document.Env = map[string]record{}
 	}
-	if len(document.Env) > 256 {
+	if !validRecords(document.Env) {
 		return nil, problem(codeState, phaseRead, nil)
 	}
-	for name, entry := range document.Env {
-		if !validName(name) ||
-			dangerousName(name) ||
-			entry.Value == "" ||
-			len(entry.Value) > MaxValueSize ||
-			strings.ContainsAny(entry.Value, unsafeValueControls) ||
-			(len(entry.Machines) != 0 && entry.Machines[0] == "*" && len(entry.Machines) != 1) {
-			return nil, problem(codeState, phaseRead, nil)
-		}
-	}
+
 	return document.Env, nil
 }
 
 func encodeRecords(records map[string]record) ([]byte, error) {
+	if !validRecords(records) {
+		return nil, invalidInput()
+	}
 	return toml.Marshal(recordsDocument{SchemaVersion: schemaVersion, Env: records})
 }
 
@@ -674,4 +668,23 @@ var dangerousPrefixes = []string{
 	"LD_", "DYLD_", "BASH_FUNC_", "PYTHON", "NODE_", "RUBYOPT", "RUBYLIB",
 	"PERL5OPT", "PERL5LIB", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS",
 	"JDK_JAVA_OPTIONS", "CLASSPATH", "MISE_", "RTK_",
+}
+
+func validRecords(records map[string]record) bool {
+	if len(records) > maxRecords {
+		return false
+	}
+	for name, entry := range records {
+		if !validName(name) || dangerousName(name) || !validValue([]byte(entry.Value)) {
+			return false
+		}
+		seen := map[string]bool{}
+		for _, id := range entry.Machines {
+			if seen[id] || id == "*" && len(entry.Machines) != 1 || id != "*" && machine.ValidateID(id) != nil {
+				return false
+			}
+			seen[id] = true
+		}
+	}
+	return true
 }

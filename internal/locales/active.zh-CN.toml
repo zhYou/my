@@ -680,7 +680,7 @@ other = "目标状态或内容无效。"
 other = "目标存在旧布局，需要显式清理。"
 
 ["target.conflicts"]
-other = "目标存在冲突，需要显式选择来源。"
+other = "目标存在 {{.Count}} 项冲突，需要显式选择来源；使用 target diff 查看冲突单位。"
 
 ["target.operation_failed"]
 other = "目标操作失败。"
