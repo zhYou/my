@@ -335,7 +335,7 @@ CLI 协议变更提供真实退出码、样例、Schema 与相对基线的契约
 
 ## 测试组织与可靠性
 
-普通测试优先放入所属实现同名的 `*_test.go`；跨文件行为先判断实际归属，合适时归并。
+测试按实际职责组织，普通测试优先放入所属实现同名的 `*_test.go`；跨文件行为先判断实际归属，合适时归并。
 外部测试包使用 `<实现名>_external_test.go`，保留 `package xxx_test`，不为折叠改成内部测试包。
 有明确实现归属的集成测试可以使用 `<实现名>_integration_test.go`；普通跨文件测试不因命名改称集成测试。
 无需为常量文件创建空测试，也不为文件名对应拆分生产源码。
@@ -344,11 +344,15 @@ CLI 协议变更提供真实退出码、样例、Schema 与相对基线的契约
 `macos` 不是 Go 自动识别的 GOOS 后缀。合并前核对职责、包名与有效平台覆盖，可以统一到本项目
 支持的三个系统，例如 `process_test.go` 使用 `//go:build linux || darwin || windows`；不机械合并导致覆盖遗漏。
 
-Unix 共用测试可使用 `<实现名>_unix_test.go`，须显式声明适用平台的 build tag，例如 `//go:build unix` 或 `//go:build linux || darwin`；
-`unix` 不是按文件名自动识别的 GOOS 后缀，命名整理须保留已有平台范围。
-真实 GitHub 验收使用 `<实现名>_live_test.go`，由测试内显式指定的仓库和专用分支启用，默认跳过；文件名本身不控制执行。
+Unix 共用测试可使用 `<实现名>_unix_test.go`；`unix` 不是按文件名自动识别的 GOOS 后缀，
+必须显式声明适用平台的 build tag，例如 `//go:build linux || darwin`。
+整理命名时保留已有平台范围，不统一改为 `//go:build unix`。
 
-多处使用的 fixture 放在所属包的 `helpers_test.go`，平台专用 helper 使用 `helpers_linux_test.go`、
+派生项目如有真实外部服务验收，可使用 `<实现名>_live_test.go`，通过显式开关或 build tag 启用，默认不执行。
+文件名本身不控制执行，具体启用条件由派生项目声明。
+本项目真实 GitHub 验收通过测试内显式指定的仓库和专用分支启用，默认跳过。
+
+同包多处使用的测试 helper 与 fixture 放在 `helpers_test.go`，平台专用 helper 使用 `helpers_linux_test.go`、
 `helpers_darwin_test.go`、`helpers_windows_test.go`。单处使用的测试类型就近保留；
 真实配置加载与注入 stub 的 fixture 各自保持原有边界。
 `fuzz_test.go` 维护包级 fuzz 入口和 seeds，`benchmark_test.go` 维护包级 benchmark，普通行为测试按实现归位。
