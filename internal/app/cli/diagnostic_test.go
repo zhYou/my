@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/zhYou/my/internal/app/config"
@@ -326,4 +327,23 @@ func TestAdoptedDiagnosticContractHandlesEarlyUsageError(t *testing.T) {
 	require.Equal(t, 2, record.ExitCode)
 	require.NotEmpty(t, record.Diagnostics)
 	require.NotEmpty(t, record.Diagnostics[0].Phase)
+}
+
+func TestBusinessSucceedsWhenDiagnosticDirectoryCannotBeCreated(t *testing.T) {
+	f := newFixtureGitHub(t)
+	home := workflowHome(t)
+	require.NoError(t, os.Mkdir(filepath.Join(home, "state"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(home, "state", "logs"), []byte("private-diagnostic-marker"), 0o600))
+	code, out, stderr := workflowCall(t, f, home, nil, "data", "init", "--json")
+	require.Zero(t, code, stderr)
+	require.Contains(t, out, `"changed":true`)
+	require.Equal(t, 1, f.commits)
+	require.NotContains(t, stderr, "private-")
+	lines := strings.Split(strings.TrimSpace(stderr), "\n")
+	require.NotEmpty(t, lines)
+	for _, line := range lines {
+		var diagnostic map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &diagnostic))
+		require.Equal(t, "warning", diagnostic["type"])
+	}
 }

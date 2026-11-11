@@ -344,6 +344,10 @@ CLI 协议变更提供真实退出码、样例、Schema 与相对基线的契约
 `macos` 不是 Go 自动识别的 GOOS 后缀。合并前核对职责、包名与有效平台覆盖，可以统一到本项目
 支持的三个系统，例如 `process_test.go` 使用 `//go:build linux || darwin || windows`；不机械合并导致覆盖遗漏。
 
+Unix 共用测试可使用 `<实现名>_unix_test.go`，须显式声明适用平台的 build tag，例如 `//go:build unix` 或 `//go:build linux || darwin`；
+`unix` 不是按文件名自动识别的 GOOS 后缀，命名整理须保留已有平台范围。
+真实 GitHub 验收使用 `<实现名>_live_test.go`，由测试内显式指定的仓库和专用分支启用，默认跳过；文件名本身不控制执行。
+
 多处使用的 fixture 放在所属包的 `helpers_test.go`，平台专用 helper 使用 `helpers_linux_test.go`、
 `helpers_darwin_test.go`、`helpers_windows_test.go`。单处使用的测试类型就近保留；
 真实配置加载与注入 stub 的 fixture 各自保持原有边界。
@@ -374,8 +378,8 @@ MY_HOME="$test_home" mise exec -- go test ./test/integration -run '^TestCorruptC
 ## IDE 与文件折叠
 
 文件折叠只改变项目树的显示，不移动文件、不改变 Go 包边界或测试发现。
-同名、平台、外部包及有明确实现归属的集成测试跟随实现；共享辅助文件、包级 fuzz、benchmark
-和独立集成测试包的入口折叠在描述本包的 `doc.go` 下。设置保留在个人 IDE 配置中。
+同名、平台、外部包及有明确实现归属的集成或 live 验收测试跟随实现；共享辅助文件、包级 fuzz、benchmark、
+文本工具任务测试和独立集成测试包的入口折叠在描述本包的 `doc.go` 下。设置保留在个人 IDE 配置中。
 
 ```text
 cli/
@@ -398,8 +402,8 @@ cli/
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.expand": false,
   "explorer.fileNesting.patterns": {
-    "*.go": "${capture}_test.go, ${capture}_linux_test.go, ${capture}_darwin_test.go, ${capture}_windows_test.go, ${capture}_external_test.go, ${capture}_external_linux_test.go, ${capture}_external_darwin_test.go, ${capture}_external_windows_test.go, ${capture}_integration_test.go, ${capture}_integration_linux_test.go, ${capture}_integration_darwin_test.go, ${capture}_integration_windows_test.go",
-    "doc.go": "helpers_test.go, helpers_linux_test.go, helpers_darwin_test.go, helpers_windows_test.go, fuzz_test.go, benchmark_test.go, integration_test.go"
+    "*.go": "${capture}_test.go, ${capture}_linux_test.go, ${capture}_darwin_test.go, ${capture}_windows_test.go, ${capture}_unix_test.go, ${capture}_external_test.go, ${capture}_external_linux_test.go, ${capture}_external_darwin_test.go, ${capture}_external_windows_test.go, ${capture}_integration_test.go, ${capture}_integration_linux_test.go, ${capture}_integration_darwin_test.go, ${capture}_integration_windows_test.go, ${capture}_live_test.go",
+    "doc.go": "helpers_test.go, helpers_linux_test.go, helpers_darwin_test.go, helpers_windows_test.go, fuzz_test.go, benchmark_test.go, integration_test.go, text_test.go"
   }
 }
 ```
@@ -407,30 +411,35 @@ cli/
 配置方法和变量含义见 [VS Code 文件嵌套说明](https://code.visualstudio.com/docs/editing/getting-started/userinterface#_file-nesting)。
 VS Code 在文件组折叠时会将复制、移动或删除操作应用于整组；只操作单个文件前先展开分组。
 
-### GoLand
+### IntelliJ IDEA 与 GoLand
 
 1. 打开 **Project** 窗口的菜单，选择 **Appearance → File Nesting…**。
 2. 勾选 **Show files with the same names as nested**。
 3. 在父后缀 `.go` 的子后缀中追加下面的列表，保留已有条目：
 
 ```text
-_test.go; _linux_test.go; _darwin_test.go; _windows_test.go; _external_test.go; _external_linux_test.go; _external_darwin_test.go; _external_windows_test.go; _integration_test.go; _integration_linux_test.go; _integration_darwin_test.go; _integration_windows_test.go
+_test.go; _linux_test.go; _darwin_test.go; _windows_test.go; _unix_test.go; _external_test.go; _external_linux_test.go; _external_darwin_test.go; _external_windows_test.go; _integration_test.go; _integration_linux_test.go; _integration_darwin_test.go; _integration_windows_test.go; _live_test.go
 ```
 
 4. 新增一行，父后缀填写完整文件名 `doc.go`，子后缀填写下面的列表，不加 `*`：
 
 ```text
-helpers_test.go; helpers_linux_test.go; helpers_darwin_test.go; helpers_windows_test.go; fuzz_test.go; benchmark_test.go; integration_test.go
+helpers_test.go; helpers_linux_test.go; helpers_darwin_test.go; helpers_windows_test.go; fuzz_test.go; benchmark_test.go; integration_test.go; text_test.go
 ```
 
-GoLand 使用分号分隔子后缀，完整文件名也可以作为后缀匹配；配置后收起 `doc.go` 节点。
-它的内置规则按后缀匹配，需要逐项登记，不支持用 `*_test.go` 通配全部测试。
-配置入口见 [GoLand 文件嵌套说明](https://www.jetbrains.com/help/go/file-nesting-dialog.html)。
+IntelliJ IDEA 与 GoLand 使用分号分隔子后缀，完整文件名也可以作为后缀匹配；配置后收起 `doc.go` 节点。
+内置规则按后缀匹配，不支持用 `*_test.go` 通配全部测试。
+配置入口见 [IntelliJ IDEA 文件嵌套说明](https://www.jetbrains.com/help/idea/file-nesting-dialog.html)
+和 [GoLand 文件嵌套说明](https://www.jetbrains.com/help/go/file-nesting-dialog.html)。
+
+通用后缀可复用到新增实现文件，不为每个实现文件维护专用规则。同一测试可能匹配多个父文件；
+例如同时存在 `process.go` 和 `process_windows.go` 时，`process_windows_test.go` 会匹配两者。
+规则顺序不提供优先选择；接受这种少量重复挂载，避免持续维护逐文件的平台映射。
 
 ### 新增折叠规则
 
-新增测试先按实际归属选择同名、外部包、集成、平台或共享辅助文件名，优先复用上述通用规则。
-必须独立命名的行为测试才向两款 IDE 的清单追加文件名，避免同一测试同时挂在实现文件和 `doc.go` 下。
+新增测试先按实际归属选择同名、外部包、集成、平台、live 验收或共享辅助文件名，优先复用上述通用规则。
+无单一实现归属且确需独立保留的包级测试，才向两款 IDE 的 `doc.go` 清单追加文件名，避免同时匹配实现文件和 `doc.go`。
 不为折叠统一添加 `zzz` 前缀、创建占位实现或额外生产文件，也不合并不同测试包。
 平台构建约束不同的文件先核对有效覆盖，再决定是否合并。文件调整时核对本文两款 IDE 示例中的例外清单及模板受管文件清单。
 这些是供维护者选择的个人设置示例，智能体不读写用户 IDE 配置；本机显示由维护者验收。
