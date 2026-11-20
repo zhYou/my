@@ -12,8 +12,8 @@
 - 先读 [README](README.md)；规划或开始任务前查阅[项目待办](docs/backlog.md)。改动前阅读下表对应说明，按其中完整规则实施。
 - 用户在会话中明确的目录、基线、分支和交付方式优先于本文件的默认流程；沿用已有授权和偏好，不重复确认。缺少影响结果的关键信息时再询问。
 - 交流、文档和注释使用中文。CLI 默认英文并提供中文；命令、选项、环境变量、机器字段、枚举和协议标识不翻译。
-- 当前仅支持 Codex。复用用户级 RTK 和 superpowers；不在项目中安装、更新或复制用户级工具、技能、模型、凭据、权限和插件配置，也不把个人路径写入模板。
-- 有效项目设计和决策整理为私有仓正式文档；superpowers 临时设计、计划和执行记录只放在被忽略的 `docs/superpowers/`，不提交。
+- 支持 Codex 和 OpenCode。复用用户级 RTK（仅 Codex）和 Matt Pocock skills；不在项目中安装、更新或复制用户级工具、技能、模型、凭据、权限和插件配置，也不把个人路径写入模板。
+- 有效项目设计和决策整理为私有仓正式文档。
 - 待办只在维护者明确要求记录探索想法时新增；记录不代表实施授权，当前已授权任务无需补建。已有条目的状态、关联 PR 和移除规则见[待办约定](docs/backlog.md#约定)。
 
 | 改动                                            | 必读说明                              |
@@ -23,6 +23,21 @@
 | 命令、选项、JSON、Schema、退出码                | [兼容性规则](docs/compatibility.md)   |
 | 模板身份或已有项目升级                          | [模板升级](docs/template-upgrades.md) |
 | CI、托管安全和发布                              | [维护清单](docs/maintenance.md)       |
+
+## Agent skills
+
+### Issue tracker
+
+本仓库使用 GitHub Issues 跟踪可执行 issue、规格和门票，通过 `gh` 操作。见 `docs/agents/issue-tracker.md`。
+探索想法仍按[项目待办](docs/backlog.md)维护，不把尚未授权实施的想法自动转为 issue。
+
+### Triage labels
+
+五种标准 triage 角色使用同名标签。见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+领域文档采用 single-context：根目录 `GLOSSARY.md` 与 `docs/adr/`。见 `docs/agents/domain.md`。
 
 ## 私有文档上下文
 
@@ -35,9 +50,9 @@
 
 ## 命令与环境
 
-- 在仓库根目录执行项目命令。已有 mise task 的操作优先使用 `mise run <task>`；直接调用工具时，以项目 `mise.toml` 的 `[tools]` 为纳管清单：纳管工具使用 `mise exec -- <命令>`，其他命令直接执行，如 `git`、`gh`、`codex`、`rtk` 和常用 shell 命令。task 内无需重复包装。
+- 在仓库根目录执行项目命令。已有 mise task 的操作优先使用 `mise run <task>`；直接调用工具时，以项目 `mise.toml` 的 `[tools]` 为纳管清单：纳管工具使用 `mise exec -- <命令>`，其他命令直接执行，如 `git`、`gh`、`codex`、`opencode`、`rtk` 和常用 shell 命令。task 内无需重复包装。
 - 需要 Git 和 mise 2026.10.21 或更新版本。首次准备环境、工具版本或 Go 模块变更后显式执行 `mise run setup`，再运行 `mise run doctor`；已准备且声明未变时不重复 setup。mise 纳管工具仍须显式安装；npx、uvx 可按固定版本在外部缓存按需准备，检查不得改写项目文件。
-- 项目工具固定准确版本，不使用 mise 锁文件；安装与 doctor 的检查范围见[开发说明](docs/development.md#协作与环境)。基础检查不依赖 Codex、RTK 或 superpowers。
+- 项目工具固定准确版本，不使用 mise 锁文件；安装与 doctor 的检查范围见[开发说明](docs/development.md#协作与环境)。基础检查不依赖 Codex、OpenCode、RTK 或 Matt Pocock skills。
 - 只有升级任务才选择官方最新 LTS 补丁；没有 LTS 时选择最新稳定版，排除预发布。同步版本声明和兼容性验证见[工具维护](docs/development.md#修改模板与升级工具)。
 
 ## 隔离开发与交付
@@ -50,7 +65,7 @@
 - 分支命名为 `<类型>/<YYMMDD>-<主题>`，新建 worktree 为 `.worktrees/<YYMMDD>-<类型>-<主题>/`；日期取创建时 UTC，主题用小写英文、数字和连字符。类型使用 `feat`、`fix`、`docs`、`refactor`、`test`、`build`、`ci`、`perf`、`chore` 或 `revert`。
 - 创建前检查本地、远端分支和 worktree 重名；冲突追加 `-2`、`-3`。续做沿用原名，已有任务工作区的目录名可保留。验收用临时 Git 夹具可使用系统临时目录。
 - 通过必需验证后提交、推送；已有本任务 PR 时更新同一 PR，否则按[PR 模板](.github/PULL_REQUEST_TEMPLATE.md)创建到目标基线分支。用户已指定仅推送等交付方式时按其要求执行。
-- 交付报告实际验证结果、分支和工作目录；有 PR 时提供链接并保留工作区供审查修复。沿用现有 Git 作者，尾注记录实际工具，如 `Agent: Codex`。合并和发布由维护者决定。
+- 交付报告实际验证结果、分支和工作目录；有 PR 时提供链接并保留工作区供审查修复。沿用现有 Git 作者，尾注记录实际工具，如 `Agent: Codex`、`Agent: OpenCode`。合并和发布由维护者决定。
 
 ### 清理
 
@@ -76,7 +91,7 @@
 - 按[验证矩阵](docs/development.md#实现与检查)选择检查：纯文字改动无需全量 check 或 race；版本表、模板身份、可执行示例另做对应验证。完整 check 已覆盖的项目不重复作为最终门槛。
 - 按问题选择工具：架构关系和初步影响分析用 Graphify，符号、引用和结构化修改用 Serena，Go 专用能力用当前 checkout 的 gopls，精确文本、配置和文档检索用 rg。rg 缺失时通过 mise 安装并显式使用已安装版本，不回退到 Serena 文本检索。
 - Graphify 按需建图，切换 checkout 或修改代码后再次依赖图结论前增量更新；MCP 调用显式传当前 checkout 的绝对 `project_path`。MCP 不可用时用 CLI，图不可用时用源码工具并说明限制；推断关系须经源码和语言工具核实。
-- 创建、切换或恢复 worktree 后，先以绝对路径激活 Serena 并核对项目根目录；未覆盖或不可用的 Go 能力用当前 checkout 的 gopls CLI，并说明限制。不自动重启会话中显式禁用的 MCP；MCP 集成变更须真实验收，不用 CLI 回退代替。
+- 创建、切换或恢复 worktree 后，先核对 Serena 项目根目录。Codex context 用绝对路径调用 `activate_project`；OpenCode 的 `ide` context 在启动时绑定 checkout，须从该目录启动并通过 `initial_instructions` 核对。未覆盖或不可用的 Go 能力用当前 checkout 的 gopls CLI，并说明限制。不自动重启会话中显式禁用的 MCP；MCP 集成变更须真实验收，不用 CLI 回退代替。
 - 测试和示例验证隔离父、子进程的应用 HOME、配置及状态，禁止读写真实用户诊断数据；不提交密钥、环境转储、日志或缓存。不得将个人配置或诊断数据复制到生成项目。
 - 保留用户已有修改，同一 checkout 串行修改，只格式化授权范围。Git 写入失败先只读检查，不借机 reset、clean 或强推。
 - 以实际命令和结果支撑交付声明；无法运行的检查说明原因。配置存在、启动成功或 mock 不替代真实验收，跨编译不代表 macOS/Windows 原生运行通过。

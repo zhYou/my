@@ -1,0 +1,47 @@
+# Go 固定工具链的常规开发命令。
+
+prefix_rule(
+    pattern = ["go", ["test", "vet", "build", "install", "list", "version"]],
+    decision = "allow",
+    justification = "运行 Go 开发命令",
+    match = [
+        "go test ./...",
+        "go test -race ./...",
+        "go vet ./...",
+        "go build ./cmd/my",
+    ],
+    not_match = [
+        "go mod tidy",
+        "go run ./cmd/my",
+    ],
+)
+
+prefix_rule(
+    pattern = ["rtk", "go", ["test", "vet", "build", "install", "list", "version"]],
+    decision = "allow",
+    justification = "通过 RTK 运行 Go 开发命令",
+    match = [
+        "rtk go test ./...",
+        "rtk go vet ./...",
+    ],
+    not_match = [
+        "rtk go mod tidy",
+        "rtk go run ./cmd/my",
+    ],
+)
+
+prefix_rule(
+    pattern = ["go", "mod", "tidy", "-diff"],
+    decision = "allow",
+    justification = "在不改写文件的情况下检查 Go 模块元数据",
+    match = ["go mod tidy -diff"],
+    not_match = ["go mod tidy"],
+)
+
+prefix_rule(
+    pattern = ["rtk", "go", "mod", "tidy", "-diff"],
+    decision = "allow",
+    justification = "通过 RTK 在不改写文件的情况下检查 Go 模块元数据",
+    match = ["rtk go mod tidy -diff"],
+    not_match = ["rtk go mod tidy"],
+)

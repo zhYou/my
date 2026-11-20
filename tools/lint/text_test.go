@@ -93,7 +93,7 @@ func TestTextTasksCoverFiveFormatsAndExclusions(t *testing.T) {
 	} {
 		writeTextFixture(t, root, name, value)
 	}
-	for _, dir := range []string{".worktrees/other", "docs/superpowers", "bin", "dist", "tools/lint/testdata/invalid", "vendor"} {
+	for _, dir := range []string{".worktrees/other", "bin", "dist", "tools/lint/testdata/invalid", "vendor"} {
 		for _, ext := range []string{"json", "xml", "toml", "yaml", "md"} {
 			writeTextFixture(t, root, dir+"/invalid."+ext, "[<not valid data")
 		}

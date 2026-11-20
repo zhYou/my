@@ -2,7 +2,7 @@
 
 本文记录目标仓库须由维护者落实的托管、CI、发布和诊断操作。配置文件存在不代表平台功能已启用。
 日常开发见[开发说明](development.md)，工作区和交付遵循[协作约定](../AGENTS.md)。
-探索想法仅按[待办约定](backlog.md#约定)记录，当前实施任务不自动新增待办。
+探索想法仅按[待办约定](backlog.md#约定)记录；可执行 issue、规格和门票使用 GitHub Issues。
 
 ## 责任与审查
 
@@ -13,7 +13,7 @@
 
 ## 仓库管理员设置
 
-- 为 main 设置规则集，要求 PR、审查、分支更新及必需检查。按实际运行名称启用 `check`、`platforms (macos-latest)`、`platforms (windows-latest)`、`vulnerability`，首次运行后核对名称。
+- 为 main 设置规则集，要求 PR、审查、分支更新及必需检查。至少启用 CI 汇总作业 `check` 和独立安全作业 `vulnerability`；首次运行后核对实际名称。
 - 保护 `v*` 标签，限制创建和修改权限；采用不可变发布资产策略。
 - 按 [SECURITY](../SECURITY.md) 填写私密报告入口，启用对应功能，公布支持版本和响应安排。
 - 安装或授权 Renovate。现有配置覆盖 Go、Actions SHA、mise 工具及 npm/PyPI 版本变量，禁用自动合并及预发布更新；工具升级方法见[开发说明](development.md#修改模板与升级工具)。
@@ -25,21 +25,28 @@
 ## CI 与验收证据
 
 CI 和 Security 检查目标为 main 的 PR 及 main 更新，开发分支普通 push 和分支间 PR 不执行。
-PR 改目标、标题或描述会重新检查；同一 PR 新运行取消旧运行，其他运行按各自 ID 隔离。
+PR 打开、更新或重新打开会触发检查；标题和描述编辑不触发完整重跑。同一 PR 新运行取消旧运行，其他运行按各自 ID 隔离。
 每日 Security 独立运行；推送 `v*` 标签时 Release 先复用同一提交的完整 CI 与 Security，再执行发布。
 
-Linux 源码、race、fuzz/benchmark、snapshot/安装及 MCP 验收分组并行；Linux/macOS/Windows 均真实运行 Serena、Graphify MCP，
-macOS/Windows 保留原生任务。三平台实际验证 npx/uvx、XML/TOML 插件、五类文本与冷/热缓存，不能用命令替换或跨编译代替。
-CI 的 `check` 汇总全部作业，任一失败、取消或跳过都不能通过。平台运行、MCP、漏洞和发布验收独立于本地 `mise run check`。
-基础 CI 无需安装 Codex、RTK 或 superpowers；MCP job 复用统一 setup，再通过 uvx 按需准备 Serena、Graphify 与后台依赖。
+Linux 源码、race、fuzz/benchmark、snapshot/安装及 MCP 验收分组并行；macOS/Windows 的原生测试与平台环境检查拆成并行作业。
+PR 在 macOS/Windows 验证原生命令、integration 二进制和模板，main 与 release 再运行两平台全量 Go 测试。
+PR 在 Linux 运行真实 Serena、Graphify MCP；main 与 release 在 Linux/macOS/Windows 运行三平台 MCP。
+三平台仍实际验证 npx/uvx、XML/TOML 插件、五类文本与冷/热缓存，不能用命令替换或跨编译代替。
+CI 的 `check` 汇总全部作业；除 PR 上按设计不运行的 `agent-mcp-platforms` 外，任一失败、取消或跳过都不能通过。
+平台运行、MCP、漏洞和发布验收独立于本地 `mise run check`。
+基础 CI 无需安装 Codex、OpenCode、RTK 或 Matt Pocock skills。各作业通过 `jdx/mise-action` 的 `install_args`
+只安装所需 mise 工具并下载 Go 模块，不再重复运行统一 setup；MCP job 再通过 uvx 按需准备 Serena、Graphify
+与后台依赖，并用项目 MCP 客户端并行验收 Codex、OpenCode 两个 Serena context 和 Graphify。
 源码任务通过统一 lint 运行 actionlint 工作流语义检查，模板副本验收同样复用该入口。
 
 Go 缓存区分 OS、架构、Go 版本和依赖摘要，编译缓存再区分任务及提交；lint 独立缓存，项目工具复用 mise 缓存，npx/uvx 与独立 Python 仅缓存外部工具目录，按 OS、架构及版本声明区分。
 Windows 只跨运行缓存模块，编译结果在当前 runner 内复用。缓存不包含应用状态、诊断文件或发布资产，命中不能跳过验证。
-排查性能时记录冷、热缓存耗时和命中情况；具体键与任务以 workflow 为准。
+排查性能时记录冷、热缓存耗时和命中情况，并区分作业执行时间与 runner 排队时间；具体键、工具子集与任务以 workflow 为准。
 
 交付分别列出已完成的 Linux 测试、macOS/Windows 原生 CI、六目标交叉构建及宿主安装。
 未完成的项目写为待验证；三 OS 配置或交叉编译不能替代原生运行证据。
+OpenCode V2.3.2 的 Windows 项目级 MCP 受上游缺陷限制；CI 的协议级 OpenCode context 验收不等于
+该客户端在 Windows 原生加载项目配置。修复前交付须明确此边界。
 
 ## 升级和发布
 

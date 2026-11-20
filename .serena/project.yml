@@ -15,8 +15,10 @@ ls_workspace_folders:
 ignore_all_files_in_gitignore: true
 ignored_paths: []
 initial_prompt: >-
-  遵守根目录 AGENTS.md。创建或切换 worktree 后先用绝对路径 activate_project，
-  核对返回的项目根目录。文本检索覆盖非代码文件；Go 专用能力使用当前 checkout 的 gopls CLI。
+  遵守根目录 AGENTS.md。MCP 服务必须从目标 checkout 启动。Codex context 创建或切换 worktree 后先用
+  绝对路径 activate_project 并核对根目录；OpenCode ide context 在启动时绑定当前 checkout，应通过
+  initial_instructions 核对。文本检索覆盖非代码文件；Go 专用能力使用当前
+  checkout 的 gopls CLI。
 default_modes:
 added_modes:
 included_apis: []

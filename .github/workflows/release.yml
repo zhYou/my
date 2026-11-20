@@ -29,6 +29,7 @@ jobs:
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           version: 2026.10.21
+          install_args: go goreleaser syft
       - name: 读取 Go 缓存路径
         id: go-env
         shell: bash
@@ -51,7 +52,7 @@ jobs:
           restore-keys: |
             gobuild-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.version }}-${{ github.job }}-${{ hashFiles('go.mod', 'go.sum', 'mise.toml') }}-
             gobuild-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.version }}-${{ github.job }}-
-      - run: mise run setup
+      - run: mise exec -- go mod download
       - run: mise exec -- goreleaser release --clean --parallelism 2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

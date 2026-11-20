@@ -1,0 +1,20 @@
+# TOML 格式化与检查。
+
+prefix_rule(
+    pattern = ["taplo"],
+    decision = "allow",
+    justification = "格式化或检查 TOML 文件",
+    match = [
+        "taplo check",
+        "taplo fmt --check",
+    ],
+    not_match = ["golangci-lint run"],
+)
+
+prefix_rule(
+    pattern = ["rtk", "taplo"],
+    decision = "allow",
+    justification = "通过 RTK 格式化或检查 TOML 文件",
+    match = ["rtk taplo fmt --check"],
+    not_match = ["rtk golangci-lint run"],
+)

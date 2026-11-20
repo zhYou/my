@@ -22,7 +22,7 @@ const (
 func checkConfig(root string) error {
 	root, err := filepath.Abs(root)
 	if err != nil {
-		return fmt.Errorf("解析仓库路径: %w", err)
+		return fmt.Errorf(resolveRepositoryError, err)
 	}
 
 	// 示例是模板提供的应用配置，不能随目录一起消失。
@@ -128,7 +128,7 @@ func checkFile(path string, locale bool) error {
 	//nolint:gosec // G304：路径来自调用者指定的仓库及受管目录遍历。
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("读取 %s: %w", path, err)
+		return fmt.Errorf(readPathError, path, err)
 	}
 	var values map[string]any
 	if err := toml.Unmarshal(data, &values); err != nil {

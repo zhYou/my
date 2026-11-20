@@ -1,0 +1,56 @@
+# mise 是本可信仓库的统一工具入口。
+# 放行仓库任务和固定工具环境，保留 mise 安装、信任等环境写入审批。
+
+prefix_rule(
+    pattern = ["rtk", "mise", "run"],
+    decision = "allow",
+    justification = "运行受信任项目 mise.toml 声明的任务",
+    match = [
+        "rtk mise run check",
+        "rtk mise run fmt:text -- AGENTS.md",
+        "rtk mise run doctor",
+    ],
+    not_match = [
+        "rtk mise install",
+        "rtk mise trust",
+    ],
+)
+
+prefix_rule(
+    pattern = ["mise", "run"],
+    decision = "allow",
+    justification = "运行受信任项目 mise.toml 声明的任务",
+    match = [
+        "mise run lint:text",
+        "mise run check",
+        "mise run template:check",
+    ],
+    not_match = [
+        "mise install",
+        "mise trust",
+    ],
+)
+
+prefix_rule(
+    pattern = ["rtk", "mise", "exec", "--"],
+    decision = "allow",
+    justification = "通过受信任项目的 mise 环境运行工具",
+    match = [
+        "rtk mise exec -- go test ./...",
+        "rtk mise exec -- golangci-lint run",
+        "rtk mise exec -- future-project-tool --version",
+    ],
+    not_match = ["rtk mise install"],
+)
+
+prefix_rule(
+    pattern = ["mise", "exec", "--"],
+    decision = "allow",
+    justification = "通过受信任项目的 mise 环境运行工具",
+    match = [
+        "mise exec -- go test ./...",
+        "mise exec -- govulncheck ./...",
+        "mise exec -- future-project-tool --version",
+    ],
+    not_match = ["mise install"],
+)

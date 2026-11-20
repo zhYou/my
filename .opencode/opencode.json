@@ -1,0 +1,211 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "worktree": {
+    "directory": ".worktrees"
+  },
+  "mcp": {
+    "timeout": {
+      "startup": 300000,
+      "execution": 180000
+    },
+    "servers": {
+      "serena": {
+        "type": "local",
+        "command": ["mise", "run", "--quiet", "mcp:serve:opencode"],
+        "cwd": "."
+      },
+      "graphify": {
+        "type": "local",
+        "command": ["mise", "run", "--quiet", "graphify:serve"],
+        "cwd": "."
+      }
+    }
+  },
+  "permissions": [
+    {
+      "action": "shell",
+      "resource": "*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "mise run *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "mise exec -- *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "go test *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "go vet *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "go build *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "go install *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "go list *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "go version *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "go mod tidy -diff *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "golangci-lint fmt *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "golangci-lint run *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gopls *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "actionlint *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "govulncheck *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "goreleaser check *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "goreleaser release --snapshot *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "taplo *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr view *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr list *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr checks *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr diff *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr status *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh issue view *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh issue list *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh repo view *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh label list *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh run list *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "gh event listen *",
+      "effect": "allow"
+    },
+    {
+      "action": "graphify_*",
+      "resource": "*",
+      "effect": "deny"
+    },
+    {
+      "action": "graphify_query_graph",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "graphify_get_node",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "graphify_get_neighbors",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "graphify_get_community",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "graphify_god_nodes",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "graphify_graph_stats",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "graphify_shortest_path",
+      "resource": "*",
+      "effect": "allow"
+    }
+  ]
+}

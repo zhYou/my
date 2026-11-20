@@ -237,7 +237,7 @@ func TestDoctorActionlintVersion(t *testing.T) {
 func TestDoctorUserToolsOnlyReport(t *testing.T) {
 	binary := doctorToolFixture(t)
 	out := doctorEnvironmentFixture(t, binary, "")
-	for _, name := range []string{"gh", "codex", "rtk"} {
+	for _, name := range []string{"gh", "codex", "opencode", "rtk"} {
 		for _, fault := range []struct {
 			mode   string
 			detail string
@@ -275,6 +275,17 @@ func TestDoctorUserToolsOnlyReport(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestDoctorReportsMattPocockSkills(t *testing.T) {
+	binary := doctorToolFixture(t)
+	out := doctorEnvironmentFixture(t, binary, "")
+	require.NoError(t, doctor())
+	_, err := out.Seek(0, 0)
+	require.NoError(t, err)
+	data, err := io.ReadAll(out)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "用户工具：Matt Pocock skills")
 }
 
 func TestDoctorUsesMiseSelectedExecutable(t *testing.T) {
@@ -357,7 +368,7 @@ func doctorEnvironmentFixture(t *testing.T, binary, missing string) *os.File {
 		),
 	)
 	bin := t.TempDir()
-	for _, name := range []string{"mise", "git", "gh", "codex", "rtk", "gopls", "actionlint", "npx", "uvx"} {
+	for _, name := range []string{"mise", "git", "gh", "codex", "opencode", "rtk", "gopls", "actionlint", "npx", "uvx"} {
 		if name == missing {
 			continue
 		}
@@ -378,7 +389,7 @@ func doctorEnvironmentFixture(t *testing.T, binary, missing string) *os.File {
 	t.Chdir(root)
 
 	// 先完成 fixture 的首次启动，避免宿主启动开销占用被测探测的三秒预算。
-	for _, name := range []string{"mise", "git", "gh", "codex", "rtk", "gopls", "actionlint"} {
+	for _, name := range []string{"mise", "git", "gh", "codex", "opencode", "rtk", "gopls", "actionlint"} {
 		if name == missing {
 			continue
 		}
