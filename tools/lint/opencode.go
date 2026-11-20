@@ -85,7 +85,7 @@ func checkOpenCodeConfig(root string) error {
 		return fmt.Errorf("检查 %s: %w", path, err)
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("%s 不是普通文件", path)
+		return fmt.Errorf(notRegularError, path)
 	}
 	config, err := loadOpenCodeConfig(path)
 	if err != nil {

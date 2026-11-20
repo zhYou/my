@@ -42,7 +42,7 @@ func scanSources(root string, visit func(*token.FileSet, sourceFile)) error {
 			return fmt.Errorf("检查 %s: %w", relative, err)
 		}
 		if !info.Mode().IsRegular() {
-			return fmt.Errorf("%s 不是普通文件", relative)
+			return fmt.Errorf(notRegularError, relative)
 		}
 		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {

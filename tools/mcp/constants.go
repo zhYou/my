@@ -24,4 +24,5 @@ const (
 	openCodeMCPTask         = "mcp:serve:opencode"
 	projectPathField        = "project_path"
 	symbolsOverviewTool     = "get_symbols_overview"
+	mcpLogDirectoryPattern  = "mcp-check-logs-*"
 )

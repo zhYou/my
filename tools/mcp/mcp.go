@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,29 +31,66 @@ func checkMCP() error {
 
 type mcpCheck struct {
 	name string
-	run  func(context.Context, string) error
+	run  func(context.Context, string, io.Writer) error
+}
+
+type mcpCheckError struct {
+	err    error
+	logDir string
+}
+
+func (e *mcpCheckError) Error() string {
+	return fmt.Sprintf("%v；完整日志目录：%s", e.err, e.logDir)
+}
+
+func (e *mcpCheckError) Unwrap() error {
+	return e.err
 }
 
 // runMCPChecks 并行运行互不共享状态的客户端验收，并在返回前汇总全部失败。
 func runMCPChecks(ctx context.Context, root string, checks []mcpCheck) error {
-	results := make(chan error, len(checks))
-	for _, check := range checks {
-		go func(check mcpCheck) {
-			if err := check.run(ctx, root); err != nil {
-				results <- fmt.Errorf("验收 %s：%w", check.name, err)
-				return
+	logDir, err := os.MkdirTemp("", mcpLogDirectoryPattern)
+	if err != nil {
+		return fmt.Errorf("创建 MCP 验收日志目录：%w", err)
+	}
+	logs := make([]*os.File, len(checks))
+	for i := range checks {
+		logs[i], err = os.CreateTemp(logDir, fmt.Sprintf("check-%d-*.log", i+1))
+		if err != nil {
+			for _, log := range logs {
+				if log != nil {
+					//nolint:errcheck // 已在返回创建日志失败；继续清理其余文件。
+					_ = log.Close()
+				}
 			}
-			results <- nil
-		}(check)
+			return errors.Join(fmt.Errorf("创建 MCP 验收日志：%w", err), os.RemoveAll(logDir))
+		}
+	}
+	results := make(chan error, len(checks))
+	for i, check := range checks {
+		go func(check mcpCheck, log *os.File) {
+			runErr := check.run(ctx, root, log)
+			closeErr := log.Close()
+			if runErr != nil {
+				runErr = fmt.Errorf("验收 %s：%w", check.name, runErr)
+			}
+			results <- errors.Join(runErr, closeErr)
+		}(check, logs[i])
 	}
 	var result error
 	for range checks {
 		result = errors.Join(result, <-results)
 	}
-	return result
+	if result == nil {
+		if err := os.RemoveAll(logDir); err != nil {
+			return fmt.Errorf("清理 MCP 验收日志目录 %s：%w", logDir, err)
+		}
+		return nil
+	}
+	return &mcpCheckError{err: result, logDir: logDir}
 }
 
-func checkSerenaMCP(ctx context.Context, root string) (resultErr error) {
+func checkSerenaMCP(ctx context.Context, root string, log io.Writer) (resultErr error) {
 	configPath := filepath.Join(root, serenaDirectory, serenaProjectFile)
 	//nolint:gosec // G304：只读取当前 checkout 的固定 Serena 项目配置，检测意外迁移。
 	configBefore, err := os.ReadFile(configPath)
@@ -75,7 +113,13 @@ func checkSerenaMCP(ctx context.Context, root string) (resultErr error) {
 	defer func() {
 		resultErr = errors.Join(resultErr, os.RemoveAll(temporary))
 	}()
-	client, closeClient, err := startMCP(ctx, root, "mcp:serve", "SERENA_HOME="+filepath.Join(temporary, "serena-home"))
+	client, closeClient, err := startMCP(
+		ctx,
+		root,
+		"mcp:serve",
+		log,
+		"SERENA_HOME="+filepath.Join(temporary, "serena-home"),
+	)
 	if err != nil {
 		return err
 	}
@@ -150,7 +194,7 @@ func checkSerenaMCP(ctx context.Context, root string) (resultErr error) {
 	return nil
 }
 
-func checkOpenCodeSerenaMCP(ctx context.Context, root string) (resultErr error) {
+func checkOpenCodeSerenaMCP(ctx context.Context, root string, log io.Writer) (resultErr error) {
 	temporary, err := os.MkdirTemp("", "serena-opencode-mcp-check-*")
 	if err != nil {
 		return err
@@ -162,6 +206,7 @@ func checkOpenCodeSerenaMCP(ctx context.Context, root string) (resultErr error) 
 		ctx,
 		root,
 		openCodeMCPTask,
+		log,
 		"SERENA_HOME="+filepath.Join(temporary, "serena-home"),
 	)
 	if err != nil {
