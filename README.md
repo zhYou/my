@@ -368,7 +368,11 @@ task 内由 mise 提供工具环境，无需额外包装。
 | `mise run fmt`                                               | 显式格式化 Go 和 JSON、XML、TOML、Markdown、YAML |
 | `mise run lint`                                              | 只读检查 Go、五类文本、工作流语义、资源和声明    |
 | `mise run check`                                             | 完整源码、测试、构建、契约与模板验收             |
+| `mise run verify:isolated`                                   | 在临时缓存中运行 check、race 和 MCP 验收         |
 | `mise run template:init --module <模块路径> --name <命令名>` | 初始化模板身份                                   |
+
+如果 mise state 本身处于只读沙箱，使用 `./tools/verify/run`；Windows PowerShell 使用
+`./tools/verify/run.ps1`。脚本会先建立独立的 Go build cache，再调用同一个隔离验证器。
 
 完整任务表、直接工具命令和按改动选择的检查见[开发说明](docs/development.md#开发命令)。
 本地检查不等于全部 CI；平台运行、发布、安全和托管要求见[维护清单](docs/maintenance.md)。
