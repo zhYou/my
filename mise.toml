@@ -107,6 +107,12 @@ description = "运行完整源码检查、测试、构建和模板验收"
 depends = ["lint", "build", "template:check", "contract:check", "lint:test"]
 run = ["go mod tidy -diff", "go test ./...", "go vet ./..."]
 
+[tasks."verify:isolated"]
+description = "在临时缓存中运行 check、race 和 MCP 验收"
+# 先让 go run 使用项目内可写缓存；验证器随后为子命令创建临时根目录。
+env = { GOCACHE = "{{config_root}}/.tmp/verify-go-cache" }
+run = "go run ./tools/verify"
+
 [tasks."contract:check"]
 description = "检查机器契约和兼容变更记录，不修改快照"
 run = "go run ./tools/contract check"

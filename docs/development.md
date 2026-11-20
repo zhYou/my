@@ -50,6 +50,7 @@ mise 聚合流程，领域 Go 入口只处理各自能力；参数不足、未�
 | `mise run lint:test`                                         | 用真实 fixture 测试静态规则自身；仅纳入 check                                  |
 | `mise run build`                                             | 构建到 bin，注入版本信息                                                       |
 | `mise run check`                                             | 完整源码检查，含测试、构建、契约和模板验收                                     |
+| `mise run verify:isolated`                                   | 在临时 MISE、Go、npm、uv 和 gopls 缓存中运行 check、race 与 MCP 验收           |
 | `mise run template:check`                                    | 在临时副本中验证改名、lint、测试、构建、安装和发布配置                         |
 | `mise run template:init --module <模块路径> --name <命令名>` | 初始化模板身份                                                                 |
 | `mise run contract:check` / `contract:update`                | 检查 / 显式更新机器契约                                                        |
@@ -126,7 +127,7 @@ JSON、XML、TOML 的语法由 pre-commit-hooks 包的 `check-json`、`check-xml
 | `internal/base`                                             | fault、messages、paths、validation、agecrypt、IO、logging、telemetry、diagnostics、结果 schema |
 | `internal/locales`                                          | 集中双语 TOML 消息目录与共享 Bundle                                                            |
 | `internal/command`                                          | 独立 argv、进程所有权、捕获和有界批量执行                                                      |
-| `tools/doctor/`、`tools/build/`                             | 环境探测、本地构建                                                                             |
+| `tools/doctor/`、`tools/build/`、`tools/verify/`            | 环境探测、本地构建、隔离验证                                                                   |
 | `tools/lint/`                                               | 消息、配置、包文档、版本声明检查和规则自测                                                     |
 | `tools/contract/`、`tools/template/`                        | 契约维护、模板初始化与隔离副本验收                                                             |
 | `tools/mcp/`、`tools/release/`                              | MCP 连接、发布归档与宿主安装验收                                                               |
@@ -138,7 +139,8 @@ base 不依赖 app、command、tools 或 Cobra。领域码及结果由所属模�
 开发工具用 `scaffold.Inspect` 静态识别唯一入口，不根据模块路径末段猜测命令名。
 
 mise 聚合完整流程，领域 Go 入口只承接自己的能力：`tools/lint` 接收 i18n/config/doc/style/versions/test，
-`tools/contract` 接收 check/update，`tools/template` 接收 init/check；其他领域入口不接受位置参数。
+`tools/contract` 接收 check/update，`tools/template` 接收 init/check，`tools/verify` 在隔离缓存中组合完整验收；
+其他领域入口不接受位置参数。
 初始化的 `--module`、`--name` 和契约检查的 `--against` 保持原用途。参数不足、未知或多余时立即失败。
 
 `tools/internal/toolchain` 共享准确版本读取与探测规格，供 doctor 和版本声明检查使用；
@@ -239,6 +241,19 @@ bin/dist、生成代码和外部 `*_test` 包不受约束；普通 `*_test.go` �
 `lint:test`、`template:check`、`contract:check` 已由完整 check 覆盖。MCP、漏洞扫描、发布验收及其他 OS 原生运行独立执行。
 只格式化授权的 Go 文件或目录，例如 `mise exec -- golangci-lint fmt --color=never internal/app/cli/greet.go`。
 无法执行的检查说明原因，不把配置存在、启动成功或 mock 当作真实验收。
+
+`verify:isolated` 为只读工具缓存或沙箱环境创建临时验证根目录，隔离 MISE state/cache、Go build cache、
+golangci-lint、XDG、npm、uv 和应用 HOME，并依次执行 `check`、宿主 race 与 `mcp:check`。
+Go module cache 复用 `setup` 已下载的内容，避免每次验证重新访问模块代理。任务失败时立即停止，
+仍清理临时目录。mise 自身已经受信任并取得可写 state 时使用 task；
+如果 mise state 也由只读沙箱隔离，则先由脚本建立外层 Go build cache，再启动同一验证器：
+
+```sh
+./tools/verify/run
+```
+
+Windows PowerShell 使用 `./tools/verify/run.ps1`。验证器启动后的工具缓存不依赖用户缓存可写性。
+它补充本地验证入口，不替代三平台 CI、原生客户端验收或发布证据。
 
 ### Serena 查询与 Go CLI 补充
 
