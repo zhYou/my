@@ -117,7 +117,7 @@ func TestVersionsRejectCIMismatch(t *testing.T) {
 
 func TestHistoricalVersionTextIsNotCurrentDeclaration(t *testing.T) {
 	root := versionFixture(t)
-	path := filepath.Join(root, "docs/superpowers/specs/history.md")
+	path := filepath.Join(root, "docs/history.md")
 	//nolint:gosec // G301：临时测试目录或可执行 fixture 明确模拟项目文件权限，不保存用户数据。
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte("Go 1.20.0 mise 2020.1.1"), 0o600))

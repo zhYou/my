@@ -60,8 +60,17 @@ run = "go run ./tools/build"
 
 # lint 检查当前源码、资源和声明；lint:test 验证规则自身，只纳入 check。
 [tasks.lint]
-description = "只读检查格式、源码、双语资源、配置、包文档和版本声明"
-depends = ["lint:i18n", "lint:config", "lint:doc", "lint:style", "lint:versions", "lint:text", "lint:workflow"]
+description = "只读检查格式、源码、双语资源、配置、客户端配置、包文档和版本声明"
+depends = [
+  "lint:i18n",
+  "lint:config",
+  "lint:opencode",
+  "lint:doc",
+  "lint:style",
+  "lint:versions",
+  "lint:text",
+  "lint:workflow"
+]
 run = ["golangci-lint fmt --diff --color=never", "golangci-lint run --allow-serial-runners"]
 
 [tasks."lint:i18n"]
@@ -71,6 +80,10 @@ run = "go run ./tools/lint i18n"
 [tasks."lint:config"]
 description = "检查受管应用配置"
 run = "go run ./tools/lint config"
+
+[tasks."lint:opencode"]
+description = "检查 OpenCode 项目配置、MCP 和权限边界"
+run = "go run ./tools/lint opencode"
 
 [tasks."lint:doc"]
 description = "检查各平台正式 Go 包的 doc.go 布局与有效包说明"
@@ -111,12 +124,16 @@ description = "在临时副本中验收初始化、lint、测试、构建和安�
 run = "go run ./tools/template check"
 
 [tasks."mcp:check"]
-description = "验收 Serena 六后端、Graphify 代码图和同连接 worktree 隔离"
+description = "验收 Codex/OpenCode Serena、Graphify 代码图和同连接 worktree 隔离"
 run = "go run ./tools/mcp"
 
 [tasks."mcp:serve"]
-description = "通过 uvx 启动可动态切换项目的 Serena MCP"
+description = "通过 uvx 启动 Codex 可动态切换项目的 Serena MCP"
 run = "uvx --isolated --python {{vars.serena_python_version}} --from serena-agent=={{vars.serena_version}} serena start-mcp-server --context codex --language-backend LSP --agent-interface tools --project-from-cwd --enable-web-dashboard false --open-web-dashboard false --enable-gui-log-window false"
+
+[tasks."mcp:serve:opencode"]
+description = "通过 uvx 启动绑定当前项目的 OpenCode Serena MCP"
+run = "uvx --isolated --python {{vars.serena_python_version}} --from serena-agent=={{vars.serena_version}} serena start-mcp-server --context ide --language-backend LSP --agent-interface tools --project-from-cwd --enable-web-dashboard false --open-web-dashboard false --enable-gui-log-window false"
 
 [tasks.graphify]
 description = "运行固定版本 Graphify CLI，参数和退出码沿用上游"

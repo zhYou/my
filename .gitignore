@@ -34,9 +34,8 @@ go.work.sum
 
 /bin/
 /dist/
-/.superpowers/
-/docs/superpowers/
 /.worktrees/
+/.tmp/
 /graphify-out/
 /.serena/*
 !/.serena/project.yml

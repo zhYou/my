@@ -1,0 +1,23 @@
+# 当前 checkout 的 Go 语言服务。
+
+prefix_rule(
+    pattern = ["gopls"],
+    decision = "allow",
+    justification = "运行项目的 Go 语言服务工具",
+    match = [
+        "gopls version",
+        "gopls check ./...",
+    ],
+    not_match = ["govulncheck ./..."],
+)
+
+prefix_rule(
+    pattern = ["rtk", "gopls"],
+    decision = "allow",
+    justification = "通过 RTK 运行项目的 Go 语言服务工具",
+    match = [
+        "rtk gopls version",
+        "rtk gopls check ./...",
+    ],
+    not_match = ["rtk govulncheck ./..."],
+)

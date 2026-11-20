@@ -14,12 +14,12 @@ import (
 func scanSources(root string, visit func(*token.FileSet, sourceFile)) error {
 	root, err := filepath.Abs(root)
 	if err != nil {
-		return fmt.Errorf("解析仓库路径: %w", err)
+		return fmt.Errorf(resolveRepositoryError, err)
 	}
 	fset := token.NewFileSet()
 	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return fmt.Errorf("读取 %s: %w", path, walkErr)
+			return fmt.Errorf(readPathError, path, walkErr)
 		}
 		name := entry.Name()
 		relative, err := filepath.Rel(root, path)
@@ -29,7 +29,7 @@ func scanSources(root string, visit func(*token.FileSet, sourceFile)) error {
 		relative = filepath.ToSlash(relative)
 		if entry.IsDir() {
 			if path != root &&
-				(strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == testdataDirectory || name == "vendor" || relative == "bin" || relative == "dist" || relative == "docs/superpowers") {
+				(strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == testdataDirectory || name == "vendor" || relative == "bin" || relative == "dist") {
 				return filepath.SkipDir
 			}
 			return nil

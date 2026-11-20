@@ -1,0 +1,33 @@
+# GoReleaser 只放行配置检查和本地 snapshot。
+
+prefix_rule(
+    pattern = ["goreleaser", "check"],
+    decision = "allow",
+    justification = "校验本地 GoReleaser 配置",
+    match = ["goreleaser check"],
+    not_match = ["goreleaser release"],
+)
+
+prefix_rule(
+    pattern = ["rtk", "goreleaser", "check"],
+    decision = "allow",
+    justification = "通过 RTK 校验本地 GoReleaser 配置",
+    match = ["rtk goreleaser check"],
+    not_match = ["rtk goreleaser release"],
+)
+
+prefix_rule(
+    pattern = ["goreleaser", "release", "--snapshot"],
+    decision = "allow",
+    justification = "在不发布的情况下构建本地 GoReleaser snapshot",
+    match = ["goreleaser release --snapshot --clean --parallelism 2"],
+    not_match = ["goreleaser release --clean"],
+)
+
+prefix_rule(
+    pattern = ["rtk", "goreleaser", "release", "--snapshot"],
+    decision = "allow",
+    justification = "通过 RTK 在不发布的情况下构建本地 GoReleaser snapshot",
+    match = ["rtk goreleaser release --snapshot --clean --parallelism 2"],
+    not_match = ["rtk goreleaser release --clean"],
+)

@@ -132,7 +132,7 @@ func validateTemplateMetadata(dir string) error {
 	if origin.Module != module || origin.Name != name {
 		return fmt.Errorf("来源记录与项目标识不一致")
 	}
-	for _, name := range []string{"docs/template-upgrades.md", "docs/maintenance.md", "SECURITY.md", ".github/PULL_REQUEST_TEMPLATE.md", ".github/CODEOWNERS.example", "docs/backlog.md"} {
+	for _, name := range []string{"docs/template-upgrades.md", "docs/maintenance.md", "SECURITY.md", ".github/PULL_REQUEST_TEMPLATE.md", ".github/CODEOWNERS.example"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return err
 		}

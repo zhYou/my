@@ -1,0 +1,62 @@
+# GitHub 仅自动放行只读查询。
+# create/edit/comment/merge/close 等远程写操作继续要求审批。
+
+prefix_rule(
+    pattern = ["gh", "pr", ["view", "list", "checks", "diff", "status"]],
+    decision = "allow",
+    justification = "在受信任项目中查看拉取请求状态",
+    match = [
+        "gh pr view 38 --json state",
+        "gh pr checks 38",
+        "gh pr diff 38",
+    ],
+    not_match = ["gh pr merge 38"],
+)
+
+prefix_rule(
+    pattern = ["rtk", "gh", "pr", ["view", "list", "checks", "diff", "status"]],
+    decision = "allow",
+    justification = "通过 RTK 在受信任项目中查看拉取请求状态",
+    match = ["rtk gh pr view 38", "rtk gh pr checks 38"],
+    not_match = ["rtk gh pr merge 38"],
+)
+
+prefix_rule(
+    pattern = ["gh", "issue", ["view", "list"]],
+    decision = "allow",
+    justification = "在受信任项目中查看 issue",
+    match = ["gh issue view 12 --json title,body", "gh issue list --state open"],
+    not_match = ["gh issue close 12"],
+)
+
+prefix_rule(
+    pattern = ["rtk", "gh", "issue", ["view", "list"]],
+    decision = "allow",
+    justification = "通过 RTK 在受信任项目中查看 issue",
+    match = ["rtk gh issue view 12", "rtk gh issue list"],
+    not_match = ["rtk gh issue close 12"],
+)
+
+prefix_rule(
+    pattern = ["gh", ["repo", "label", "run", "event"], ["view", "list", "listen"]],
+    decision = "allow",
+    justification = "在受信任项目中查看仓库和自动化状态",
+    match = [
+        "gh repo view --json nameWithOwner",
+        "gh label list --limit 100",
+        "gh run list --limit 10",
+        "gh event listen --resource https://github.com/example/repo/pull/1",
+    ],
+    not_match = [
+        "gh repo delete",
+        "gh label create example",
+    ],
+)
+
+prefix_rule(
+    pattern = ["rtk", "gh", ["repo", "label", "run", "event"], ["view", "list", "listen"]],
+    decision = "allow",
+    justification = "通过 RTK 在受信任项目中查看仓库和自动化状态",
+    match = ["rtk gh repo view", "rtk gh label list"],
+    not_match = ["rtk gh repo delete"],
+)

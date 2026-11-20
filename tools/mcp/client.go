@@ -174,7 +174,7 @@ func (c *mcpClient) activate(path, session string) error {
 }
 
 func (c *mcpClient) overview(path, marker string) error {
-	text, err := c.tool("get_symbols_overview", map[string]any{relativePathField: path, "depth": 1})
+	text, err := c.tool(symbolsOverviewTool, map[string]any{relativePathField: path, "depth": 1})
 	if err != nil {
 		return err
 	}

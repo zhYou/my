@@ -25,8 +25,9 @@ func TestCheckStyle(t *testing.T) {
 			"testdata/invalid.go": "invalid", "vendor/invalid.go": "invalid",
 			".hidden/invalid.go": "invalid", "_scratch/invalid.go": "invalid",
 			"bin/invalid.go": "invalid", "dist/invalid.go": "invalid",
-			"docs/superpowers/task/invalid.go": "invalid", ".hidden.go": "invalid", "_scratch.go": "invalid",
+			".hidden.go": "invalid", "_scratch.go": "invalid",
 		}, ""},
+		{"docs source", map[string]string{"docs/notes/invalid.go": "invalid"}, "解析 docs/notes/invalid.go"},
 		{"nested bin", map[string]string{"internal/bin/value.go": "package bin\ntype Value struct { A, B string }\n"}, "A, B"},
 		{"parse error", map[string]string{"invalid.go": "package\n"}, "解析 invalid.go"},
 	} {

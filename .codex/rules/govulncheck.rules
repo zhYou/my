@@ -1,0 +1,20 @@
+# Go 漏洞检查。
+
+prefix_rule(
+    pattern = ["govulncheck"],
+    decision = "allow",
+    justification = "检查 Go 依赖的已知漏洞",
+    match = [
+        "govulncheck ./...",
+        "govulncheck -mode=source ./...",
+    ],
+    not_match = ["gopls check ./..."],
+)
+
+prefix_rule(
+    pattern = ["rtk", "govulncheck"],
+    decision = "allow",
+    justification = "通过 RTK 检查 Go 依赖的已知漏洞",
+    match = ["rtk govulncheck ./..."],
+    not_match = ["rtk gopls check ./..."],
+)

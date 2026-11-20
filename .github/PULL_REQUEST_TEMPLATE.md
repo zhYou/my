@@ -1,6 +1,7 @@
 ## 变更与原因
 
-说明触发场景和最终行为；如有对应项目待办，引用 `docs/backlog.md` 中的 `BL-xxx`，并同步条目状态与关联 PR。
+说明触发场景和最终行为；如有对应项目待办或 issue，引用 `docs/backlog.md` 中的 `BL-xxx`
+或 GitHub Issue，并同步条目状态与关联 PR。
 
 ## 机器接口
 

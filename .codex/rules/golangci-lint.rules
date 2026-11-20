@@ -1,0 +1,24 @@
+# golangci-lint 仅放行格式化和静态检查。
+
+prefix_rule(
+    pattern = ["golangci-lint", ["fmt", "run"]],
+    decision = "allow",
+    justification = "运行项目的 Go 格式器和检查器",
+    match = [
+        "golangci-lint fmt --color=never",
+        "golangci-lint fmt --diff --color=never",
+        "golangci-lint run --allow-serial-runners",
+    ],
+    not_match = ["golangci-lint config verify"],
+)
+
+prefix_rule(
+    pattern = ["rtk", "golangci-lint", ["fmt", "run"]],
+    decision = "allow",
+    justification = "通过 RTK 运行项目的 Go 格式器和检查器",
+    match = [
+        "rtk golangci-lint fmt --color=never",
+        "rtk golangci-lint run --allow-serial-runners",
+    ],
+    not_match = ["rtk golangci-lint config verify"],
+)

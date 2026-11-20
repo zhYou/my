@@ -34,6 +34,40 @@ func main() {}
 	require.Empty(t, changed)
 }
 
+func TestInitializeReplacesGlossaryIdentity(t *testing.T) {
+	root := projectFixture(t, TemplateModule, TemplateName)
+	path := filepath.Join(root, "GLOSSARY.md")
+	require.NoError(t, os.WriteFile(path, []byte("# "+TemplateName+"\n\n由 "+TemplateName+" 维护。\n"), 0o600))
+	_, err := Initialize(root, "example.com/team/mycli", "my-cli")
+	require.NoError(t, err)
+	//nolint:gosec // G304：仅读取本测试临时目录中的文件。
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "# my-cli\n\n由 my-cli 维护。\n", string(data))
+}
+
+func TestInitializeReplacesAgentIdentityFiles(t *testing.T) {
+	root := projectFixture(t, TemplateModule, TemplateName)
+	files := map[string]string{
+		".codex/rules/go.rules":        "go build ./cmd/" + TemplateName + "\n",
+		"docs/agents/issue-tracker.md": "仓库为 zhYou/" + TemplateName + "。\n",
+	}
+	for name, contents := range files {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(contents), 0o600))
+	}
+	_, err := Initialize(root, "example.com/team/mycli", "my-cli")
+	require.NoError(t, err)
+	//nolint:gosec // G304：仅读取本测试临时目录中的文件。
+	rules, err := os.ReadFile(filepath.Join(root, ".codex/rules/go.rules"))
+	require.NoError(t, err)
+	require.Equal(t, "go build ./cmd/my-cli\n", string(rules))
+	//nolint:gosec // G304：仅读取本测试临时目录中的文件。
+	tracker, err := os.ReadFile(filepath.Join(root, "docs/agents/issue-tracker.md"))
+	require.NoError(t, err)
+	require.Equal(t, "仓库为 zhYou/my-cli。\n", string(tracker))
+}
+
 func TestInitializeSameNameDoesNotMove(t *testing.T) {
 	root := projectFixture(t, TemplateModule, TemplateName)
 	_, err := Initialize(root, "example.com/team/repository", TemplateName)

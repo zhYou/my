@@ -127,7 +127,7 @@ func doctor() error {
 
 		probes = append(probes, probe)
 	}
-	for _, name := range []string{"gh", "codex", "rtk"} {
+	for _, name := range []string{"gh", "codex", "opencode", "rtk"} {
 		probes = append(probes, doctorProbe{
 			spec: toolchain.ToolSpec{
 				Name: name,
@@ -158,7 +158,7 @@ func doctor() error {
 			fmt.Printf("通过：%s 执行入口\n", runner)
 		}
 	}
-	fmt.Println("用户工具：superpowers，请确认用户级技能在 Codex 中可用，项目不限定安装路径。")
+	fmt.Println("用户工具：Matt Pocock skills，请确认用户级技能在当前开发客户端中可用，项目不限定安装路径。")
 	fmt.Println("运行 mise run mcp:check 检查 Serena、Graphify 的实际连接。")
 	return err
 }

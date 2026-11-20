@@ -1,6 +1,6 @@
 # 模板升级
 
-模板版本在 `.template-version`，当前为 0.4.1，与应用发布版本独立；同版本内的调整还须按来源提交识别。
+模板版本在 `.template-version`，当前为 0.5.1，与应用发布版本独立；同版本内的调整还须按来源提交识别。
 初始化只对原始模板改名，不升级既有业务。新副本的 `.template-origin.json` 记录原模板、版本、目标身份和可确认的来源提交；
 未知来源使用 unknown，同参数初始化保留来源字节，不拿派生项目 HEAD 冒充来源。无元数据的旧项目仍可构建检查。
 
@@ -162,3 +162,71 @@ my 的已提交兼容决策以 v0.3.1 为基线，本轮目标 v0.4.0 尚未发�
 本次模板差异仅涉及 `docs/development.md`。对旧模板、新模板和当前 my 文档进行三方比对，
 对齐测试职责、Unix 平台约束、可选 live 验收和两组通用 IDE 折叠规则，保留 my 的真实 GitHub 验收启用条件。
 本项目测试文件的职责归并继续保留；本次同步只修改开发说明及来源记录，未改动 Go 源码、依赖、模板版本或最初初始化身份。
+
+## 迁移到 0.4.2：Matt Pocock skills、Graphify 与项目门禁
+
+此版本保持产品 CLI、配置、诊断协议、机器接口和退出码不变，更新 Matt Pocock skills 的工程流程、项目级 MCP 和静态门禁。
+
+1. 按工具维护要求同步 Go 1.27.4、gopls、mise 工具及版本声明，运行 setup 和 doctor。
+2. 合并 `.codex/config.toml`、`.graphifyignore`、`tools/mcp`、Graphify mise 任务和版本检查；Graphify 细节见上文“项目级 Graphify 与 worktree 路径”。三平台 MCP 真实验收仍由 CI 执行。
+3. 采用 Matt Pocock skills：同步 `docs/agents/`、根目录 `GLOSSARY.md`、`AGENTS.md` 的 Agent skills 导航和 doctor 用户技能提示，按目标仓库配置 tracker 与 triage 标签。把现有根级身份文档登记到 `managedFiles`，并人工更新项目名称；不要复制或安装用户级 skills。
+4. 同步 `.codex/rules/` 的项目命令规则，并调整其中与目标项目工具清单不一致的部分。项目继续以 GitHub Issues 为可执行待办来源；如删除本地 backlog，同步移除 `.github/PULL_REQUEST_TEMPLATE.md` 中的旧文件和编号引用，并在删除前由维护者处理仍有价值的条目。
+5. 合并根级身份文档门禁、隐藏文件审计命令、模板删除前暂存说明和旧工作流清理规则。更新文本后运行 `fmt:text` 与 `lint:text`，最终运行完整 `check` 和 `mise exec -- go test -race ./...`；MCP 变更运行 `mcp:check`，使用 `codex mcp list` 核对配置并真实验证 Serena/Graphify 调用，最后核对平台 CI。
+
+无需重新运行 `template:init` 或用 `0.4.2` 覆盖业务文件。升级来源以 `v0.4.2` 标签的准确提交为准；
+不把派生项目 HEAD 写作模板来源，也不改写既有 `.template-origin.json`。
+
+## 迁移到 0.5.0：OpenCode 开发支持
+
+此版本保持产品 CLI、配置、诊断协议、机器接口和退出码不变，新增 OpenCode V2 作为受支持的开发客户端。
+
+1. 同步根目录 `AGENTS.md`、`GLOSSARY.md` 和 `docs/adr/0001-shared-agent-rules-client-adapters.md`，
+   把共享流程规则与 Codex、OpenCode 客户端适配层分开；个人模型、凭据、权限和 skills 不进入模板。
+2. 合并 `.opencode/opencode.json`、OpenCode mise 任务、`lint:opencode` 和 `mcp:check` 的双 context 验收。
+   Serena 的 OpenCode 入口使用 `ide` context 绑定启动目录，Graphify 继续使用 `graphify:serve`。
+3. 同步 OpenCode shell 审批规则、`.worktrees` 路径和 Graphify 七工具限制，但不复制 Codex 的 RTK 规则。
+   把现有命令规则按目标项目工具清单复核后合并，不直接覆盖派生项目自己的权限。
+4. 更新 doctor、README、开发说明和维护清单中的客户端探测与验收。OpenCode V2.3.2 在 Windows 上存在
+   项目级 MCP 未加载的上游缺陷；修复前保留共享规则和开发命令，不声称 OpenCode MCP 原生可用。
+5. 修改文本后运行 `fmt:text`、`lint:text` 和 `lint:opencode`；最终运行完整 `check`、宿主 race 和
+   `mcp:check`。真实 OpenCode 客户端验收须从目标 checkout 启动，核对配置、MCP 和权限后验证实际工具调用。
+
+无需重新运行 `template:init` 或用 `0.5.0` 覆盖业务文件。升级来源以 `v0.5.0` 标签的准确提交为准；
+不把派生项目 HEAD 写作模板来源，也不改写既有 `.template-origin.json`。
+
+## 迁移到 0.5.1：CI 关键路径与工具链边界
+
+此版本保持产品 CLI、配置、诊断协议、机器接口和退出码不变，调整 CI 门禁位置并集中说明工具链所有权。
+
+1. 同步 `.github/workflows/ci.yml`、`security.yml` 和 `release.yml`：各 job 通过 mise action 的
+   `install_args` 只安装所需工具，随后下载 Go 模块，不再重复运行完整 setup。
+2. 采用新的 PR 门禁位置：Linux 运行完整源码检查；macOS/Windows 验证原生命令、integration 和模板；
+   main 与 release 再运行两平台完整测试和 Linux/macOS/Windows 三平台 MCP。
+3. 合并 `UV_TOOL_DIR`、文本工具与 MCP 工具分离缓存、浅 checkout 及契约基准按需获取等配置。
+   MCP 验收中的 Codex Serena、OpenCode Serena 和 Graphify 可并行执行。
+4. 增加并同步 `docs/toolchain.md`，按系统工具、用户工具、项目 mise、npx/uvx、Go 模块和仓库 Go 工具划分职责；
+   不复制用户级客户端、skills、凭据、权限或个人配置。
+5. 修改后运行 `fmt:text`、`lint:text`、`lint:workflow`、`lint:versions` 和完整 `check`；MCP 变更运行
+   `mcp:check`，实际发布前按维护清单验证 CI、snapshot、归档和来源证明。
+
+无需重新运行 `template:init` 或用 `0.5.1` 覆盖业务文件。升级来源以 `v0.5.1` 标签的准确提交为准；
+不把派生项目 HEAD 写作模板来源，也不改写既有 `.template-origin.json`。
+
+## my 的模板同步记录（0.4.1→0.5.1）
+
+2026-11-20 从模板来源 `0ba85f418512dd6eae1b3b8a0066354f2042e03d` 人工同步至
+`v0.5.1@eeca7ac5873a378a9f696a02c6fdb9320ec1fdaf`，模板版本由 0.4.1 更新为 0.5.1。
+本轮累计合并 `0.4.2` 的 Matt Pocock skills、Graphify 与项目门禁，`0.5.0` 的 OpenCode V2 支持，
+以及 `0.5.1` 的 CI 关键路径与工具链边界。
+
+继续使用旧、新公共模板副本各自的初始化器转换相同 my 身份后进行三方合并。保留 my 的业务实现、
+配置、诊断协议、机器契约、私有文档上下文和已有故障回归；仅在业务 checkout 合并模板文件，
+未执行 `template:init`，未改写 `.template-origin.json` 的最初来源身份。
+
+`docs/backlog.md` 继续保存维护者明确要求记录的探索想法，GitHub Issues 用于可执行 issue、规格和门票。
+本轮保留现有 BL-001，不随模板默认删除本地 backlog。OpenCode V2.3.2 的 Windows 项目级 MCP
+仍受上游缺陷限制，交付不以协议级验收代替该客户端原生加载验证。
+
+同步时补强了 OpenCode 配置对未知字段的拒绝、MCP 并发测试的取消收尾和模板身份文件登记，
+并在 `zhYou/my` 配置五个标准 triage 标签。CI 平台作业显式安装 doctor、文本检查和构建所需工具；
+PR 按设计跳过的 macOS/Windows MCP 作业在汇总门禁中明确列为唯一允许的 skipped 项。
