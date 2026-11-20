@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-func checkGraphifyMCP(ctx context.Context, root string) (resultErr error) {
+func checkGraphifyMCP(ctx context.Context, root string, log io.Writer) (resultErr error) {
 	temporary, err := os.MkdirTemp("", "graphify-mcp-check-*")
 	if err != nil {
 		return err
@@ -24,7 +25,7 @@ func checkGraphifyMCP(ctx context.Context, root string) (resultErr error) {
 		return err
 	}
 	// 在建图前连接，服务不得因尚无默认图而退出。
-	client, closeClient, err := startMCP(ctx, root, "graphify:serve", "GRAPHIFY_QUERY_LOG_DISABLE=1")
+	client, closeClient, err := startMCP(ctx, root, "graphify:serve", log, "GRAPHIFY_QUERY_LOG_DISABLE=1")
 	if err != nil {
 		return err
 	}

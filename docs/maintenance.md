@@ -48,6 +48,22 @@ Windows 只跨运行缓存模块，编译结果在当前 runner 内复用。缓�
 OpenCode V2.3.2 的 Windows 项目级 MCP 受上游缺陷限制；CI 的协议级 OpenCode context 验收不等于
 该客户端在 Windows 原生加载项目配置。修复前交付须明确此边界。
 
+### OpenCode 原生客户端验收
+
+MCP、权限或 OpenCode 项目适配层发生变化时，维护者在目标 checkout 启动真实 OpenCode V2 会话并完成：
+
+1. 运行 `opencode debug config`，确认项目 MCP、worktree 和 shell 审批边界已加载。
+2. 冷目录首次 `opencode mcp list` 按上游竞态等待服务就绪后重试；`pending` 只表示配置已加载。
+3. 在真实会话调用 Serena 的符号概览和 Graphify 的图查询，确认请求绑定当前 checkout。
+4. 验证未匹配的 shell 操作仍要求审批，并将客户端版本、checkout、结果或未验证原因写入交付证据。
+
+CI 的协议级 OpenCode context 通过只证明 MCP 通信契约；不能替代上述客户端过程验收。
+
+<!-- ci-allowed-pr-skips: agent-mcp-platforms -->
+
+CI 汇总允许的 PR 跳过项由 `tools/lint/workflow_policy_test.go` 固定，当前唯一例外是
+`agent-mcp-platforms`；新增例外时必须同步本文件、workflow 和策略测试。
+
 ## 升级和发布
 
 升级模板先按[旧事务恢复要求](template-upgrades.md#升级前完成旧事务)完成恢复，再人工合并；

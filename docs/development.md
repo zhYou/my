@@ -45,6 +45,7 @@ mise 聚合流程，领域 Go 入口只处理各自能力；参数不足、未�
 | `mise run lint:syntax`                                       | 用现成 CLI 检查 JSON、XML、TOML 语法和重复键                                   |
 | `mise run lint`                                              | 只读检查格式、双语消息、应用及客户端配置、包文档、源码风格、版本声明和静态规则 |
 | `mise run lint:i18n` / `lint:config` / `lint:opencode`       | 校验双语消息、受管应用配置 / OpenCode MCP 与权限边界；均纳入 lint 和 check     |
+| `mise run lint:agent-rules`                                  | 校验 `.codex/rules/*.rules` 的 justification 与文件边界；纳入 lint 和 check    |
 | `mise run lint:style`                                        | 检查具名和匿名结构体字段逐项声明；纳入 lint 和 check                           |
 | `mise run lint:doc`                                          | 检查正式 Go 包的 doc.go 与包说明位置；纳入 lint 和 check                       |
 | `mise run lint:test`                                         | 用真实 fixture 测试静态规则自身；仅纳入 check                                  |
@@ -55,7 +56,7 @@ mise 聚合流程，领域 Go 入口只处理各自能力；参数不足、未�
 | `mise run template:init --module <模块路径> --name <命令名>` | 初始化模板身份                                                                 |
 | `mise run contract:check` / `contract:update`                | 检查 / 显式更新机器契约                                                        |
 | `mise run lint:versions`                                     | 检查工具、模块、CI 和文档版本一致性                                            |
-| `mise run mcp:check`                                         | 验收两客户端 Serena context、六后端、Graphify 及同连接 worktree 隔离           |
+| `mise run mcp:check`                                         | 验收两客户端 Serena context、六后端、Graphify；成功仅输出摘要                  |
 | `mise run mcp:serve:opencode`                                | 以 `ide` context 启动绑定当前 checkout 的 OpenCode Serena MCP                  |
 | `mise run graphify -- <参数...>`                             | 运行固定版本 Graphify CLI，透传上游参数和退出码                                |
 | `mise run graphify:build` / `graphify:update`                | 构建 / 增量更新当前 checkout 的本地代码图，无需模型或 API Key                  |
@@ -138,7 +139,8 @@ base 不依赖 app、command、tools 或 Cobra。领域码及结果由所属模�
 运行时代码与测试不依赖开发包；工具可以复用运行时包。`tools/internal` 的导入范围由 Go 限制在 tools 子树内。
 开发工具用 `scaffold.Inspect` 静态识别唯一入口，不根据模块路径末段猜测命令名。
 
-mise 聚合完整流程，领域 Go 入口只承接自己的能力：`tools/lint` 接收 i18n/config/doc/style/versions/test，
+mise 聚合完整流程，领域 Go 入口只承接自己的能力：`tools/lint` 接收
+i18n/config/opencode/agent-rules/doc/style/versions/test，
 `tools/contract` 接收 check/update，`tools/template` 接收 init/check，`tools/verify` 在隔离缓存中组合完整验收；
 其他领域入口不接受位置参数。
 初始化的 `--module`、`--name` 和契约检查的 `--against` 保持原用途。参数不足、未知或多余时立即失败。
@@ -286,6 +288,10 @@ OpenCode context 验证 `ide` context、启动目录绑定和代表性符号查�
 [上游竞态](https://github.com/anomalyco/opencode/issues/63722)等待服务就绪后重试，`pending` 表示配置已加载而非连接失败。
 CLI 回退不能代替验收。
 
+`mcp:check` 将 Serena、OpenCode 和 Graphify 子进程 stderr 写入本次运行的临时日志；三个检查各保留一条
+成功摘要，成功结束后删除日志目录。任一检查失败时保留完整日志，并在返回错误中给出目录路径。
+失败排查直接查看该目录，不以截断的终端输出推断 MCP 协议或服务生命周期。
+
 ### Graphify 与工具分工
 
 [Graphify](https://github.com/Graphify-Labs/graphify) 的官方包名为 `graphifyy`。项目通过固定版本 uvx 和独立 Python 3.14.10 运行，
@@ -302,6 +308,10 @@ mise run graphify:update
 `graphify:build` 使用 `extract . --code-only`，`graphify:update` 使用本地增量更新，不调用模型。
 需要其他 CLI 能力时通过 `mise run graphify -- <参数...>` 调用；参数、输出及退出码沿用固定上游版本，未匹配节点为 4、名称歧义为 3。
 不安装用户 Skill、Git hooks 或 watcher，不配置语义提取后端；CLI 与 MCP 均设置 `GRAPHIFY_NO_AUTO_REFRESH=1`，禁用上游对用户 Skill 的自动刷新。
+
+影响分析从已知符号、文件或调用点起步，优先 `dfs`、1–2 层 depth、较小 token budget 和必要的关系过滤；
+宽泛 BFS 只用于初步调查，并应拆成多个从具体 hub 出发的查询。把“哪些包依赖某模块”这类问题直接投向
+全图会扩展到大量无关节点，既慢又挤占上下文。
 
 索引固定在当前 checkout 的 `graphify-out/`，不提交或复制到新项目。扫描遵循 Git 忽略规则，`.graphifyignore` 额外排除 `testdata` 夹具，普通测试保留。
 首次需要图时建图，切换 checkout 或修改代码后再次依赖图结论前增量更新；仅比较图的提交与 HEAD 不能发现未提交改动。
@@ -570,6 +580,10 @@ fault.Definition.Code 和 fault.Recovery.Code：显式结构体初始化及普�
 `mise run lint:opencode` 只校验仓库级 `.opencode/opencode.json`：固定 MCP 启动命令、
 300 秒启动与 180 秒执行超时、`.worktrees` 路径、shell 审批边界和 Graphify 七工具面。
 它不解析 `.codex/rules`，也不替代真实 OpenCode 客户端验收。
+
+`mise run lint:agent-rules` 解析 `.codex/rules/` 下所有 `.rules` 普通文件，要求每个文件至少包含一条
+带引号且可解码的中文 `justification`；符号链接、空文件、英文理由和损坏字符串均失败。
+它只检查人类可见规则说明，命令 allow/deny 的实际行为仍由规则测试、真实客户端和 CI 验收。
 
 `mise exec -- golangci-lint fmt --color=never` 使用 gofumpt、goimports 和 golines；
 加上 `--diff` 只展示差异并失败，不改源码。

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -47,7 +48,7 @@ func TestServerFailuresUnblockRequests(t *testing.T) {
 				timeout = 100 * time.Millisecond
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), timeout)
-			client, closeClient, err := startMCP(ctx, t.TempDir(), "mcp:serve")
+			client, closeClient, err := startMCP(ctx, t.TempDir(), "mcp:serve", io.Discard)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				cancel()
@@ -76,11 +77,24 @@ func TestClientCloseDrainsServerOutput(t *testing.T) {
 	t.Setenv("MCP_FIXTURE_MODE", "close-output")
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	client, closeClient, err := startMCP(ctx, t.TempDir(), "mcp:serve")
+	client, closeClient, err := startMCP(ctx, t.TempDir(), "mcp:serve", io.Discard)
 	require.NoError(t, err)
 	_, err = client.request("probe", map[string]any{})
 	require.NoError(t, err)
 	require.NoError(t, closeClient())
+}
+
+func TestStartMCPCapturesServerStderr(t *testing.T) {
+	bin := mcpProcessFixture(t)
+	t.Setenv("PATH", bin)
+	t.Setenv("MCP_FIXTURE_MODE", "stderr")
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	var logs bytes.Buffer
+	_, closeClient, err := startMCP(ctx, t.TempDir(), "mcp:serve", &logs)
+	require.NoError(t, err)
+	require.Error(t, closeClient())
+	require.Contains(t, logs.String(), "captured server stderr")
 }
 
 func TestToolResultRejectsProtocolAndToolErrors(t *testing.T) {
@@ -115,6 +129,9 @@ func main() {
     switch os.Getenv("MCP_FIXTURE_MODE") {
     case "exit": os.Exit(7)
     case "idle": for { time.Sleep(time.Hour) }
+    case "stderr":
+        if _, err := io.WriteString(os.Stderr, "captured server stderr\n"); err != nil { os.Exit(6) }
+        os.Exit(7)
     case "close-output":
         var request struct { ID int }
         if json.NewDecoder(os.Stdin).Decode(&request) != nil { os.Exit(2) }
