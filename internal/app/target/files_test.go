@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zhYou/my/internal/base/fault"
 )
 
 func TestAtomicWriteFilePreservesExistingMode(t *testing.T) {
@@ -25,6 +26,17 @@ func TestAtomicWriteFilePreservesExistingMode(t *testing.T) {
 	require.Equal(t, os.FileMode(0o640), info.Mode().Perm())
 }
 
+func TestAtomicWriteFileCreatesNewFilePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不提供 POSIX mode")
+	}
+	path := filepath.Join(t.TempDir(), "nested", "config.toml")
+	require.NoError(t, AtomicWriteFile(path, []byte("new\n"), 0o600))
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
 func TestAtomicWriteFileRejectsSymlink(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("符号链接创建需要额外 Windows 权限")
@@ -34,5 +46,17 @@ func TestAtomicWriteFileRejectsSymlink(t *testing.T) {
 	require.NoError(t, os.WriteFile(target, []byte("old"), 0o600))
 	link := filepath.Join(directory, "link")
 	require.NoError(t, os.Symlink(target, link))
-	require.Error(t, AtomicWriteFile(link, []byte("new"), 0o600))
+	err := AtomicWriteFile(link, []byte("new"), 0o600)
+	requireUnsupportedFile(t, err)
+	require.Equal(t, "old", readFixture(t, target))
+}
+
+func requireUnsupportedFile(t *testing.T, err error) {
+	t.Helper()
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.file_unsupported"), details[0].Code)
+	require.NotNil(t, details[0].Diagnostic.Recovery)
+	require.Equal(t, "target.recover_file_unsupported", details[0].Diagnostic.Recovery.Code)
 }

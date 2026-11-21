@@ -411,7 +411,10 @@ func readTargetFile(path string, required bool) ([]byte, error) {
 	if err != nil {
 		return nil, problem(codeStateInvalid, phaseStateRead, err)
 	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > maxTargetFileSize {
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, unsupportedFile(phaseStateRead)
+	}
+	if info.Size() > maxTargetFileSize {
 		return nil, problem(codeStateInvalid, phaseStateRead, nil)
 	}
 	file, err := os.Open(path) // #nosec G304 -- 路径来自固定目标声明并已拒绝符号链接。
