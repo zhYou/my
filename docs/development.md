@@ -34,34 +34,34 @@ actionlint 通过 `-version` 离线核对准确版本，属于必需工具。
 
 mise 聚合流程，领域 Go 入口只处理各自能力；参数不足、未知或多余时立即失败。
 
-| 命令                                                         | 用途                                                                           |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `mise run setup`                                             | 安装 mise 声明的运行时与工具，下载 Go 模块                                     |
-| `mise run doctor`                                            | 检查项目环境，报告用户工具状态                                                 |
-| `mise run fmt`                                               | 显式格式化 Go 和五类文本；分项可指定路径                                       |
-| `mise run fmt:go -- <路径...>` / `fmt:text -- <路径...>`     | 仅格式化指定 Go / 文本文件或目录；省略路径处理全部受检文件                     |
-| `mise run lint:text`                                         | 只读检查 JSON、XML、TOML、Markdown、YAML 的格式、语法及规则                    |
-| `mise run lint:workflow`                                     | 检查 GitHub Actions 工作流的语法、表达式、上下文与任务依赖；纳入 lint 和 check |
-| `mise run lint:syntax`                                       | 用现成 CLI 检查 JSON、XML、TOML 语法和重复键                                   |
-| `mise run lint`                                              | 只读检查格式、双语消息、应用及客户端配置、包文档、源码风格、版本声明和静态规则 |
-| `mise run lint:i18n` / `lint:config` / `lint:opencode`       | 校验双语消息、受管应用配置 / OpenCode MCP 与权限边界；均纳入 lint 和 check     |
-| `mise run lint:agent-rules`                                  | 校验 `.codex/rules/*.rules` 的 justification 与文件边界；纳入 lint 和 check    |
-| `mise run lint:style`                                        | 检查具名和匿名结构体字段逐项声明；纳入 lint 和 check                           |
-| `mise run lint:doc`                                          | 检查正式 Go 包的 doc.go 与包说明位置；纳入 lint 和 check                       |
-| `mise run lint:test`                                         | 用真实 fixture 测试静态规则自身；仅纳入 check                                  |
-| `mise run build`                                             | 构建到 bin，注入版本信息                                                       |
-| `mise run check`                                             | 完整源码检查，含测试、构建、契约和模板验收                                     |
-| `mise run verify:isolated`                                   | 在临时 MISE、Go、npm、uv 和 gopls 缓存中运行 check、race 与 MCP 验收           |
-| `mise run template:check`                                    | 在临时副本中验证改名、lint、测试、构建、安装和发布配置                         |
-| `mise run template:init --module <模块路径> --name <命令名>` | 初始化模板身份                                                                 |
-| `mise run contract:check` / `contract:update`                | 检查 / 显式更新机器契约                                                        |
-| `mise run lint:versions`                                     | 检查工具、模块、CI 和文档版本一致性                                            |
-| `mise run mcp:check`                                         | 验收两客户端 Serena context、六后端、Graphify；成功仅输出摘要                  |
-| `mise run mcp:serve:opencode`                                | 以 `ide` context 启动绑定当前 checkout 的 OpenCode Serena MCP                  |
-| `mise run graphify -- <参数...>`                             | 运行固定版本 Graphify CLI，透传上游参数和退出码                                |
-| `mise run graphify:build` / `graphify:update`                | 构建 / 增量更新当前 checkout 的本地代码图，无需模型或 API Key                  |
-| `mise run graphify:serve`                                    | 启动 Graphify MCP，查询显式传当前 checkout 的绝对 `project_path`               |
-| `mise run release:verify`                                    | 验证发布归档，并隔离安装宿主程序                                               |
+| 命令                                                         | 用途                                                                             |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `mise run setup`                                             | 安装 mise 声明的运行时与工具，下载 Go 模块                                       |
+| `mise run doctor`                                            | 检查项目环境，报告用户工具状态                                                   |
+| `mise run fmt`                                               | 显式格式化 Go 和五类文本；分项可指定路径                                         |
+| `mise run fmt:go -- <路径...>` / `fmt:text -- <路径...>`     | 仅格式化指定 Go / 文本文件或目录；省略路径处理全部受检文件                       |
+| `mise run lint:text`                                         | 只读检查 JSON、XML、TOML、Markdown、YAML 的格式、语法及规则                      |
+| `mise run lint:workflow`                                     | 检查 GitHub Actions 工作流的语法、表达式、上下文与任务依赖；纳入 lint 和 check   |
+| `mise run lint:syntax`                                       | 用现成 CLI 检查 JSON、XML、TOML 语法和重复键                                     |
+| `mise run lint`                                              | 只读检查格式、双语消息、应用及客户端配置、包文档、源码风格、版本声明和静态规则   |
+| `mise run lint:i18n` / `lint:config` / `lint:opencode`       | 校验双语消息、受管应用配置 / OpenCode MCP 与权限边界；均纳入 lint 和 check       |
+| `mise run lint:agent-rules`                                  | 校验 `.codex/rules/*.rules` 的语法、字段与中文 justification；纳入 lint 和 check |
+| `mise run lint:style`                                        | 检查具名和匿名结构体字段逐项声明；纳入 lint 和 check                             |
+| `mise run lint:doc`                                          | 检查正式 Go 包的 doc.go 与包说明位置；纳入 lint 和 check                         |
+| `mise run lint:test`                                         | 用真实 fixture 测试静态规则自身；仅纳入 check                                    |
+| `mise run build`                                             | 构建到 bin，注入版本信息                                                         |
+| `mise run check`                                             | 完整源码检查，含测试、构建、契约和模板验收                                       |
+| `mise run verify:isolated`                                   | 在临时 MISE、Go、npm、uv 和 gopls 缓存中运行 check、race 与 MCP 验收             |
+| `mise run template:check`                                    | 在临时副本中验证改名、lint、测试、构建、安装和发布配置                           |
+| `mise run template:init --module <模块路径> --name <命令名>` | 初始化模板身份                                                                   |
+| `mise run contract:check` / `contract:update`                | 检查 / 显式更新机器契约                                                          |
+| `mise run lint:versions`                                     | 检查工具、模块、CI 和文档版本一致性                                              |
+| `mise run mcp:check`                                         | 验收两客户端 Serena context、六后端、Graphify；成功仅输出摘要                    |
+| `mise run mcp:serve:opencode`                                | 以 `ide` context 启动绑定当前 checkout 的 OpenCode Serena MCP                    |
+| `mise run graphify -- <参数...>`                             | 运行固定版本 Graphify CLI，透传上游参数和退出码                                  |
+| `mise run graphify:build` / `graphify:update`                | 构建 / 增量更新当前 checkout 的本地代码图，无需模型或 API Key                    |
+| `mise run graphify:serve`                                    | 启动 Graphify MCP，查询显式传当前 checkout 的绝对 `project_path`                 |
+| `mise run release:verify`                                    | 验证发布归档，并隔离安装宿主程序                                                 |
 
 直接调用纳管工具无需 shell 激活；以下直接工具命令也可用于针对性验证：
 
@@ -581,9 +581,12 @@ fault.Definition.Code 和 fault.Recovery.Code：显式结构体初始化及普�
 300 秒启动与 180 秒执行超时、`.worktrees` 路径、shell 审批边界和 Graphify 七工具面。
 它不解析 `.codex/rules`，也不替代真实 OpenCode 客户端验收。
 
-`mise run lint:agent-rules` 解析 `.codex/rules/` 下所有 `.rules` 普通文件，要求每个文件至少包含一条
-带引号且可解码的中文 `justification`；符号链接、空文件、英文理由和损坏字符串均失败。
-它只检查人类可见规则说明，命令 allow/deny 的实际行为仍由规则测试、真实客户端和 CI 验收。
+`mise run lint:agent-rules` 解析 `.codex/rules/` 下所有 `.rules` 普通文件，顶层只能是 `prefix_rule` 调用。
+每条规则必须提供非空 `pattern` 列表，元素只能是字符串或非空字符串列表；`decision` 可省略，出现时只能是
+`allow`、`prompt` 或 `forbidden`。未知字段和重复字段失败；`match`、`not_match` 作为已知字段接受，
+示例命令语义不在检查范围内。`justification` 出现时必须是可解码字符串且含中文，每个文件至少一条。
+字符串支持单引号和双引号及常见转义，注释不参与解析；符号链接、空文件、只有注释、英文理由、
+损坏字符串和括号不匹配均失败。命令 allow/deny 的实际行为仍由规则测试、真实客户端和 CI 验收。
 
 `mise exec -- golangci-lint fmt --color=never` 使用 gofumpt、goimports 和 golines；
 加上 `--diff` 只展示差异并失败，不改源码。
