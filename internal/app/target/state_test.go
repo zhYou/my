@@ -47,6 +47,22 @@ func TestFileStateIsolatesRepositoryBranchAndTarget(t *testing.T) {
 	require.False(t, exists)
 }
 
+func TestFileStateReadsLegacyBaselineWithoutCommit(t *testing.T) {
+	state := NewFileState(filepath.Join(t.TempDir(), "state"), "workstation")
+	metadata := datarepo.Metadata{Repository: "owner/data", RepositoryID: 42, Branch: "main"}
+	file, err := state.baselinePath(metadata, Topgrade)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o700))
+	legacy := `{"schema_version":1,"machine_id":"workstation","repository_id":42,` +
+		`"repository":"owner/data","branch":"main","target":"topgrade","units":{}}`
+	require.NoError(t, os.WriteFile(file, []byte(legacy), 0o600))
+
+	baseline, exists, err := state.Read(metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Empty(t, baseline.Commit)
+}
+
 func TestFileStateRejectsSecretData(t *testing.T) {
 	state := NewFileState(filepath.Join(t.TempDir(), "state"), "workstation")
 	err := state.Write(

@@ -30,6 +30,12 @@ func TestTargetCommandsAreDiscoverable(t *testing.T) {
 	require.Zero(t, code, stderr)
 	require.Contains(t, out, `"unit"`)
 	require.Contains(t, out, `"from"`)
+
+	code, out, stderr = invoke(t, "schema", "target", "list")
+	require.Zero(t, code, stderr)
+	require.Contains(t, out, `"all"`)
+	require.Contains(t, out, `"baseline_commit"`)
+	require.Contains(t, out, `"status"`)
 }
 
 func TestActivateRejectsJSONWithoutReadingCache(t *testing.T) {
@@ -255,6 +261,65 @@ func TestTargetAndEnvironmentCommandsCompleteHTTPWorkflow(t *testing.T) {
 			require.NotContains(t, listed, "synthetic-env-value")
 			call("env", "remove", "EDITOR")
 			verifyDiagnosticFiles(t, home)
+		})
+	}
+}
+
+func TestTargetListWorkflow(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{{"data", "init"}, {"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"}} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			path := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("verbose = true\n"), 0o600))
+			call := func(args ...string) string {
+				code, out, stderr := workflowCall(t, f, home, nil, append(args, "--json", "--lang", lang)...)
+				require.Zero(t, code, stderr)
+				require.True(t, json.Valid([]byte(out)))
+				return out
+			}
+			captured := call("target", "capture", "topgrade")
+			var capture struct {
+				Snapshot struct {
+					Commit string `json:"commit"`
+				} `json:"snapshot"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(captured), &capture))
+			require.NotEmpty(t, capture.Snapshot.Commit)
+
+			clashPath := filepath.Join(home, ".config", "clash-verge", "zeus-global-extend.js")
+			require.NoError(t, os.MkdirAll(filepath.Dir(clashPath), 0o700))
+			require.NoError(t, os.WriteFile(clashPath, []byte("console.log('local')\n"), 0o600))
+			config := "[data]\nrepository='owner/data'\n[telemetry]\nexporter='file'\n" +
+				"[secrets]\nidentity_file='" + filepath.Join(home, "missing-identity") + "'\n"
+			require.NoError(t, os.WriteFile(filepath.Join(home, "config.toml"), []byte(config), 0o600))
+
+			listed := call("target", "list")
+			require.Contains(t, listed, `"target":"topgrade"`)
+			require.Contains(t, listed, `"status":"managed"`)
+			require.Contains(t, listed, `"scope":["*"]`)
+			require.Contains(t, listed, `"baseline_commit":"`+capture.Snapshot.Commit+`"`)
+			require.Contains(t, listed, `"units":1`)
+			require.Contains(t, listed, `"target":"clash-global"`)
+			require.Contains(t, listed, `"status":"local"`)
+			require.NotContains(t, listed, `"status":"absent"`)
+			require.NotContains(t, listed, `"target":"codex-settings"`)
+
+			all := call("target", "list", "--all")
+			require.Contains(t, all, `"target":"codex-settings"`)
+			require.Contains(t, all, `"status":"absent"`)
+			require.Contains(t, all, `"scope":[]`)
+
+			code, out, stderr := workflowCall(t, f, home, nil, "target", "list", "--lang", lang)
+			require.Zero(t, code, stderr)
+			require.Contains(t, out, "topgrade\tmanaged\t*\t"+capture.Snapshot.Commit+"\t1")
+			require.Contains(t, out, "clash-global\tlocal\t-\t-\t0")
+			require.NotContains(t, out, "codex-settings")
 		})
 	}
 }

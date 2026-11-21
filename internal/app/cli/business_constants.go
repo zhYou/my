@@ -8,6 +8,7 @@ const (
 	messageRecordResult           = "machine.record_result"
 	flagKind                      = "kind"
 	flagMachine                   = "machine"
+	flagAll                       = "all"
 	flagUnit                      = "unit"
 	flagFrom                      = "from"
 	flagSecret                    = "secret"

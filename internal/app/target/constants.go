@@ -11,6 +11,7 @@ const (
 
 	phaseValidate        = "target.validate"
 	phaseStateRead       = "target.state_read"
+	phaseListRead        = "target.list_read"
 	phaseStateWrite      = "target.state_write"
 	phaseCompare         = "target.compare"
 	codeInvalidInput     = "target.invalid_input"

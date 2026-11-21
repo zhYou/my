@@ -41,6 +41,38 @@ func TestCaptureCreatesTargetAndBaseline(t *testing.T) {
 	require.True(t, baseline.Units[FileUnitID("topgrade.toml")].Exists)
 }
 
+func TestBaselineRecordsLastSuccessfulSyncCommit(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	capturedCommit := repository.snapshot.Metadata.Commit
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, capturedCommit, baseline.Commit)
+
+	repository.snapshot.Files["configs/targets/topgrade/data/topgrade.toml"] = []byte("verbose = false\n")
+	repository.snapshot.Metadata.Commit = "remote-two"
+	_, err = service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	baseline, exists, err = service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, "remote-two", baseline.Commit)
+
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = 3\n")
+	_, err = service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	baseline, exists, err = service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, repository.snapshot.Metadata.Commit, baseline.Commit)
+}
+
 func TestSyncAppliesRemoteAndUploadsLocal(t *testing.T) {
 	t.Run("remote", func(t *testing.T) {
 		home, repository, service := capturedTopgrade(t, "verbose = true\n")
@@ -215,6 +247,10 @@ func TestResolveRemoteAndLocal(t *testing.T) {
 		require.True(t, result.Changed)
 		require.Equal(t, "verbose = \"remote\"\n", readFixture(t, localPath))
 		require.Empty(t, repository.commits)
+		baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.Equal(t, "remote-change", baseline.Commit)
 	})
 
 	t.Run("local", func(t *testing.T) {
@@ -235,6 +271,10 @@ func TestResolveRemoteAndLocal(t *testing.T) {
 			"verbose = \"local\"\n",
 			string(repository.snapshot.Files["configs/targets/topgrade/data/topgrade.toml"]),
 		)
+		baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.Equal(t, repository.snapshot.Metadata.Commit, baseline.Commit)
 	})
 }
 
