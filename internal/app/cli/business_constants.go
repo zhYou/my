@@ -5,6 +5,7 @@ const (
 	paramCommit                   = "Commit"
 	schemaList                    = "list"
 	schemaChange                  = "change"
+	schemaUpdate                  = "update"
 	messageRecordResult           = "machine.record_result"
 	flagKind                      = "kind"
 	flagMachine                   = "machine"

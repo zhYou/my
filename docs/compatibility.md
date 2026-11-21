@@ -23,6 +23,7 @@
 | [发现能力与 doctor](compatibility/changes/2026-11-02-cli-discovery-doctor.json) | doctor 报告、completion shell 子命令、帮助与 schema |
 | [配置同步与环境激活](compatibility/changes/2026-11-09-config-sync.json)         | config、env、activate 命令及可选 age identity       |
 | [首次同步下发](compatibility/changes/2026-11-21-target-first-sync.json)         | 无基线下本机缺失单位按远端下发                      |
+| [机器资料更新](compatibility/changes/2026-11-21-machine-update.json)            | 新增 machine update，仅修正 kind 或 note            |
 
 [0.4.0 诊断契约记录](compatibility/changes/2026-11-07-my-diagnostic-contract.json)声明 stderr 文本转 JSONL 的破坏变更；schema_version 仍为 1。
 
