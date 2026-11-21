@@ -78,10 +78,11 @@ const (
 	ResolveRemote ResolveSource = "remote"
 )
 
-// ResolveOptions 指定一个稳定冲突单位。
+// ResolveOptions 指定一个稳定冲突单位，或一次解决整个目标的全部冲突。
 type ResolveOptions struct {
 	Target ID
 	Unit   UnitID
+	All    bool
 	From   ResolveSource
 }
 
@@ -103,6 +104,15 @@ type Result struct {
 	Snapshot datarepo.Metadata `json:"snapshot"`
 	Targets  []ItemResult      `json:"targets"`
 	Changed  bool              `json:"changed"`
+}
+
+// ResolveResult 汇总一次冲突解决；剩余列表在成功时为空数组。
+type ResolveResult struct {
+	Snapshot  datarepo.Metadata `json:"snapshot"`
+	Targets   []ItemResult      `json:"targets"`
+	Changed   bool              `json:"changed"`
+	Resolved  []UnitID          `json:"resolved"`
+	Remaining []Conflict        `json:"remaining"`
 }
 
 // DiffChange 描述一个单位的只读比较结果。
@@ -559,8 +569,8 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 	return result, nil
 }
 
-// Resolve 显式采用一个冲突单位的一侧来源。
-func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Result, err error) {
+// Resolve 显式采用一个冲突单位的一侧来源，或按稳定单位顺序解决整个目标的冲突。
+func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result ResolveResult, err error) {
 	ctx, progress := s.begin(ctx, "target.resolve")
 	defer progress.finish(&err)
 	if err := ctx.Err(); err != nil {
@@ -571,15 +581,6 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 		return result, err
 	}
 
-	if err = input.Target.Validate(); err != nil {
-		return result, err
-	}
-	if err := input.Unit.Validate(); err != nil {
-		return result, err
-	}
-	if input.From != ResolveLocal && input.From != ResolveRemote {
-		return result, invalidInput()
-	}
 	if err = s.validate(); err != nil {
 		return result, err
 	}
@@ -598,10 +599,28 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 		return result, invalidInput()
 	}
 	plan := &plans[0]
-	comparison, exists := plan.comparisons[input.Unit]
-	if !exists || comparison.Action != ActionConflict {
-		return result, invalidInput()
+	selected := []Conflict{}
+	if input.All {
+		selected = planConflicts([]targetPlan{*plan})
+		if len(selected) == 0 {
+			return result, noConflicts(input.Target, phaseCompare)
+		}
+	} else {
+		comparison, exists := plan.comparisons[input.Unit]
+		if !exists || comparison.Action != ActionConflict {
+			return result, invalidInput()
+		}
+		selected = []Conflict{{
+			Target: input.Target,
+			Unit:   input.Unit,
+			Code:   comparison.Code,
+		}}
 	}
+	units := make([]UnitID, 0, len(selected))
+	for _, conflict := range selected {
+		units = append(units, conflict.Unit)
+	}
+
 	baseline, baselineExists, err := s.options.State.Read(snapshot.Metadata, input.Target)
 	if err != nil {
 		return result, err
@@ -609,43 +628,35 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	if !baselineExists {
 		baseline = Baseline{Target: input.Target, Units: map[UnitID]BaselineValue{}}
 	}
-	var chosen UnitValue
+	values, key, ciphertext, err := s.resolveValues(*plan, units, input.From)
+	if err != nil {
+		return result, err
+	}
+
+	resolved := make([]UnitID, 0, len(units))
 	switch input.From {
 	case ResolveLocal:
-		chosen = plan.local[input.Unit]
-		if plan.target.Kind == UnitSecret {
-			chosen = plan.localSecret
-		}
-		if !chosen.Exists && plan.target.Kind == UnitFile {
-			return result, invalidInput()
-		}
 		updated := remoteTarget{
 			id:     plan.target.ID,
 			scope:  plan.scope,
-			units:  unitOverlay(plan.allRemote, map[UnitID]UnitValue{input.Unit: chosen}),
+			units:  unitOverlay(plan.allRemote, values),
 			target: plan.target,
 		}
 		if plan.target.Kind == UnitSecret {
-			key, err := s.ageKey()
-			if err != nil {
-				return result, err
+			secret := values[SecretUnitID]
+			if key == nil || len(ciphertext) == 0 || len(plan.target.Files) != 1 {
+				return result, problem(codeStateInvalid, phaseStateWrite, nil)
 			}
-			if len(chosen.Data) == 0 {
-				return result, problem(codeInvalidInput, phaseValidate, nil)
-			}
-			ciphertext, encryptErr := key.Encrypt(chosen.Data)
-			if encryptErr != nil {
-				return result, problem(codeStateInvalid, phaseStateWrite, encryptErr)
-			}
-			updated.version = chosen.Digest
+			updated.units[SecretUnitID] = UnitValue{Exists: true, Digest: secret.Digest}
+			updated.version = secret.Digest
 			updated.recipient = key.Recipient()
 			updated.files = map[string][]byte{plan.target.Files[0].Name: ciphertext}
-			updated.units[input.Unit] = UnitValue{Exists: true, Digest: chosen.Digest}
 		}
 		files, encodeErr := remoteFilesForTarget(updated)
 		if encodeErr != nil {
 			return result, encodeErr
 		}
+		progress.step(ctx, "target.commit")
 		metadata, commitErr := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
 			Message: "my: 解决目标冲突",
 			Files:   files,
@@ -654,54 +665,149 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 			return result, commitErr
 		}
 		progress.confirmed(effectDataCommit)
-		progress.commit = metadata.Commit
 		snapshot.Metadata = metadata
-		plan.remote = updated.units
+		for _, unit := range units {
+			resolved = append(resolved, unit)
+			progress.confirmed("target.resolved:" + string(unit))
+		}
+		progress.commit = metadata.Commit
+		progress.step(ctx, phaseStateWrite)
+		baseline.Pending = nil
+		baseline.Commit = metadata.Commit
+		for _, unit := range units {
+			baseline.Units[unit] = baselineValueFromUnit(values[unit], plan.target.Kind == UnitSecret)
+		}
+		if writeErr := s.options.State.Write(metadata, baseline); writeErr != nil {
+			return resolveResult(metadata, input.Target, resolved, []Conflict{}), writeErr
+		}
+		progress.confirmed("target.baseline:" + string(input.Target))
 	case ResolveRemote:
-		chosen = plan.remote[input.Unit]
-		if plan.target.Kind == UnitSecret {
-			decrypted, decryptErr := s.decryptSecretUnits(
-				*plan,
-				map[UnitID]UnitValue{input.Unit: chosen},
-			)
-			if decryptErr != nil {
-				return result, decryptErr
-			}
-			pendingBaseline := baseline
-			pendingBaseline.Pending = &PendingSecret{
-				Version:        chosen.Digest,
-				BeforeDigest:   plan.localFileDigest,
-				BeforeExists:   !plan.missingLocal,
-				SnapshotDigest: chosen.Digest,
-			}
-			if err := s.options.State.Write(snapshot.Metadata, pendingBaseline); err != nil {
-				return result, err
-			}
-			progress.confirmed("target.pending:" + string(plan.target.ID))
-			chosen = decrypted[input.Unit]
-		}
 		progress.step(ctx, "target.local_write")
-		if err := s.applyLocalUnits(plan.target, map[UnitID]UnitValue{input.Unit: chosen}, progress); err != nil {
-			return result, err
+		for index, unit := range units {
+			if plan.target.Kind == UnitSecret {
+				pending := baseline
+				pending.Pending = &PendingSecret{
+					Version:        values[unit].Digest,
+					BeforeDigest:   plan.localFileDigest,
+					BeforeExists:   !plan.missingLocal,
+					SnapshotDigest: values[unit].Digest,
+				}
+				if writeErr := s.options.State.Write(snapshot.Metadata, pending); writeErr != nil {
+					return resolveResult(snapshot.Metadata, input.Target, resolved, selected[index:]),
+						partialFailure(input, resolved, selected[index:], writeErr)
+				}
+				progress.confirmed("target.pending:" + string(plan.target.ID))
+			}
+			if applyErr := s.applyLocalUnits(
+				plan.target,
+				map[UnitID]UnitValue{unit: values[unit]},
+				progress,
+			); applyErr != nil {
+				return resolveResult(snapshot.Metadata, input.Target, resolved, selected[index:]),
+					partialFailure(input, resolved, selected[index:], applyErr)
+			}
+			resolved = append(resolved, unit)
+			progress.confirmed("target.resolved:" + string(unit))
+			baseline.Units[unit] = baselineValueFromUnit(values[unit], plan.target.Kind == UnitSecret)
+			baseline.Pending = nil
+			baseline.Commit = snapshot.Metadata.Commit
+			if writeErr := s.options.State.Write(snapshot.Metadata, baseline); writeErr != nil {
+				return resolveResult(snapshot.Metadata, input.Target, resolved, selected[index+1:]),
+					partialFailure(input, resolved, selected[index+1:], writeErr)
+			}
+			progress.confirmed("target.baseline:" + string(input.Target))
 		}
-		plan.local[input.Unit] = chosen
 	}
 	progress.commit = snapshot.Metadata.Commit
-	progress.step(ctx, phaseStateWrite)
-	baseline.Pending = nil
-	baseline.Commit = snapshot.Metadata.Commit
-	baseline.Units[input.Unit] = baselineValueFromUnit(
-		chosen,
-		input.Target == CodexAuth || input.Target == ShellEnvSecret,
-	)
-	if err := s.options.State.Write(snapshot.Metadata, baseline); err != nil {
-		return result, err
+	return resolveResult(snapshot.Metadata, input.Target, resolved, []Conflict{}), nil
+}
+
+// resolveValues 在写入前确定并校验全部冲突单位在所选来源中的值。
+func (s *Service) resolveValues(
+	plan targetPlan,
+	units []UnitID,
+	from ResolveSource,
+) (map[UnitID]UnitValue, *agecrypt.Key, []byte, error) {
+	values := make(map[UnitID]UnitValue, len(units))
+	switch from {
+	case ResolveLocal:
+		for _, unit := range units {
+			value := plan.local[unit]
+			if plan.target.Kind == UnitSecret {
+				value = plan.localSecret
+			}
+			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
+				return nil, nil, nil, invalidInput()
+			}
+			if plan.target.Kind == UnitSecret && len(value.Data) == 0 {
+				return nil, nil, nil, invalidInput()
+			}
+			values[unit] = value
+		}
+		if plan.target.Kind != UnitSecret {
+			return values, nil, nil, nil
+		}
+		key, err := s.ageKey()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		ciphertext, err := key.Encrypt(values[SecretUnitID].Data)
+		if err != nil {
+			return nil, nil, nil, problem(codeStateInvalid, phaseStateWrite, err)
+		}
+		return values, key, ciphertext, nil
+	case ResolveRemote:
+		for _, unit := range units {
+			value := plan.remote[unit]
+			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
+				return nil, nil, nil, invalidInput()
+			}
+			values[unit] = value
+		}
+		if plan.target.Kind == UnitSecret {
+			decrypted, err := s.decryptSecretUnits(plan, values)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			values = decrypted
+		}
+		return values, nil, nil, nil
+	default:
+		return nil, nil, nil, invalidInput()
 	}
-	return Result{
-		Snapshot: snapshot.Metadata,
-		Changed:  true,
-		Targets:  []ItemResult{{Target: input.Target, Changed: true, Changes: 1}},
-	}, nil
+}
+
+func resolveResult(
+	metadata datarepo.Metadata,
+	target ID,
+	resolved []UnitID,
+	remaining []Conflict,
+) ResolveResult {
+	changed := len(resolved) != 0
+	return ResolveResult{
+		Snapshot: metadata,
+		Targets: []ItemResult{{
+			Target:    target,
+			Changed:   changed,
+			Changes:   len(resolved),
+			Conflicts: len(remaining),
+		}},
+		Changed:   changed,
+		Resolved:  append([]UnitID(nil), resolved...),
+		Remaining: append([]Conflict{}, remaining...),
+	}
+}
+
+func partialFailure(
+	input ResolveOptions,
+	resolved []UnitID,
+	remaining []Conflict,
+	cause error,
+) error {
+	if len(resolved) == 0 || len(remaining) == 0 {
+		return cause
+	}
+	return partialResolve(input.Target, input.From, len(resolved), remaining, cause)
 }
 
 // Remove 取消目标纳管并删除远端声明，保留本机文件。

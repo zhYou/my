@@ -2595,6 +2595,13 @@
                     "required": false,
                     "type": "string"
                   },
+                  "all": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "all",
+                    "required": false,
+                    "type": "bool"
+                  },
                   "config": {
                     "default": "",
                     "inherited": true,
@@ -2641,7 +2648,7 @@
                     "default": "",
                     "inherited": false,
                     "name": "unit",
-                    "required": true,
+                    "required": false,
                     "type": "string"
                   }
                 },
@@ -2652,6 +2659,41 @@
                   "properties": {
                     "changed": {
                       "type": "boolean"
+                    },
+                    "remaining": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "unit": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "unit",
+                          "code"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "resolved": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
                     },
                     "snapshot": {
                       "additionalProperties": true,
@@ -2711,7 +2753,9 @@
                   "required": [
                     "snapshot",
                     "targets",
-                    "changed"
+                    "changed",
+                    "resolved",
+                    "remaining"
                   ],
                   "type": "object"
                 }

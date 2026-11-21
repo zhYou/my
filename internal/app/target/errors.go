@@ -1,6 +1,8 @@
 package target
 
 import (
+	"strings"
+
 	"github.com/zhYou/my/internal/base/fault"
 )
 
@@ -68,6 +70,52 @@ func unsupportedFile(phase string) error {
 				Phase:            phase,
 				CompletedEffects: []string{},
 				Recovery:         &fault.Recovery{Code: recoverFileUnsupported},
+			},
+		),
+	)
+}
+
+func noConflicts(target ID, phase string) error {
+	params := fault.Params{"Target": string(target)}
+	return (fault.Definition{Code: codeNoConflicts, Kind: fault.Runtime}).New(
+		fault.WithParams(params),
+		fault.WithDiagnostic(
+			fault.Diagnostic{
+				Phase:            phase,
+				CompletedEffects: []string{},
+				Recovery:         &fault.Recovery{Code: recoverNoConflicts, Params: params},
+			},
+		),
+	)
+}
+
+func partialResolve(
+	target ID,
+	from ResolveSource,
+	resolved int,
+	remaining []Conflict,
+	cause error,
+) error {
+	units := make([]string, 0, len(remaining))
+	for _, conflict := range remaining {
+		units = append(units, string(conflict.Unit))
+	}
+	params := fault.Params{
+		"Target":         string(target),
+		"From":           string(from),
+		"Resolved":       resolved,
+		"Remaining":      len(remaining),
+		"RemainingUnits": strings.Join(units, ", "),
+	}
+	return (fault.Definition{Code: codeResolvePartial, Kind: fault.Runtime}).Wrap(
+		cause,
+		fault.WithSensitiveCause(),
+		fault.WithParams(params),
+		fault.WithDiagnostic(
+			fault.Diagnostic{
+				Phase:            phaseStateWrite,
+				CompletedEffects: []string{},
+				Recovery:         &fault.Recovery{Code: recoverResolvePartial, Params: params},
 			},
 		),
 	)

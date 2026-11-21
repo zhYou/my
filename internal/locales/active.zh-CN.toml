@@ -617,7 +617,10 @@ other = "包含远端和本机都不存在的内建目标"
 other = "同步纳管配置"
 
 ["cli.target_resolve"]
-other = "解决一个配置冲突"
+other = "显式解决一个目标冲突"
+
+["cli.target_resolve_all"]
+other = "解决一个目标的全部冲突"
 
 ["cli.target_remove"]
 other = "取消纳管配置目标"
@@ -665,7 +668,7 @@ other = "配置已收录到 {{.Commit}}；changed={{.Changed}}。"
 other = "配置已同步到 {{.Commit}}；changed={{.Changed}}。"
 
 ["target.resolve_result"]
-other = "配置冲突已在 {{.Commit}} 解决。"
+other = "目标 {{.Target}} 已在 {{.Commit}} 解决 {{.Resolved}} 项冲突；remaining={{.Remaining}}；units={{.Units}}。"
 
 ["target.remove_result"]
 other = "取消纳管已提交到 {{.Commit}}。"
@@ -699,6 +702,18 @@ other = "目标 {{.Target}} 尚未纳入数据仓管理。"
 
 ["target.out_of_scope"]
 other = "目标 {{.Target}} 不在机器 {{.Machine}} 的适用范围内。"
+
+["target.no_conflicts"]
+other = "目标 {{.Target}} 没有需要解决的冲突。"
+
+["target.resolve_partial"]
+other = "目标 {{.Target}} 已解决 {{.Resolved}} 项冲突；仍有 {{.Remaining}} 项待解决：{{.RemainingUnits}}。"
+
+["target.recover_no_conflicts"]
+other = "运行 target diff {{.Target}} 检查待处理变化；没有冲突后使用 target sync。"
+
+["target.recover_resolve_partial"]
+other = "检查 target diff {{.Target}} 后重新运行 target resolve {{.Target}} --all --from {{.From}}；已解决单位会被跳过。"
 
 ["target.legacy"]
 other = "目标存在旧布局，需要显式清理。"
@@ -770,7 +785,7 @@ other = "{{.Name}} target list\n{{.Name}} target list --all"
 other = "{{.Name}} target sync"
 
 ["cli.target_resolve_example"]
-other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote"
+other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote\n{{.Name}} target resolve topgrade --all --from remote"
 
 ["cli.target_remove_example"]
 other = "{{.Name}} target remove topgrade"

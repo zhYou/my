@@ -30,12 +30,21 @@ func (o SyncOptions) Validate(definitions []Definition) error {
 	return validateSelection(o.Targets, definitions, true)
 }
 
-// Validate 校验目标、单位归属和显式来源。
+// Validate 校验目标、单位或全量选择、归属和显式来源。
 func (o ResolveOptions) Validate(definitions []Definition) error {
 	if err := validateSelection([]ID{o.Target}, definitions, false); err != nil {
 		return err
 	}
-	if o.Unit.Validate() != nil || o.From != ResolveLocal && o.From != ResolveRemote {
+	if o.From != ResolveLocal && o.From != ResolveRemote {
+		return invalidInput()
+	}
+	if o.All {
+		if o.Unit != "" {
+			return invalidInput()
+		}
+		return nil
+	}
+	if o.Unit.Validate() != nil {
 		return invalidInput()
 	}
 	for _, definition := range definitions {
