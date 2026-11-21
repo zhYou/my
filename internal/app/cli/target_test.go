@@ -325,6 +325,120 @@ func TestTargetListWorkflow(t *testing.T) {
 	}
 }
 
+func TestTargetSyncReportsPrunedOrphanBaseline(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			localPath := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(localPath), 0o700))
+			require.NoError(t, os.WriteFile(localPath, []byte("verbose = true\n"), 0o600))
+			call := func(args ...string) string {
+				t.Helper()
+				code, out, stderr := workflowCall(t, f, home, nil, append(args, "--json", "--lang", lang)...)
+				require.Zero(t, code, stderr)
+				require.True(t, json.Valid([]byte(out)))
+				return out
+			}
+			captureBaseline := func() string {
+				t.Helper()
+				captured := call("target", "capture", "topgrade")
+				var capture struct {
+					Snapshot struct {
+						Commit string `json:"commit"`
+					} `json:"snapshot"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(captured), &capture))
+				require.NotEmpty(t, capture.Snapshot.Commit)
+				return capture.Snapshot.Commit
+			}
+			listBaseline := func() string {
+				t.Helper()
+				listed := call("target", "list")
+				var result struct {
+					Targets []struct {
+						Target         string `json:"target"`
+						Status         string `json:"status"`
+						BaselineCommit string `json:"baseline_commit"`
+					} `json:"targets"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(listed), &result))
+				require.Len(t, result.Targets, 1)
+				require.Equal(t, "topgrade", result.Targets[0].Target)
+				require.Equal(t, "local", result.Targets[0].Status)
+				return result.Targets[0].BaselineCommit
+			}
+			pruneRemote := func(expectedCommit string) {
+				t.Helper()
+				f.removeRemote(
+					"configs/targets/topgrade/target.toml",
+					"configs/targets/topgrade/data/topgrade.toml",
+				)
+				require.Equal(t, expectedCommit, listBaseline())
+			}
+
+			baselineCommit := captureBaseline()
+			pruneRemote(baselineCommit)
+			commits := f.commits
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"sync",
+				"topgrade",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Equal(t, commits, f.commits)
+			require.Equal(t, baselineCommit, listBaseline())
+
+			code, out, stderr = workflowCall(t, f, home, nil, "target", "sync", "--lang", lang)
+			require.Zero(t, code, stderr)
+			require.Contains(t, out, "changed=true")
+			if lang == "en" {
+				require.Contains(t, out, "Removed orphan baselines: topgrade.")
+			} else {
+				require.Contains(t, out, "已清理孤立基线：topgrade。")
+			}
+			require.Empty(t, listBaseline())
+			require.Equal(t, commits, f.commits)
+			local, err := os.ReadFile(localPath) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "verbose = true\n", string(local))
+
+			baselineCommit = captureBaseline()
+			pruneRemote(baselineCommit)
+			commits = f.commits
+			synced := call("target", "sync")
+			var result struct {
+				Changed          bool     `json:"changed"`
+				RemovedBaselines []string `json:"removed_baselines"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(synced), &result))
+			require.True(t, result.Changed)
+			require.Equal(t, []string{"topgrade"}, result.RemovedBaselines)
+			require.Empty(t, listBaseline())
+			require.Equal(t, commits, f.commits)
+			local, err = os.ReadFile(localPath) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "verbose = true\n", string(local))
+		})
+	}
+}
+
 func TestTargetExplicitSelectionFailsForUnmanagedAndOutOfScope(t *testing.T) {
 	for _, lang := range []string{"en", "zh-CN"} {
 		t.Run(lang, func(t *testing.T) {
