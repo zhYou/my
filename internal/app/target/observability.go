@@ -116,7 +116,8 @@ func (p *operation) failureDiagnostic(err error) fault.Diagnostic {
 	if diagnostic.Phase == "" || len(p.effects) > 0 {
 		diagnostic.Phase = p.phase
 	}
-	if len(p.effects) > 0 && diagnostic.CompletedEffects != nil || diagnostic.Recovery == nil {
+	if (len(p.effects) > 0 && diagnostic.CompletedEffects != nil || diagnostic.Recovery == nil) &&
+		(diagnostic.Recovery == nil || diagnostic.Recovery.Code != recoverResolvePartial) {
 		diagnostic.Recovery = &fault.Recovery{Code: "target.recover", Params: fault.Params{"Commit": p.commit}}
 	}
 	return diagnostic

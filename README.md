@@ -257,6 +257,7 @@ my target update topgrade --all-machines
 my target diff
 my target sync
 my target resolve codex-settings --unit field:features.network_proxy --from remote
+my target resolve mise --all --from remote
 my target remove topgrade
 ```
 
@@ -289,6 +290,10 @@ configs/
 字段同步只修改声明单位，保留未纳管字段、注释和排版；完整文件按整份内容比较。
 `diff` 只读并返回稳定单位 ID。`sync` 遇到任何冲突时，本轮不写本机、不提交远端；
 解决一个冲突后重新运行 `sync`。远端提交使用 expectedHeadOid CAS，不自动重试。
+`resolve` 使用 `--unit` 选择一个单位，或使用 `--all` 解决一个目标的全部冲突，两者互斥且必须二选一。
+`--all` 在写入前校验全部冲突都能从所选来源应用，再按稳定单位顺序执行；成功结果列出已解决单位，
+剩余冲突为空。部分失败时报告已解决数量、剩余单位和恢复建议，可安全重跑且只处理剩余项。
+它一次只处理一个目标，没有冲突时返回 `target.no_conflicts`，不承诺整体原子，也不提供跨目标批量。
 
 显式指定目标时，`diff`、`sync` 和 `resolve` 要求目标已纳管且适用于当前机器；
 未纳管返回 `target.not_managed`，不适用返回 `target.out_of_scope`，并在写入前停止。

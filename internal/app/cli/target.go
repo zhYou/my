@@ -354,16 +354,13 @@ func newTargetSyncCommand(call *invocation) *cobra.Command {
 func newTargetResolveCommand(call *invocation) *cobra.Command {
 	input := target.ResolveOptions{}
 	cmd := &cobra.Command{
-		Use:         "resolve <target> --unit <id> --from local|remote",
+		Use:         "resolve <target> (--unit <id> | --all) --from local|remote",
 		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
 		Args: func(command *cobra.Command, args []string) error {
 			if err := cobra.ExactArgs(1)(command, args); err != nil {
 				return err
 			}
 			input.Target = target.ID(args[0])
-			if !command.Flags().Changed(flagUnit) || !command.Flags().Changed(flagFrom) {
-				return input.Target.Validate()
-			}
 			return input.Validate(target.DefaultDefinitions())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -375,18 +372,27 @@ func newTargetResolveCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			units := make([]string, 0, len(result.Resolved))
+			for _, unit := range result.Resolved {
+				units = append(units, string(unit))
+			}
 			return businessOutput(cmd, call, result, "target.resolve_result", map[string]any{
+				"Target":    input.Target,
+				"Resolved":  len(result.Resolved),
+				"Remaining": len(result.Remaining),
+				"Units":     strings.Join(units, ", "),
 				paramCommit: result.Snapshot.Commit,
 			})
 		},
 	}
 	cmd.Flags().StringVar((*string)(&input.Unit), flagUnit, "", "冲突单位 ID")
+	cmd.Flags().BoolVar(&input.All, flagAll, false, "解决目标的全部冲突")
 	cmd.Flags().StringVar((*string)(&input.From), flagFrom, "", "采用 local 或 remote")
-	for _, name := range []string{flagUnit, flagFrom} {
-		if err := cmd.MarkFlagRequired(name); err != nil {
-			panic(err)
-		}
+	if err := cmd.MarkFlagRequired(flagFrom); err != nil {
+		panic(err)
 	}
+	cmd.MarkFlagsMutuallyExclusive(flagUnit, flagAll)
+	cmd.MarkFlagsOneRequired(flagUnit, flagAll)
 	call.addAgeIdentityFlag(cmd)
 	call.bindCommand(
 		cmd,
@@ -399,8 +405,9 @@ func newTargetResolveCommand(call *invocation) *cobra.Command {
 		},
 	)
 	call.bindFlag(cmd.Flags().Lookup(flagUnit), message("cli.target_unit"))
+	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_resolve_all"))
 	call.bindFlag(cmd.Flags().Lookup(flagFrom), message("cli.target_from"))
-	registerOrPanic[target.Result](call, cmd)
+	registerOrPanic[target.ResolveResult](call, cmd)
 	return cmd
 }
 

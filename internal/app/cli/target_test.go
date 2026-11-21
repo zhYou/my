@@ -450,6 +450,118 @@ func TestTargetSyncReportsPrunedOrphanBaseline(t *testing.T) {
 	}
 }
 
+func TestTargetResolveAllWorkflow(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			path := filepath.Join(home, ".config", "mise", "config.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("[tools]\ngo = \"base\"\nnode = \"base\"\n"), 0o600))
+			code, _, stderr := workflowCall(t, f, home, nil, "target", "capture", "mise", "--json")
+			require.Zero(t, code, stderr)
+			require.NoError(t, os.WriteFile(path, []byte("[tools]\ngo = \"local\"\nnode = \"local\"\n"), 0o600))
+
+			f.mu.Lock()
+			remote := append([]byte(nil), f.versions[f.head]["configs/targets/mise/data/values.toml"]...)
+			f.mu.Unlock()
+			modified := bytes.ReplaceAll(remote, []byte(`'base'`), []byte(`'remote'`))
+			require.NotEqual(t, string(remote), string(modified))
+			f.replaceRemote("configs/targets/mise/data/values.toml", modified)
+
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"resolve",
+				"mise",
+				"--all",
+				"--from",
+				"remote",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Zero(t, code, stderr)
+			var result struct {
+				Resolved  []string `json:"resolved"`
+				Remaining []struct {
+					Unit string `json:"unit"`
+				} `json:"remaining"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(out), &result))
+			require.Equal(t, []string{"field:tools.go", "field:tools.node"}, result.Resolved)
+			require.NotNil(t, result.Remaining)
+			require.Empty(t, result.Remaining)
+			data, err := os.ReadFile(path) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Contains(t, string(data), "go = 'remote'")
+			require.Contains(t, string(data), "node = 'remote'")
+
+			topgradePath := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.WriteFile(topgradePath, []byte("verbose = true\n"), 0o600))
+			code, _, stderr = workflowCall(t, f, home, nil, "target", "capture", "topgrade", "--json")
+			require.Zero(t, code, stderr)
+			require.NoError(t, os.WriteFile(topgradePath, []byte("verbose = false\n"), 0o600))
+			f.replaceRemote("configs/targets/topgrade/data/topgrade.toml", []byte("verbose = 2\n"))
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"resolve",
+				"topgrade",
+				"--all",
+				"--from",
+				"remote",
+				"--lang",
+				lang,
+			)
+			require.Zero(t, code, stderr)
+			require.Contains(t, out, "remaining=0")
+			require.Contains(t, out, "file:topgrade.toml")
+			topgradeData, err := os.ReadFile(topgradePath) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "verbose = 2\n", string(topgradeData))
+
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"resolve",
+				"mise",
+				"--all",
+				"--from",
+				"remote",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.no_conflicts"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_no_conflicts"`)
+			if lang == "en" {
+				require.Contains(t, stderr, "no conflicts")
+			} else {
+				require.Contains(t, stderr, "没有需要解决的冲突")
+			}
+		})
+	}
+}
+
 func TestTargetExplicitSelectionFailsForUnmanagedAndOutOfScope(t *testing.T) {
 	for _, lang := range []string{"en", "zh-CN"} {
 		t.Run(lang, func(t *testing.T) {

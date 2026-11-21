@@ -624,7 +624,10 @@ other = "Apply the target to all active machines"
 other = "Synchronize managed configuration"
 
 ["cli.target_resolve"]
-other = "Resolve one configuration conflict"
+other = "Resolve one target conflict explicitly"
+
+["cli.target_resolve_all"]
+other = "Resolve every conflict of one target"
 
 ["cli.target_remove"]
 other = "Stop managing configuration targets"
@@ -675,7 +678,7 @@ other = "Targets synchronized at {{.Commit}}; changed={{.Changed}}."
 other = "Removed orphan baselines: {{.Targets}}."
 
 ["target.resolve_result"]
-other = "Target conflict resolved at {{.Commit}}."
+other = "Target {{.Target}} resolved {{.Resolved}} conflicts at {{.Commit}}; remaining={{.Remaining}}; units={{.Units}}."
 
 ["target.remove_result"]
 other = "Target removal committed at {{.Commit}}."
@@ -712,6 +715,18 @@ other = "Target {{.Target}} is not managed in the data repository."
 
 ["target.out_of_scope"]
 other = "Target {{.Target}} is not in scope for machine {{.Machine}}."
+
+["target.no_conflicts"]
+other = "Target {{.Target}} has no conflicts to resolve."
+
+["target.resolve_partial"]
+other = "Resolved {{.Resolved}} conflicts for target {{.Target}}; {{.Remaining}} remain: {{.RemainingUnits}}."
+
+["target.recover_no_conflicts"]
+other = "Run target diff {{.Target}} to inspect pending changes; use target sync when no conflicts remain."
+
+["target.recover_resolve_partial"]
+other = "Inspect target diff {{.Target}} and rerun target resolve {{.Target}} --all --from {{.From}}; already resolved units are skipped."
 
 ["target.legacy"]
 other = "A legacy target layout requires explicit cleanup."
@@ -786,7 +801,7 @@ other = "{{.Name}} target update topgrade --machine laptop\n{{.Name}} target upd
 other = "{{.Name}} target sync"
 
 ["cli.target_resolve_example"]
-other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote"
+other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote\n{{.Name}} target resolve topgrade --all --from remote"
 
 ["cli.target_remove_example"]
 other = "{{.Name}} target remove topgrade"
