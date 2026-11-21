@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -72,6 +73,8 @@ func TestCodexRulesRejectsInvalidRuleSyntax(t *testing.T) {
 		{"non-string grouped element", `prefix_rule(pattern = ["go", ["test", run]], justification = "运行测试")` + "\n", "pattern"},
 		{"invalid decision", `prefix_rule(pattern = ["go"], decision = "deny", justification = "运行测试")` + "\n", "decision"},
 		{"non-string decision", `prefix_rule(pattern = ["go"], decision = allow, justification = "运行测试")` + "\n", "decision"},
+		{"empty field value", `prefix_rule(pattern = ["go"], justification =, decision = "allow")` + "\n", "缺少值"},
+		{"duplicate empty field", `prefix_rule(pattern = ["go"], justification =, justification = "运行测试")` + "\n", "重复"},
 		{"unknown field", `prefix_rule(pattern = ["go"], decide = "allow", justification = "运行测试")` + "\n", "decide"},
 		{"duplicate pattern", `prefix_rule(pattern = ["go"], pattern = ["test"], justification = "运行测试")` + "\n", "重复"},
 		{"duplicate justification", `prefix_rule(pattern = ["go"], justification = "运行测试", justification = "再次运行")` + "\n", "重复"},
@@ -83,6 +86,39 @@ func TestCodexRulesRejectsInvalidRuleSyntax(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(rulesDir, "fixture.rules"), []byte(tt.content), 0o600))
 
 			require.ErrorContains(t, checkCodexRules(root), tt.want)
+		})
+	}
+}
+
+// 字符串内容即使与标点相同，也只按文本处理，不参与括号和分隔符结构判断。
+func TestCodexRulesAcceptsPunctuationPatternElements(t *testing.T) {
+	for _, punctuation := range []string{",", "(", ")", "[", "]", "{", "}"} {
+		t.Run(punctuation, func(t *testing.T) {
+			root, rulesDir := codexRulesFixture(t)
+			content := fmt.Sprintf("prefix_rule(pattern = [\"go\", %q], justification = \"运行测试\")\n", punctuation)
+			require.NoError(t, os.WriteFile(filepath.Join(rulesDir, "fixture.rules"), []byte(content), 0o600))
+
+			require.NoError(t, checkCodexRules(root))
+		})
+	}
+}
+
+// 标点字符串作为 justification 仍按普通文本报告中文理由缺失，而不是结构错误。
+func TestCodexRulesTreatsPunctuationJustificationAsText(t *testing.T) {
+	for _, punctuation := range []string{",", "(", ")", "[", "]", "{", "}"} {
+		t.Run(punctuation, func(t *testing.T) {
+			root, rulesDir := codexRulesFixture(t)
+			content := fmt.Sprintf(
+				"prefix_rule(pattern = [\"go\"], justification = %q, decision = \"allow\")\n",
+				punctuation,
+			)
+			require.NoError(t, os.WriteFile(filepath.Join(rulesDir, "fixture.rules"), []byte(content), 0o600))
+
+			err := checkCodexRules(root)
+			require.ErrorContains(t, err, "中文")
+			require.NotContains(t, err.Error(), "缺少值")
+			require.NotContains(t, err.Error(), "无效")
+			require.NotContains(t, err.Error(), "括号")
 		})
 	}
 }

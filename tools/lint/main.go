@@ -21,14 +21,30 @@ type lintRegistry []lintCheck
 
 // lintChecks 登记全部开发检查；新增检查只需在此增加一条声明。
 var lintChecks = lintRegistry{
-	{name: "i18n", run: func() error { return checkProjectMessages(context.Background(), ".", locales.Catalog()) }},
-	{name: "config", run: func() error { return checkConfig(".") }},
-	{name: "opencode", run: func() error { return checkOpenCodeConfig(".") }},
-	{name: "codex-rules", run: func() error { return checkCodexRules(".") }},
-	{name: "doc", run: func() error { return checkDocumentation(".") }},
-	{name: "style", run: func() error { return checkStyle(".") }},
-	{name: "versions", run: func() error { return checkVersions(".") }},
-	{name: "test", run: func() error { return checkRules(context.Background()) }},
+	{name: "i18n", run: func() error {
+		return checkProjectMessages(context.Background(), ".", locales.Catalog())
+	}},
+	{name: "config", run: func() error {
+		return checkConfig(".")
+	}},
+	{name: "opencode", run: func() error {
+		return checkOpenCodeConfig(".")
+	}},
+	{name: "codex-rules", run: func() error {
+		return checkCodexRules(".")
+	}},
+	{name: "doc", run: func() error {
+		return checkDocumentation(".")
+	}},
+	{name: "style", run: func() error {
+		return checkStyle(".")
+	}},
+	{name: "versions", run: func() error {
+		return checkVersions(".")
+	}},
+	{name: "test", run: func() error {
+		return checkRules(context.Background())
+	}},
 }
 
 func main() {

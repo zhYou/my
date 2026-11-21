@@ -87,7 +87,7 @@ description = "检查 OpenCode 项目配置、MCP 和权限边界"
 run = "go run ./tools/lint opencode"
 
 [tasks."lint:codex-rules"]
-description = "检查 Codex 项目规则文件和中文 justification"
+description = "检查 Codex 项目规则语法、字段、文件边界和中文 justification"
 run = "go run ./tools/lint codex-rules"
 
 [tasks."lint:doc"]
