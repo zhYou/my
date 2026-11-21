@@ -428,12 +428,12 @@ func (f *fixtureGitHub) replaceRemote(path string, data []byte) {
 	f.versions[f.head] = files
 }
 
-func (f *fixtureGitHub) removeRemote(paths ...string) {
+func (f *fixtureGitHub) removeRemote(names ...string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	files := maps.Clone(f.versions[f.head])
-	for _, path := range paths {
-		delete(files, path)
+	for _, name := range names {
+		delete(files, name)
 	}
 	f.head = fmt.Sprintf("%040x", 1000+len(f.versions))
 	f.versions[f.head] = files

@@ -25,7 +25,7 @@ func TestUpdateScopePreservesTargetContent(t *testing.T) {
 	require.Equal(t, Topgrade, result.Target)
 	require.Equal(t, []string{"laptop"}, result.Scope)
 	require.Len(t, repository.commits, 1)
-	require.Equal(t, []byte(beforeData), repository.snapshot.Files[dataPath])
+	require.Equal(t, beforeData, repository.snapshot.Files[dataPath])
 
 	remote, err := parseRemoteTargets(repository.snapshot, service.definitions())
 	require.NoError(t, err)
@@ -71,18 +71,6 @@ func TestUpdateUnchangedScopeDoesNotCommit(t *testing.T) {
 	})
 }
 
-func setRemoteTargetScope(
-	t *testing.T,
-	repository *memoryRepository,
-	id ID,
-	scope MachineScope,
-) {
-	t.Helper()
-	metadata, err := encodeRemoteMetadata(id, scope)
-	require.NoError(t, err)
-	repository.snapshot.Files[remoteTargetMetadataPath(id)] = metadata
-}
-
 func TestUpdateAllMachinesRestoresOutOfScopeTarget(t *testing.T) {
 	_, repository, service := capturedTopgrade(t, "verbose = true\n")
 	dataPath := "configs/targets/topgrade/data/topgrade.toml"
@@ -101,7 +89,7 @@ func TestUpdateAllMachinesRestoresOutOfScopeTarget(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Changed)
 	require.Equal(t, []string{"*"}, result.Scope)
-	require.Equal(t, []byte(beforeData), repository.snapshot.Files[dataPath])
+	require.Equal(t, beforeData, repository.snapshot.Files[dataPath])
 }
 
 func TestUpdateUnmanagedTargetDoesNotCommit(t *testing.T) {
@@ -173,7 +161,7 @@ func TestUpdateFieldScopePreservesValuesFile(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Changed)
 	require.Len(t, repository.commits, 1)
-	require.Equal(t, []byte(beforeData), repository.snapshot.Files[valuesPath])
+	require.Equal(t, beforeData, repository.snapshot.Files[valuesPath])
 	after, err := parseRemoteTargets(repository.snapshot, service.definitions())
 	require.NoError(t, err)
 	require.Equal(t, before[Mise].units, after[Mise].units)
@@ -225,4 +213,16 @@ func TestUpdateRejectsRemoteAuthoritativeTarget(t *testing.T) {
 	require.Equal(t, fault.Code("target.invalid_input"), fault.Details(err)[0].Code)
 	require.Empty(t, repository.commits)
 	require.Equal(t, envData, repository.snapshot.Files[envPath])
+}
+
+func setRemoteTargetScope(
+	t *testing.T,
+	repository *memoryRepository,
+	id ID,
+	scope MachineScope,
+) {
+	t.Helper()
+	metadata, err := encodeRemoteMetadata(id, scope)
+	require.NoError(t, err)
+	repository.snapshot.Files[remoteTargetMetadataPath(id)] = metadata
 }

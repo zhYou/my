@@ -380,8 +380,12 @@ Result 的 checks 始终编码为数组。RequiredAvailable 表示所有必需�
 业务输入和完整配置先校验；凭据仅通过 command 层调用 gh auth token 捕获，不回显，不刷新。
 go-gh 的 Host、APIHost、AuthToken、Transport、Timeout 显式设置，LogIgnoreEnv=true、EnableCache=false，禁止重定向携带凭据。
 读取只消费格式标记与机器文件，严格 TOML、固定 HEAD、限长响应；不得把响应体或备注放入诊断字段。
+机器资料更新只重写 kind 或 note，保留 ID、平台、状态、登记和退役时间；值未变化不提交，
+退役记录不重新激活，也不要求本机绑定到该机器。
 
-业务 span 为 data.init、machine.register、machine.bind、machine.update、machine.retire；子阶段为 data.read、data.commit、machine.binding.write/clear。
+业务 span 为 data.init、machine.register、machine.bind、machine.update、machine.retire，以及 target.capture、
+target.diff、target.sync、target.resolve、target.remove、target.list、target.update；子阶段为 data.read、data.commit、
+machine.binding.write/clear、target.validate、target.compare、target.commit、target.local_write、target.state_write。
 所属模块事件记录 phase、outcome、duration、error_code 和必要版本；data.commit 区分 base_commit 与确认成功的 commit。
 Session 负责 run_id 与日志、Trace 出口和降级；业务复用 telemetry.RecordError，禁止直接记录原始 error 字符串。
 stdout 输出成功结果；stderr 在 --json 下逐行区分 error/warning，普通日志保留 event。

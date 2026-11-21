@@ -325,7 +325,7 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		}
 	}
 	progress.commit = snapshot.Metadata.Commit
-	progress.step(ctx, "target.commit")
+	progress.step(ctx, phaseCommit)
 	metadata := snapshot.Metadata
 	if len(files) != 0 {
 		metadata, err = s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
@@ -511,7 +511,7 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 		plan.remote = unitOverlay(plan.remote, changedUnits)
 	}
 	progress.commit = snapshot.Metadata.Commit
-	progress.step(ctx, "target.commit")
+	progress.step(ctx, phaseCommit)
 	metadata := snapshot.Metadata
 	remoteCommitted := len(remoteChanges) != 0
 	if remoteCommitted {
@@ -625,7 +625,7 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 		return result, invalidInput()
 	}
 	plan := &plans[0]
-	selected := []Conflict{}
+	var selected []Conflict
 	if input.All {
 		selected = planConflicts([]targetPlan{*plan})
 		if len(selected) == 0 {
@@ -682,7 +682,7 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 		if encodeErr != nil {
 			return result, encodeErr
 		}
-		progress.step(ctx, "target.commit")
+		progress.step(ctx, phaseCommit)
 		metadata, commitErr := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
 			Message: "my: 解决目标冲突",
 			Files:   files,
@@ -746,61 +746,6 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	}
 	progress.commit = snapshot.Metadata.Commit
 	return resolveResult(snapshot.Metadata, input.Target, resolved, []Conflict{}), nil
-}
-
-// resolveValues 在写入前确定并校验全部冲突单位在所选来源中的值。
-func (s *Service) resolveValues(
-	plan targetPlan,
-	units []UnitID,
-	from ResolveSource,
-) (map[UnitID]UnitValue, *agecrypt.Key, []byte, error) {
-	values := make(map[UnitID]UnitValue, len(units))
-	switch from {
-	case ResolveLocal:
-		for _, unit := range units {
-			value := plan.local[unit]
-			if plan.target.Kind == UnitSecret {
-				value = plan.localSecret
-			}
-			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
-				return nil, nil, nil, invalidInput()
-			}
-			if plan.target.Kind == UnitSecret && len(value.Data) == 0 {
-				return nil, nil, nil, invalidInput()
-			}
-			values[unit] = value
-		}
-		if plan.target.Kind != UnitSecret {
-			return values, nil, nil, nil
-		}
-		key, err := s.ageKey()
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		ciphertext, err := key.Encrypt(values[SecretUnitID].Data)
-		if err != nil {
-			return nil, nil, nil, problem(codeStateInvalid, phaseStateWrite, err)
-		}
-		return values, key, ciphertext, nil
-	case ResolveRemote:
-		for _, unit := range units {
-			value := plan.remote[unit]
-			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
-				return nil, nil, nil, invalidInput()
-			}
-			values[unit] = value
-		}
-		if plan.target.Kind == UnitSecret {
-			decrypted, err := s.decryptSecretUnits(plan, values)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			values = decrypted
-		}
-		return values, nil, nil, nil
-	default:
-		return nil, nil, nil, invalidInput()
-	}
 }
 
 func resolveResult(
@@ -958,7 +903,7 @@ func (s *Service) Update(ctx context.Context, input UpdateOptions) (result Updat
 		return result, err
 	}
 	progress.commit = snapshot.Metadata.Commit
-	progress.step(ctx, "target.commit")
+	progress.step(ctx, phaseCommit)
 	committed, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
 		Message: "my: 更新目标范围",
 		Files: map[string][]byte{
@@ -980,6 +925,61 @@ func (s *Service) Update(ctx context.Context, input UpdateOptions) (result Updat
 // String 返回用于诊断的稳定服务摘要。
 func (s *Service) String() string {
 	return fmt.Sprintf("target service for %s", s.options.MachineID)
+}
+
+// resolveValues 在写入前确定并校验全部冲突单位在所选来源中的值。
+func (s *Service) resolveValues(
+	plan targetPlan,
+	units []UnitID,
+	from ResolveSource,
+) (map[UnitID]UnitValue, *agecrypt.Key, []byte, error) {
+	values := make(map[UnitID]UnitValue, len(units))
+	switch from {
+	case ResolveLocal:
+		for _, unit := range units {
+			value := plan.local[unit]
+			if plan.target.Kind == UnitSecret {
+				value = plan.localSecret
+			}
+			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
+				return nil, nil, nil, invalidInput()
+			}
+			if plan.target.Kind == UnitSecret && len(value.Data) == 0 {
+				return nil, nil, nil, invalidInput()
+			}
+			values[unit] = value
+		}
+		if plan.target.Kind != UnitSecret {
+			return values, nil, nil, nil
+		}
+		key, err := s.ageKey()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		ciphertext, err := key.Encrypt(values[SecretUnitID].Data)
+		if err != nil {
+			return nil, nil, nil, problem(codeStateInvalid, phaseStateWrite, err)
+		}
+		return values, key, ciphertext, nil
+	case ResolveRemote:
+		for _, unit := range units {
+			value := plan.remote[unit]
+			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
+				return nil, nil, nil, invalidInput()
+			}
+			values[unit] = value
+		}
+		if plan.target.Kind == UnitSecret {
+			decrypted, err := s.decryptSecretUnits(plan, values)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			values = decrypted
+		}
+		return values, nil, nil, nil
+	default:
+		return nil, nil, nil, invalidInput()
+	}
 }
 
 func (s *Service) plan(

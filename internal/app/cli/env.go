@@ -89,7 +89,7 @@ func newEnvSetCommand(call *invocation) *cobra.Command {
 	}{
 		{flagSecret, "cli.env_secret"},
 		{"overwrite", "cli.env_overwrite"},
-		{flagMachine, "cli.target_machine"},
+		{flagMachine, messageTargetMachine},
 	} {
 		call.bindFlag(cmd.Flags().Lookup(binding.flag), message(binding.id))
 	}

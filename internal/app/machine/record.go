@@ -75,14 +75,6 @@ func (o RegisterOptions) Validate() error {
 	return nil
 }
 
-func validKind(kind string) bool {
-	return kind == "laptop" || kind == "desktop" || kind == "server" || kind == "vm"
-}
-
-func validNote(note string) bool {
-	return strings.TrimSpace(note) != "" && !strings.ContainsAny(note, "\r\n\x00")
-}
-
 // BindOptions 声明恢复身份时允许的显式状态改变。
 type BindOptions struct {
 	ID             string
@@ -147,4 +139,12 @@ func encodeRecord(r Record) ([]byte, error) {
 		return nil, err
 	}
 	return toml.Marshal(r)
+}
+
+func validKind(kind string) bool {
+	return kind == "laptop" || kind == "desktop" || kind == "server" || kind == "vm"
+}
+
+func validNote(note string) bool {
+	return strings.TrimSpace(note) != "" && !strings.ContainsAny(note, "\r\n\x00")
 }
