@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -320,6 +321,60 @@ func TestTargetListWorkflow(t *testing.T) {
 			require.Contains(t, out, "topgrade\tmanaged\t*\t"+capture.Snapshot.Commit+"\t1")
 			require.Contains(t, out, "clash-global\tlocal\t-\t-\t0")
 			require.NotContains(t, out, "codex-settings")
+		})
+	}
+}
+
+func TestTargetSyncReportsUnsupportedFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 符号链接创建需要额外权限")
+	}
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			path := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("verbose = true\n"), 0o600))
+			code, _, stderr := workflowCall(t, f, home, nil, "target", "capture", "topgrade", "--json")
+			require.Zero(t, code, stderr)
+			outside := filepath.Join(home, "outside-target.toml")
+			require.NoError(t, os.WriteFile(outside, []byte("synthetic-outside-content\n"), 0o600))
+			require.NoError(t, os.Remove(path))
+			require.NoError(t, os.Symlink(outside, path))
+
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"sync",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.file_unsupported"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_file_unsupported"`)
+			require.NotContains(t, stderr, outside)
+			require.NotContains(t, stderr, "synthetic-outside-content")
+			if lang == "en" {
+				require.Contains(t, stderr, "regular file")
+			} else {
+				require.Contains(t, stderr, "普通文件")
+			}
+			data, err := os.ReadFile(outside) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "synthetic-outside-content\n", string(data))
 		})
 	}
 }

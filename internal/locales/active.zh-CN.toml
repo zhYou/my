@@ -685,6 +685,9 @@ other = "目标选择、单位、来源或机器范围无效。"
 ["target.state_invalid"]
 other = "目标状态或内容无效。"
 
+["target.file_unsupported"]
+other = "目标文件是符号链接或特殊文件；my 不会跟随或写入该文件。"
+
 ["target.legacy"]
 other = "目标存在旧布局，需要显式清理。"
 
@@ -699,6 +702,9 @@ other = "此秘密操作需要可用的 age identity。"
 
 ["target.recover"]
 other = "重试前检查 target diff 和已确认副作用。数据版本：{{.Commit}}。认证操作保留 pending 状态后重试 target sync；需要选择来源时使用 target resolve。"
+
+["target.recover_file_unsupported"]
+other = "将目标文件替换为普通文件后重试 target diff、target sync 或 target capture；my 不会跟随符号链接，也不会写入特殊文件。"
 
 ["target.operation_event"]
 other = "目标阶段 {{.Operation}} 已结束。"
