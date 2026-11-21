@@ -677,6 +677,9 @@ other = "Invalid target selection, unit, source or machine scope."
 ["target.state_invalid"]
 other = "Target state or content is invalid."
 
+["target.file_unsupported"]
+other = "The target file is a symlink or special file; my does not follow or write it."
+
 ["target.legacy"]
 other = "A legacy target layout requires explicit cleanup."
 
@@ -691,6 +694,9 @@ other = "An available age identity is required for this secret operation."
 
 ["target.recover"]
 other = "Inspect target diff and the confirmed effects before retrying. Data commit: {{.Commit}}. For auth, keep the pending state and retry target sync; use target resolve to choose a side explicitly."
+
+["target.recover_file_unsupported"]
+other = "Replace the target file with a regular file, then retry target diff, target sync or target capture; my never follows symlinks or writes special files."
 
 ["target.operation_event"]
 other = "Target phase {{.Operation}} finished."

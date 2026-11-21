@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/pelletier/go-toml/v2"
@@ -68,6 +69,32 @@ func TestSyncAppliesRemoteAndUploadsLocal(t *testing.T) {
 			string(repository.snapshot.Files["configs/targets/topgrade/data/topgrade.toml"]),
 		)
 	})
+}
+
+func TestSyncRejectsSymlinkTargetFileWithoutFollowing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 符号链接创建需要额外权限")
+	}
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	path := filepath.Join(home, ".config", "topgrade.toml")
+	outside := filepath.Join(t.TempDir(), "outside.toml")
+	writeFixture(t, outside, "synthetic-outside-content\n")
+	require.NoError(t, os.Remove(path))
+	require.NoError(t, os.Symlink(outside, path))
+
+	_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.file_unsupported"), details[0].Code)
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_file_unsupported", diagnostic.Recovery.Code)
+	info, statErr := os.Lstat(path)
+	require.NoError(t, statErr)
+	require.NotZero(t, info.Mode()&os.ModeSymlink)
+	require.Equal(t, "synthetic-outside-content\n", readFixture(t, outside))
+	require.Empty(t, repository.commits)
 }
 
 func TestSyncAppliesRemoteWhenLocalMissingOnFirstSync(t *testing.T) {
