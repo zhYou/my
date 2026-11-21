@@ -15,7 +15,11 @@ const (
 	agentRulesDirectory = ".codex/rules"
 	agentRuleExtension  = ".rules"
 	prefixRuleCall      = "prefix_rule"
+	patternField        = "pattern"
+	decisionField       = "decision"
 	justificationField  = "justification"
+	matchField          = "match"
+	notMatchField       = "not_match"
 )
 
 type ruleTokenKind uint8
@@ -32,7 +36,8 @@ type ruleToken struct {
 	line int
 }
 
-// checkAgentRules 要求每个项目规则文件至少包含一条面向用户的中文理由。
+// checkAgentRules 校验项目 Codex 规则文件的 prefix_rule 语法，
+// 并要求每个文件至少包含一条面向用户的中文理由。
 func checkAgentRules(root string) error {
 	root, err := filepath.Abs(root)
 	if err != nil {
@@ -99,7 +104,7 @@ func checkAgentRuleFile(path string) error {
 			problems = append(problems, err)
 			return errors.Join(problems...)
 		}
-		callJustifications, callProblems := inspectRuleCall(path, tokens[i+2:end])
+		callJustifications, callProblems := inspectRuleCall(path, tokens[i].line, tokens[i+2:end])
 		problems = append(problems, callProblems...)
 		for _, value := range callJustifications {
 			count++
@@ -150,13 +155,15 @@ func lexAgentRule(path, source string) ([]ruleToken, error) {
 			tokens = append(tokens, ruleToken{kind: ruleIdentifier, text: source[start:offset], line: tokenLine})
 			continue
 		}
-		if r == '"' {
+		if r == '"' || r == '\'' {
+			quote := r
 			offset += size
 			escaped := false
+			closed := false
 			for offset < len(source) {
 				next, nextSize := utf8.DecodeRuneInString(source[offset:])
 				if next == '\n' {
-					line++
+					break
 				}
 				offset += nextSize
 				if escaped {
@@ -167,14 +174,15 @@ func lexAgentRule(path, source string) ([]ruleToken, error) {
 					escaped = true
 					continue
 				}
-				if next == '"' {
+				if next == quote {
+					closed = true
 					break
 				}
 			}
-			if offset > len(source) || source[offset-1] != '"' {
+			if !closed {
 				return nil, fmt.Errorf("%s:%d 规则字符串无效：字符串未闭合", path, tokenLine)
 			}
-			value, err := strconv.Unquote(source[start:offset])
+			value, err := unquoteRuleString(source[start:offset])
 			if err != nil {
 				return nil, fmt.Errorf("%s:%d 规则字符串无效：%w", path, tokenLine, err)
 			}
@@ -189,6 +197,72 @@ func lexAgentRule(path, source string) ([]ruleToken, error) {
 		return nil, fmt.Errorf("%s:%d 规则文本无效：无法识别 %q", path, line, r)
 	}
 	return tokens, nil
+}
+
+func unquoteRuleString(raw string) (string, error) {
+	if len(raw) < 2 {
+		return "", errors.New("字符串未闭合")
+	}
+	quote := raw[0]
+	if raw[len(raw)-1] != quote {
+		return "", errors.New("字符串未闭合")
+	}
+	var value strings.Builder
+	for i := 1; i < len(raw)-1; {
+		r, size := utf8.DecodeRuneInString(raw[i:])
+		if r != '\\' {
+			value.WriteString(raw[i : i+size])
+			i += size
+			continue
+		}
+		i += size
+		if i >= len(raw)-1 {
+			return "", errors.New("转义序列不完整")
+		}
+		escape, escapeSize := utf8.DecodeRuneInString(raw[i:])
+		i += escapeSize
+		switch escape {
+		case 'a':
+			value.WriteByte('\a')
+		case 'b':
+			value.WriteByte('\b')
+		case 'f':
+			value.WriteByte('\f')
+		case 'n':
+			value.WriteByte('\n')
+		case 'r':
+			value.WriteByte('\r')
+		case 't':
+			value.WriteByte('\t')
+		case 'v':
+			value.WriteByte('\v')
+		case '\\', '\'', '"':
+			value.WriteRune(escape)
+		case 'x', 'u', 'U':
+			digits := 2
+			switch escape {
+			case 'u':
+				digits = 4
+			case 'U':
+				digits = 8
+			}
+			if i+digits > len(raw)-1 {
+				return "", fmt.Errorf("转义序列 \\%c 不完整", escape)
+			}
+			code, err := strconv.ParseUint(raw[i:i+digits], 16, 32)
+			if err != nil {
+				return "", fmt.Errorf("转义序列 \\%c 无效：%w", escape, err)
+			}
+			if code > utf8.MaxRune || (code >= 0xD800 && code <= 0xDFFF) {
+				return "", fmt.Errorf("转义序列 \\%c 超出有效 Unicode 范围", escape)
+			}
+			value.WriteRune(rune(code))
+			i += digits
+		default:
+			return "", fmt.Errorf("不支持的转义 \\%c", escape)
+		}
+	}
+	return value.String(), nil
 }
 
 func matchingRuleDelimiter(path string, tokens []ruleToken, start int) (int, error) {
@@ -211,9 +285,10 @@ func matchingRuleDelimiter(path string, tokens []ruleToken, start int) (int, err
 	return 0, fmt.Errorf("%s:%d 括号未闭合", path, tokens[start].line)
 }
 
-func inspectRuleCall(path string, tokens []ruleToken) ([]ruleToken, []error) {
+func inspectRuleCall(path string, callLine int, tokens []ruleToken) ([]ruleToken, []error) {
 	var justifications []ruleToken
 	var problems []error
+	seen := make(map[string]struct{})
 	for i := 0; i < len(tokens); {
 		if tokens[i].text == "," {
 			i++
@@ -246,22 +321,107 @@ func inspectRuleCall(path string, tokens []ruleToken) ([]ruleToken, []error) {
 			i++
 		}
 	valueDone:
-		if valueStart == i {
+		value := tokens[valueStart:i]
+		if len(value) == 0 {
 			problems = append(problems, fmt.Errorf("%s:%d %s 缺少值", path, field.line, field.text))
 			continue
 		}
-		if field.text == justificationField {
-			if i != valueStart+1 || tokens[valueStart].kind != ruleString {
+		if _, ok := seen[field.text]; ok {
+			problems = append(problems, fmt.Errorf("%s:%d 重复的规则字段 %s", path, field.line, field.text))
+		} else {
+			seen[field.text] = struct{}{}
+		}
+		switch field.text {
+		case patternField:
+			problems = append(problems, inspectRulePattern(path, field, value)...)
+		case decisionField:
+			problems = append(problems, inspectRuleDecision(path, field, value)...)
+		case justificationField:
+			if len(value) != 1 || value[0].kind != ruleString {
 				problems = append(problems, fmt.Errorf("%s:%d justification 无效", path, field.line))
 			} else {
-				justifications = append(justifications, tokens[valueStart])
+				justifications = append(justifications, value[0])
 			}
+		case matchField, notMatchField:
+			// 示例命令的语义不在本检查范围内。
+		default:
+			problems = append(problems, fmt.Errorf("%s:%d 未知的规则字段 %s", path, field.line, field.text))
 		}
 		if i < len(tokens) && tokens[i].text == "," {
 			i++
 		}
 	}
+	if _, ok := seen[patternField]; !ok {
+		problems = append(problems, fmt.Errorf("%s:%d prefix_rule 缺少 pattern", path, callLine))
+	}
 	return justifications, problems
+}
+
+func inspectRulePattern(path string, field ruleToken, value []ruleToken) []error {
+	if len(value) < 2 || value[0].text != "[" || value[len(value)-1].text != "]" {
+		return []error{fmt.Errorf("%s:%d pattern 必须是列表", path, field.line)}
+	}
+	elements := splitRuleElements(value[1 : len(value)-1])
+	if len(elements) == 0 {
+		return []error{fmt.Errorf("%s:%d pattern 不能为空列表", path, field.line)}
+	}
+	var problems []error
+	for _, element := range elements {
+		if len(element) == 1 && element[0].kind == ruleString {
+			continue
+		}
+		if len(element) >= 2 && element[0].text == "[" && element[len(element)-1].text == "]" {
+			group := splitRuleElements(element[1 : len(element)-1])
+			if len(group) > 0 && ruleElementsAreStrings(group) {
+				continue
+			}
+		}
+		problems = append(problems, fmt.Errorf("%s:%d pattern 元素必须是字符串或非空字符串列表", path, field.line))
+	}
+	return problems
+}
+
+func ruleElementsAreStrings(elements [][]ruleToken) bool {
+	for _, element := range elements {
+		if len(element) != 1 || element[0].kind != ruleString {
+			return false
+		}
+	}
+	return true
+}
+
+func splitRuleElements(tokens []ruleToken) [][]ruleToken {
+	var elements [][]ruleToken
+	var current []ruleToken
+	depth := 0
+	for _, token := range tokens {
+		switch token.text {
+		case "(", "[", "{":
+			depth++
+		case ")", "]", "}":
+			depth--
+		}
+		if token.text == "," && depth == 0 {
+			elements = append(elements, current)
+			current = nil
+			continue
+		}
+		current = append(current, token)
+	}
+	if len(current) > 0 {
+		elements = append(elements, current)
+	}
+	return elements
+}
+
+func inspectRuleDecision(path string, field ruleToken, value []ruleToken) []error {
+	if len(value) == 1 && value[0].kind == ruleString {
+		switch value[0].text {
+		case "allow", "prompt", "forbidden":
+			return nil
+		}
+	}
+	return []error{fmt.Errorf("%s:%d decision 必须是 allow、prompt 或 forbidden", path, field.line)}
 }
 
 func containsHan(value string) bool {
