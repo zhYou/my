@@ -191,28 +191,61 @@ func TestUpdateSecretScopePreservesVersionRecipientAndCiphertext(t *testing.T) {
 	require.Equal(t, beforeSecret.files, afterSecret.files)
 }
 
-func TestUpdateRejectsRemoteAuthoritativeTarget(t *testing.T) {
-	home := t.TempDir()
-	repository := &memoryRepository{snapshot: initializedSnapshot()}
-	repository.snapshot.ConfigInitialized = true
-	repository.snapshot.Files["configs/manifest.toml"] = []byte("schema_version = 1\n")
-	repository.snapshot.Files["configs/targets/shell-env/target.toml"] = []byte(
-		"schema_version = 1\ntarget = \"shell-env\"\nmachines = [\"*\"]\n",
-	)
-	envPath := "configs/targets/shell-env/data/env.toml"
-	envData := []byte("schema_version = 1\n[env.EDITOR]\nvalue = \"nvim\"\nmachines = [\"*\"]\n")
-	repository.snapshot.Files[envPath] = envData
-	service := newTestService(home, repository)
+func TestUpdateRejectsUnmanagedEnvironmentTargets(t *testing.T) {
+	for _, id := range []ID{ShellEnv, ShellEnvSecret} {
+		t.Run(string(id), func(t *testing.T) {
+			home := t.TempDir()
+			repository := &memoryRepository{snapshot: initializedSnapshot()}
+			service := newTestService(home, repository)
 
-	_, err := service.Update(t.Context(), UpdateOptions{
-		Target: ShellEnv,
-		Scope:  MachineScope{IDs: []string{"laptop"}},
-	})
-	require.Error(t, err)
-	require.Equal(t, fault.Usage, fault.KindOf(err))
-	require.Equal(t, fault.Code("target.invalid_input"), fault.Details(err)[0].Code)
-	require.Empty(t, repository.commits)
-	require.Equal(t, envData, repository.snapshot.Files[envPath])
+			_, err := service.Update(t.Context(), UpdateOptions{
+				Target: id,
+				Scope:  MachineScope{IDs: []string{"laptop"}},
+			})
+			require.Error(t, err)
+			details := fault.Details(err)
+			require.Len(t, details, 1)
+			require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+			diagnostic, ok := fault.DiagnosticOf(err)
+			require.True(t, ok)
+			require.Equal(t, "target.recover_not_managed", diagnostic.Recovery.Code)
+			require.Equal(t, string(id), diagnostic.Recovery.Params["Target"])
+			require.Empty(t, repository.commits)
+		})
+	}
+}
+
+func TestUpdateRejectsManagedEnvironmentTargetsAsRemoteAuthoritative(t *testing.T) {
+	for _, id := range []ID{ShellEnv, ShellEnvSecret} {
+		t.Run(string(id), func(t *testing.T) {
+			home := t.TempDir()
+			repository := &memoryRepository{snapshot: initializedSnapshot()}
+			repository.snapshot.ConfigInitialized = true
+			repository.snapshot.Files["configs/manifest.toml"] = []byte("schema_version = 1\n")
+			repository.snapshot.Files["configs/targets/"+string(id)+"/target.toml"] = []byte(
+				"schema_version = 1\ntarget = \"" + string(id) + "\"\nmachines = [\"*\"]\n",
+			)
+			envPath := "configs/targets/" + string(id) + "/data/env.toml"
+			envData := []byte("schema_version = 1\n[env.EDITOR]\nvalue = \"nvim\"\nmachines = [\"*\"]\n")
+			repository.snapshot.Files[envPath] = envData
+			service := newTestService(home, repository)
+
+			_, err := service.Update(t.Context(), UpdateOptions{
+				Target: id,
+				Scope:  MachineScope{IDs: []string{"laptop"}},
+			})
+			require.Error(t, err)
+			details := fault.Details(err)
+			require.Len(t, details, 1)
+			require.Equal(t, fault.Code("target.remote_authoritative"), details[0].Code)
+			diagnostic, ok := fault.DiagnosticOf(err)
+			require.True(t, ok)
+			require.Equal(t, "target.recover_remote_authoritative", diagnostic.Recovery.Code)
+			require.Equal(t, string(id), diagnostic.Recovery.Params["Target"])
+			require.Empty(t, repository.commits)
+			require.Equal(t, envData, repository.snapshot.Files[envPath])
+		})
+	}
 }
 
 func setRemoteTargetScope(

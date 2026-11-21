@@ -79,7 +79,7 @@ func newTargetCaptureCommand(call *invocation) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&input.All, flagAll, false, "收录所有现有普通配置目标")
+	cmd.Flags().BoolVar(&input.All, flagCaptureAll, false, "收录所有现有普通配置目标")
 	cmd.Flags().StringSliceVar(&input.Machines, flagMachine, nil, "限制目标适用的机器 ID")
 	call.addAgeIdentityFlag(cmd)
 	call.bindCommand(
@@ -92,7 +92,7 @@ func newTargetCaptureCommand(call *invocation) *cobra.Command {
 			},
 		},
 	)
-	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_all"))
+	call.bindFlag(cmd.Flags().Lookup(flagCaptureAll), message("cli.target_all"))
 	call.bindFlag(cmd.Flags().Lookup(flagMachine), message(messageTargetMachine))
 	registerOrPanic[target.Result](call, cmd)
 	return cmd
@@ -220,7 +220,7 @@ func newTargetListCommand(call *invocation) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&input.All, flagAll, false, "包含远端和本机都不存在的内建目标")
+	cmd.Flags().BoolVar(&input.All, flagListAll, false, "包含远端和本机都不存在的内建目标")
 	call.bindCommand(
 		cmd,
 		commandTexts{
@@ -231,7 +231,7 @@ func newTargetListCommand(call *invocation) *cobra.Command {
 			},
 		},
 	)
-	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_list_all"))
+	call.bindFlag(cmd.Flags().Lookup(flagListAll), message("cli.target_list_all"))
 	registerOrPanic[target.ListResult](call, cmd)
 	return cmd
 }
@@ -386,13 +386,13 @@ func newTargetResolveCommand(call *invocation) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar((*string)(&input.Unit), flagUnit, "", "冲突单位 ID")
-	cmd.Flags().BoolVar(&input.All, flagAll, false, "解决目标的全部冲突")
+	cmd.Flags().BoolVar(&input.All, flagResolveAll, false, "解决目标的全部冲突")
 	cmd.Flags().StringVar((*string)(&input.From), flagFrom, "", "采用 local 或 remote")
 	if err := cmd.MarkFlagRequired(flagFrom); err != nil {
 		panic(err)
 	}
-	cmd.MarkFlagsMutuallyExclusive(flagUnit, flagAll)
-	cmd.MarkFlagsOneRequired(flagUnit, flagAll)
+	cmd.MarkFlagsMutuallyExclusive(flagUnit, flagResolveAll)
+	cmd.MarkFlagsOneRequired(flagUnit, flagResolveAll)
 	call.addAgeIdentityFlag(cmd)
 	call.bindCommand(
 		cmd,
@@ -405,7 +405,7 @@ func newTargetResolveCommand(call *invocation) *cobra.Command {
 		},
 	)
 	call.bindFlag(cmd.Flags().Lookup(flagUnit), message("cli.target_unit"))
-	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_resolve_all"))
+	call.bindFlag(cmd.Flags().Lookup(flagResolveAll), message("cli.target_resolve_all"))
 	call.bindFlag(cmd.Flags().Lookup(flagFrom), message("cli.target_from"))
 	registerOrPanic[target.ResolveResult](call, cmd)
 	return cmd

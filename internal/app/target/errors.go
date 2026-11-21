@@ -35,31 +35,44 @@ func problem(code fault.Code, phase string, cause error) error {
 	return (fault.Definition{Code: code, Kind: fault.Runtime}).Wrap(cause, options...)
 }
 
-func notManaged(target ID, phase string) error {
-	params := fault.Params{paramTarget: string(target)}
-	return (fault.Definition{Code: codeNotManaged, Kind: fault.Runtime}).New(
+// targetProblem 构造带稳定领域码、参数和恢复建议的目标错误。
+func targetProblem(code, recovery, phase string, params fault.Params) error {
+	return (fault.Definition{Code: fault.Code(code), Kind: fault.Runtime}).New(
 		fault.WithParams(params),
 		fault.WithDiagnostic(
 			fault.Diagnostic{
 				Phase:            phase,
 				CompletedEffects: []string{},
-				Recovery:         &fault.Recovery{Code: recoverNotManaged, Params: params},
+				Recovery:         &fault.Recovery{Code: recovery, Params: params},
 			},
 		),
 	)
 }
 
+func notManaged(target ID, phase string) error {
+	return targetProblem(
+		codeNotManaged,
+		recoverNotManaged,
+		phase,
+		fault.Params{paramTarget: string(target)},
+	)
+}
+
 func outOfScope(target ID, machineID, phase string) error {
-	params := fault.Params{paramTarget: string(target), "Machine": machineID}
-	return (fault.Definition{Code: codeOutOfScope, Kind: fault.Runtime}).New(
-		fault.WithParams(params),
-		fault.WithDiagnostic(
-			fault.Diagnostic{
-				Phase:            phase,
-				CompletedEffects: []string{},
-				Recovery:         &fault.Recovery{Code: recoverOutOfScope, Params: params},
-			},
-		),
+	return targetProblem(
+		codeOutOfScope,
+		recoverOutOfScope,
+		phase,
+		fault.Params{paramTarget: string(target), paramMachine: machineID},
+	)
+}
+
+func remoteAuthoritative(target ID, phase string) error {
+	return targetProblem(
+		codeRemoteAuthoritative,
+		recoverRemoteAuthoritative,
+		phase,
+		fault.Params{paramTarget: string(target)},
 	)
 }
 
@@ -76,16 +89,11 @@ func unsupportedFile(phase string) error {
 }
 
 func noConflicts(target ID, phase string) error {
-	params := fault.Params{paramTarget: string(target)}
-	return (fault.Definition{Code: codeNoConflicts, Kind: fault.Runtime}).New(
-		fault.WithParams(params),
-		fault.WithDiagnostic(
-			fault.Diagnostic{
-				Phase:            phase,
-				CompletedEffects: []string{},
-				Recovery:         &fault.Recovery{Code: recoverNoConflicts, Params: params},
-			},
-		),
+	return targetProblem(
+		codeNoConflicts,
+		recoverNoConflicts,
+		phase,
+		fault.Params{paramTarget: string(target)},
 	)
 }
 

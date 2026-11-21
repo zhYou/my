@@ -2736,41 +2736,10 @@
                         "commit"
                       ],
                       "type": "object"
-                    },
-                    "targets": {
-                      "items": {
-                        "additionalProperties": true,
-                        "properties": {
-                          "changed": {
-                            "type": "boolean"
-                          },
-                          "changes": {
-                            "type": "integer"
-                          },
-                          "conflicts": {
-                            "type": "integer"
-                          },
-                          "target": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "target",
-                          "changed",
-                          "changes",
-                          "conflicts"
-                        ],
-                        "type": "object"
-                      },
-                      "type": [
-                        "null",
-                        "array"
-                      ]
                     }
                   },
                   "required": [
                     "snapshot",
-                    "targets",
                     "changed",
                     "resolved",
                     "remaining"

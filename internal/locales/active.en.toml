@@ -503,6 +503,9 @@ other = "Retire a record and clear a matching local binding."
 ["cli.machine_update"]
 other = "Correct a machine record's kind or note without changing its identity."
 
+["cli.machine_update_example"]
+other = "{{.Name}} machine update workstation --kind server --note 'Synthetic corrected example'"
+
 ["cli.machine_kind"]
 other = "Machine kind: laptop, desktop, server or vm."
 
@@ -716,17 +719,23 @@ other = "Target {{.Target}} is not managed in the data repository."
 ["target.out_of_scope"]
 other = "Target {{.Target}} is not in scope for machine {{.Machine}}."
 
+["target.remote_authoritative"]
+other = "Target {{.Target}} is managed through env; its machine scope is set per variable."
+
+["target.recover_remote_authoritative"]
+other = "Use env set NAME --machine <id> to change a variable's scope; target update does not modify env-managed targets."
+
 ["target.no_conflicts"]
 other = "Target {{.Target}} has no conflicts to resolve."
 
 ["target.resolve_partial"]
-other = "Resolved {{.Resolved}} conflicts for target {{.Target}}; {{.Remaining}} remain: {{.RemainingUnits}}."
+other = "Resolved {{.Resolved}} conflicts for target {{.Target}}; {{.Remaining}} remain{{if .RemainingUnits}}: {{.RemainingUnits}}{{end}}."
 
 ["target.recover_no_conflicts"]
 other = "Run target diff {{.Target}} to inspect pending changes; use target sync when no conflicts remain."
 
 ["target.recover_resolve_partial"]
-other = "Inspect target diff {{.Target}} and rerun target resolve {{.Target}} --all --from {{.From}}; already resolved units are skipped."
+other = "Inspect target diff {{.Target}}; rerun target resolve {{.Target}} --all --from {{.From}} for remaining conflicts, or target sync {{.Target}} when none remain; already resolved units are skipped."
 
 ["target.legacy"]
 other = "A legacy target layout requires explicit cleanup."

@@ -30,6 +30,9 @@ func TestMachineDiscoveryAndValidationPrecedeCredentials(t *testing.T) {
 	require.Contains(t, out, "changed")
 	require.NotContains(t, out, "bound")
 	_ = json.Valid([]byte(out))
+	code, out, stderr = invoke(t, "--lang", "en", "machine", "update", "--help")
+	require.Zero(t, code, stderr)
+	require.Contains(t, out, "testcli machine update workstation --kind server --note")
 }
 
 func TestMachineUpdateValidationPrecedesConfiguration(t *testing.T) {

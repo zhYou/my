@@ -294,6 +294,33 @@ type failedWriteAndUnlock struct {
 	unlockCause error
 }
 
+func requireUnsupportedFile(t *testing.T, err error) {
+	t.Helper()
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.file_unsupported"), details[0].Code)
+	require.NotNil(t, details[0].Diagnostic.Recovery)
+	require.Equal(t, "target.recover_file_unsupported", details[0].Diagnostic.Recovery.Code)
+}
+
+func setRemoteFieldTarget(
+	t *testing.T,
+	repository *memoryRepository,
+	id ID,
+	scope MachineScope,
+	units map[UnitID]UnitValue,
+) {
+	t.Helper()
+	metadata, err := encodeRemoteMetadata(id, scope)
+	require.NoError(t, err)
+	values, err := encodeFieldValues(units)
+	require.NoError(t, err)
+	repository.snapshot.Files[remoteTargetPrefix(id)+"/"+targetMetadataFile] = metadata
+	repository.snapshot.Files[remoteTargetPrefix(id)+"/"+configDataDirectory+"/"+fieldValuesFile] = values
+	repository.snapshot.ConfigInitialized = true
+}
+
 func (s failedWriteAndUnlock) Write(datarepo.Metadata, Baseline) error {
 	return s.writeCause
 }

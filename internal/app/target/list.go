@@ -2,7 +2,6 @@ package target
 
 import (
 	"context"
-	"slices"
 
 	"github.com/zhYou/my/internal/datarepo"
 )
@@ -68,7 +67,7 @@ func (s *Service) List(ctx context.Context, input ListOptions) (result ListResul
 		remoteTarget, managed := remote[id]
 		item := ListItem{Target: id, Scope: []string{}}
 		if managed {
-			item.Scope = scopeValues(remoteTarget.scope)
+			item.Scope = remoteTarget.scope.Values()
 			item.Units = len(remoteTarget.units)
 			if remoteTarget.scope.Applies(s.options.MachineID) {
 				item.Status = StatusManaged
@@ -117,17 +116,14 @@ func (s *Service) localTargetExists(definition Definition) (bool, error) {
 			return true, nil
 		}
 	}
+	for _, file := range definition.Files {
+		data, err := readTargetFile(localFilePath(s.options.Home, file), false)
+		if err != nil {
+			return false, err
+		}
+		if data != nil {
+			return true, nil
+		}
+	}
 	return false, nil
-}
-
-func scopeValues(scope MachineScope) []string {
-	if scope.All {
-		return []string{"*"}
-	}
-	values := append([]string(nil), scope.IDs...)
-	if len(values) == 0 {
-		return []string{}
-	}
-	slices.Sort(values)
-	return values
 }

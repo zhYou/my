@@ -366,7 +366,16 @@ func newUpdateCommand(call *invocation) *cobra.Command {
 	cmd.Flags().StringVar(&kind, flagKind, "", "机器类型")
 	cmd.Flags().StringVar(&note, flagNote, "", "单行备注")
 	cmd.MarkFlagsOneRequired(flagKind, flagNote)
-	call.bindCommand(cmd, commandTexts{short: message("cli.machine_update")})
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short: message("cli.machine_update"),
+			example: textMessage{
+				id:     "cli.machine_update_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
 	call.bindFlag(cmd.Flags().Lookup(flagKind), message("cli.machine_kind"))
 	call.bindFlag(cmd.Flags().Lookup(flagNote), message("cli.machine_note"))
 	if err := registerResult[machine.UpdateResult](&call.results, cmd, machineSchema(schemaUpdate)); err != nil {
