@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func checkGraphifyMCP(ctx context.Context, root string, log io.Writer) (resultErr error) {
+func checkGraphifyMCP(ctx context.Context, root string, stderr io.Writer) (resultErr error) {
 	temporary, err := os.MkdirTemp("", "graphify-mcp-check-*")
 	if err != nil {
 		return err
@@ -25,7 +25,7 @@ func checkGraphifyMCP(ctx context.Context, root string, log io.Writer) (resultEr
 		return err
 	}
 	// 在建图前连接，服务不得因尚无默认图而退出。
-	client, closeClient, err := startMCP(ctx, root, "graphify:serve", log, "GRAPHIFY_QUERY_LOG_DISABLE=1")
+	client, closeClient, err := startMCP(ctx, root, "graphify:serve", stderr, "GRAPHIFY_QUERY_LOG_DISABLE=1")
 	if err != nil {
 		return err
 	}

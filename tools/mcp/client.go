@@ -26,7 +26,7 @@ type mcpClient struct {
 func startMCP(
 	parent context.Context,
 	root, task string,
-	log io.Writer,
+	stderr io.Writer,
 	env ...string,
 ) (*mcpClient, func() error, error) {
 	// 使用操作系统管道，执行器直接传递句柄；避免借用 io.Pipe 的复制 goroutine 等待环。
@@ -42,7 +42,7 @@ func startMCP(
 	done := make(chan error, 1)
 	go func() {
 		err := cmdexec.Run(ctx, cmdexec.Invocation{Program: miseProgram, Args: []string{"run", quietFlag, task}},
-			cmdexec.Execution{Dir: root, IO: iostreams.IOStreams{In: requests, Out: responses, ErrOut: log}}.
+			cmdexec.Execution{Dir: root, IO: iostreams.IOStreams{In: requests, Out: responses, ErrOut: stderr}}.
 				WithEnv(env...))
 		// 不论启动失败、提前退出或取消，都关闭父进程保留的子端，解除协议读写。
 		done <- errors.Join(err, requests.Close(), responses.Close())
