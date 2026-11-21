@@ -34,34 +34,34 @@ actionlint 通过 `-version` 离线核对准确版本，属于必需工具。
 
 mise 聚合流程，领域 Go 入口只处理各自能力；参数不足、未知或多余时立即失败。
 
-| 命令                                                         | 用途                                                                           |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `mise run setup`                                             | 安装 mise 声明的运行时与工具，下载 Go 模块                                     |
-| `mise run doctor`                                            | 检查项目环境，报告用户工具状态                                                 |
-| `mise run fmt`                                               | 显式格式化 Go 和五类文本；分项可指定路径                                       |
-| `mise run fmt:go -- <路径...>` / `fmt:text -- <路径...>`     | 仅格式化指定 Go / 文本文件或目录；省略路径处理全部受检文件                     |
-| `mise run lint:text`                                         | 只读检查 JSON、XML、TOML、Markdown、YAML 的格式、语法及规则                    |
-| `mise run lint:workflow`                                     | 检查 GitHub Actions 工作流的语法、表达式、上下文与任务依赖；纳入 lint 和 check |
-| `mise run lint:syntax`                                       | 用现成 CLI 检查 JSON、XML、TOML 语法和重复键                                   |
-| `mise run lint`                                              | 只读检查格式、双语消息、应用及客户端配置、包文档、源码风格、版本声明和静态规则 |
-| `mise run lint:i18n` / `lint:config` / `lint:opencode`       | 校验双语消息、受管应用配置 / OpenCode MCP 与权限边界；均纳入 lint 和 check     |
-| `mise run lint:agent-rules`                                  | 校验 `.codex/rules/*.rules` 的 justification 与文件边界；纳入 lint 和 check    |
-| `mise run lint:style`                                        | 检查具名和匿名结构体字段逐项声明；纳入 lint 和 check                           |
-| `mise run lint:doc`                                          | 检查正式 Go 包的 doc.go 与包说明位置；纳入 lint 和 check                       |
-| `mise run lint:test`                                         | 用真实 fixture 测试静态规则自身；仅纳入 check                                  |
-| `mise run build`                                             | 构建到 bin，注入版本信息                                                       |
-| `mise run check`                                             | 完整源码检查，含测试、构建、契约和模板验收                                     |
-| `mise run verify:isolated`                                   | 在临时 MISE、Go、npm、uv 和 gopls 缓存中运行 check、race 与 MCP 验收           |
-| `mise run template:check`                                    | 在临时副本中验证改名、lint、测试、构建、安装和发布配置                         |
-| `mise run template:init --module <模块路径> --name <命令名>` | 初始化模板身份                                                                 |
-| `mise run contract:check` / `contract:update`                | 检查 / 显式更新机器契约                                                        |
-| `mise run lint:versions`                                     | 检查工具、模块、CI 和文档版本一致性                                            |
-| `mise run mcp:check`                                         | 验收两客户端 Serena context、六后端、Graphify；成功仅输出摘要                  |
-| `mise run mcp:serve:opencode`                                | 以 `ide` context 启动绑定当前 checkout 的 OpenCode Serena MCP                  |
-| `mise run graphify -- <参数...>`                             | 运行固定版本 Graphify CLI，透传上游参数和退出码                                |
-| `mise run graphify:build` / `graphify:update`                | 构建 / 增量更新当前 checkout 的本地代码图，无需模型或 API Key                  |
-| `mise run graphify:serve`                                    | 启动 Graphify MCP，查询显式传当前 checkout 的绝对 `project_path`               |
-| `mise run release:verify`                                    | 验证发布归档，并隔离安装宿主程序                                               |
+| 命令                                                         | 用途                                                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `mise run setup`                                             | 安装 mise 声明的运行时与工具，下载 Go 模块                                           |
+| `mise run doctor`                                            | 检查项目环境，报告用户工具状态                                                       |
+| `mise run fmt`                                               | 显式格式化 Go 和五类文本；分项可指定路径                                             |
+| `mise run fmt:go -- <路径...>` / `fmt:text -- <路径...>`     | 仅格式化指定 Go / 文本文件或目录；省略路径处理全部受检文件                           |
+| `mise run lint:text`                                         | 只读检查 JSON、XML、TOML、Markdown、YAML 的格式、语法及规则                          |
+| `mise run lint:workflow`                                     | 检查 GitHub Actions 工作流的语法、表达式、上下文与任务依赖；纳入 lint 和 check       |
+| `mise run lint:syntax`                                       | 用现成 CLI 检查 JSON、XML、TOML 语法和重复键                                         |
+| `mise run lint`                                              | 只读检查格式、双语消息、应用及客户端配置、包文档、源码风格、版本声明和静态规则       |
+| `mise run lint:i18n` / `lint:config` / `lint:opencode`       | 校验双语消息、受管应用配置 / OpenCode MCP 与权限边界；均纳入 lint 和 check           |
+| `mise run lint:agent-rules`                                  | 校验 `.codex/rules/*.rules` 的 justification 与文件边界；纳入 lint 和 check          |
+| `mise run lint:style`                                        | 检查具名和匿名结构体字段逐项声明；纳入 lint 和 check                                 |
+| `mise run lint:doc`                                          | 检查正式 Go 包的 doc.go 与包说明位置；纳入 lint 和 check                             |
+| `mise run lint:test`                                         | 用真实 fixture 测试静态规则自身；仅纳入 check                                        |
+| `mise run build`                                             | 构建到 bin，注入版本信息                                                             |
+| `mise run check`                                             | 完整源码检查，含测试、构建、契约和模板验收                                           |
+| `mise run verify:isolated`                                   | 在临时 MISE、Go、npm、uv 和 gopls 缓存中运行 check、race 与 MCP 验收                 |
+| `mise run template:check`                                    | 在临时副本中验证改名、lint、测试、构建、安装和发布配置                               |
+| `mise run template:init --module <模块路径> --name <命令名>` | 初始化模板身份                                                                       |
+| `mise run contract:check` / `contract:update`                | 检查 / 显式更新机器契约                                                              |
+| `mise run lint:versions`                                     | 检查工具、模块、CI 和文档版本一致性                                                  |
+| `mise run mcp:check`                                         | 验收两客户端 Serena context、六后端、Graphify 及同连接 worktree 隔离；成功仅输出摘要 |
+| `mise run mcp:serve:opencode`                                | 以 `ide` context 启动绑定当前 checkout 的 OpenCode Serena MCP                        |
+| `mise run graphify -- <参数...>`                             | 运行固定版本 Graphify CLI，透传上游参数和退出码                                      |
+| `mise run graphify:build` / `graphify:update`                | 构建 / 增量更新当前 checkout 的本地代码图，无需模型或 API Key                        |
+| `mise run graphify:serve`                                    | 启动 Graphify MCP，查询显式传当前 checkout 的绝对 `project_path`                     |
+| `mise run release:verify`                                    | 验证发布归档，并隔离安装宿主程序                                                     |
 
 直接调用纳管工具无需 shell 激活；以下直接工具命令也可用于针对性验证：
 
@@ -236,7 +236,7 @@ bin/dist、生成代码和外部 `*_test` 包不受约束；普通 `*_test.go` �
 | 文档中的模板身份或可执行示例                  | 身份和受管文件变更运行 `mise run template:check`；修改示例时验证对应入口、参数或 API，执行时隔离应用 HOME                                         |
 | Go 代码、测试、依赖、应用配置                 | 格式化受影响的 Go 文件，运行针对性测试、`mise run check`；支持的宿主运行 `mise exec -- go test -race ./...`                                       |
 | GitHub Actions、CI 缓存的工具安装或作业结构   | `mise run lint:workflow`、`mise run lint:versions`、`git diff --check`；行为变化须在 PR 或手动运行中核对实际作业与缓存命中                        |
-| MCP 配置、验收工具或影响 MCP 的 Go/gopls 升级 | 增加 `mise run mcp:check`；Codex 核对 `codex mcp list`，OpenCode 核对 `opencode debug config`、`opencode mcp list` 并验证真实工具调用             |
+| MCP 配置、验收工具或影响 MCP 的 Go/gopls 升级 | 增加 `mise run mcp:check`；Codex 核对 `codex mcp list`，OpenCode 真实客户端验收按[维护清单](maintenance.md#opencode-原生客户端验收)执行           |
 | 打包与发布流程                                | 按[发布验收](maintenance.md#升级和发布)完成 snapshot、release:verify 及发布前检查                                                                 |
 
 消息和配置编辑期间分别可用 `lint:i18n`、`lint:config`、`lint:opencode` 快速反馈；它们及 `lint:doc`、`lint:style`、`lint:versions`、
@@ -284,8 +284,7 @@ Go 专用能力和 Serena 未支持的操作使用当前 checkout 的 gopls CLI�
 不得使用其他 checkout 的结果证明当前改动正确。同一 checkout 串行修改。
 MCP 集成变更必须通过真实 mcp:check：Codex context 验证六后端、引用/重命名/诊断及同连接新建 worktree，
 OpenCode context 验证 `ide` context、启动目录绑定和代表性符号查询，Graphify 继续验证代码图；
-真实 OpenCode 客户端仍须在本地会话中验证 MCP 与权限；冷目录首次 `mcp list` 应按
-[上游竞态](https://github.com/anomalyco/opencode/issues/63722)等待服务就绪后重试，`pending` 表示配置已加载而非连接失败。
+MCP、权限或 OpenCode 项目适配层变化时，按[维护清单](maintenance.md#opencode-原生客户端验收)执行真实客户端验收。
 CLI 回退不能代替验收。
 
 `mcp:check` 将 Serena、OpenCode 和 Graphify 子进程 stderr 写入本次运行的临时日志；三个检查各保留一条
