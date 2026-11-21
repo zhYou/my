@@ -36,6 +36,28 @@ func TestCompareThreeWayUnits(t *testing.T) {
 			code:   "target.first_takeover",
 		},
 		{
+			name:   "first takeover missing local applies remote",
+			kind:   UnitField,
+			local:  UnitValue{},
+			remote: remoteValue,
+			action: ActionApplyRemote,
+		},
+		{
+			name:   "first takeover missing remote conflicts",
+			kind:   UnitField,
+			local:  localValue,
+			remote: UnitValue{},
+			action: ActionConflict,
+			code:   "target.first_takeover",
+		},
+		{
+			name:   "first takeover secret missing local applies remote",
+			kind:   UnitSecret,
+			local:  UnitValue{},
+			remote: oldValue,
+			action: ActionApplyRemote,
+		},
+		{
 			name:     "remote only change applies locally",
 			kind:     UnitField,
 			baseline: baselineOf(oldValue),

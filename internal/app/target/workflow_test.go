@@ -70,6 +70,81 @@ func TestSyncAppliesRemoteAndUploadsLocal(t *testing.T) {
 	})
 }
 
+func TestSyncAppliesRemoteWhenLocalMissingOnFirstSync(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	require.NoError(t, service.options.State.Clear(repository.snapshot.Metadata, Topgrade))
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+	require.NoError(t, os.Remove(localPath))
+
+	diff, err := service.Diff(t.Context(), DiffOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	require.Len(t, diff.Changes, 1)
+	require.Equal(t, ActionApplyRemote, diff.Changes[0].Action)
+
+	result, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(t, "verbose = true\n", readFixture(t, localPath))
+	require.Empty(t, repository.commits)
+}
+
+func TestSyncAddsMissingFieldFromRemoteOnFirstSync(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".config", "mise", "config.toml")
+	writeFixture(t, configPath, "[tools]\ngo = \"latest\"\nnode = \"latest\"\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Mise}})
+	require.NoError(t, err)
+	require.NoError(t, service.options.State.Clear(repository.snapshot.Metadata, Mise))
+	writeFixture(t, configPath, "[tools]\ngo = \"latest\"\n")
+
+	_, err = service.Sync(t.Context(), SyncOptions{Targets: []ID{Mise}})
+	require.NoError(t, err)
+	var document struct {
+		Tools map[string]string `toml:"tools"`
+	}
+	require.NoError(t, toml.Unmarshal([]byte(readFixture(t, configPath)), &document))
+	require.Equal(t, "latest", document.Tools["go"])
+	require.Equal(t, "latest", document.Tools["node"])
+}
+
+func TestSyncKeepsFirstTakeoverConflictForLocalOnlyField(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".config", "mise", "config.toml")
+	writeFixture(t, configPath, "[tools]\ngo = \"latest\"\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Mise}})
+	require.NoError(t, err)
+	require.NoError(t, service.options.State.Clear(repository.snapshot.Metadata, Mise))
+	writeFixture(t, configPath, "[tools]\ngo = \"latest\"\nnode = \"latest\"\n")
+
+	_, err = service.Sync(t.Context(), SyncOptions{Targets: []ID{Mise}})
+	require.Error(t, err)
+	conflicts := &ConflictError{}
+	require.ErrorAs(t, err, &conflicts)
+	require.Len(t, conflicts.Conflicts, 1)
+	require.Equal(t, firstTakeoverCode, conflicts.Conflicts[0].Code)
+	require.Equal(t, "[tools]\ngo = \"latest\"\nnode = \"latest\"\n", readFixture(t, configPath))
+}
+
+func TestSyncAppliesRemoteSecretWhenLocalMissingOnFirstSync(t *testing.T) {
+	home, repository, service := capturedCodexAuth(t)
+	require.NoError(t, service.options.State.Clear(repository.snapshot.Metadata, CodexAuth))
+	authPath := filepath.Join(home, ".codex", "auth.json")
+	require.NoError(t, os.Remove(authPath))
+
+	result, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{CodexAuth}})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.JSONEq(
+		t,
+		`{"auth_mode":"chatgpt","tokens":{"access_token":"initial-version"}}`,
+		readFixture(t, authPath),
+	)
+}
+
 func TestSyncConflictDoesNotWriteAnySide(t *testing.T) {
 	home, repository, service := capturedTopgrade(t, "verbose = true\n")
 	localPath := filepath.Join(home, ".config", "topgrade.toml")
@@ -325,17 +400,16 @@ func TestSyncRejectsMalformedRemoteFilesBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestResolveRemoteAuthCreatesMissingLocalFile(t *testing.T) {
+func TestRemoteAuthAppliesToNewMachineWithoutLocalFile(t *testing.T) {
 	_, repository, existing := capturedCodexAuth(t)
 	home := t.TempDir()
 	service := newAuthTestService(home, repository, existing.options.AgeKey)
 	diff, err := service.Diff(t.Context(), DiffOptions{Targets: []ID{CodexAuth}})
 	require.NoError(t, err)
-	require.Len(t, diff.Conflicts, 1)
-	_, err = service.Resolve(
-		t.Context(),
-		ResolveOptions{Target: CodexAuth, Unit: SecretUnitID, From: ResolveRemote},
-	)
+	require.Empty(t, diff.Conflicts)
+	require.Len(t, diff.Changes, 1)
+	require.Equal(t, ActionApplyRemote, diff.Changes[0].Action)
+	_, err = service.Sync(t.Context(), SyncOptions{})
 	require.NoError(t, err)
 	authPath := filepath.Join(home, ".codex", "auth.json")
 	require.JSONEq(t, `{"auth_mode":"chatgpt","tokens":{"access_token":"initial-version"}}`, readFixture(t, authPath))
@@ -471,10 +545,7 @@ func TestCodexAuthResumesWhenFirstFileWriteFailed(t *testing.T) {
 	service := newAuthTestService(home, repository, existing.options.AgeKey)
 	directory := filepath.Join(home, ".codex")
 	service.options.State = &blockedAuthApply{State: service.options.State, directory: directory}
-	_, err := service.Resolve(
-		t.Context(),
-		ResolveOptions{Target: CodexAuth, Unit: SecretUnitID, From: ResolveRemote},
-	)
+	_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{CodexAuth}})
 	require.Error(t, err)
 	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, CodexAuth)
 	require.NoError(t, err)

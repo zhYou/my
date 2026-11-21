@@ -69,10 +69,14 @@ type Comparison struct {
 // Compare 对基线、本机和远端值执行三方比较。
 func Compare(kind UnitKind, baseline *BaselineValue, local, remote UnitValue) Comparison {
 	if baseline == nil {
-		if sameUnitValue(local, remote) {
+		switch {
+		case sameUnitValue(local, remote):
 			return Comparison{Action: ActionAdopt}
+		case !local.Exists && remote.Exists:
+			return Comparison{Action: ActionApplyRemote}
+		default:
+			return Comparison{Action: ActionConflict, Code: firstTakeoverCode}
 		}
-		return Comparison{Action: ActionConflict, Code: firstTakeoverCode}
 	}
 	if kind == UnitFile && baseline.Exists && (!local.Exists || !remote.Exists) {
 		return Comparison{Action: ActionConflict, Code: fileMissingCode}
