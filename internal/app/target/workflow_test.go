@@ -103,6 +103,68 @@ func TestSyncAppliesRemoteAndUploadsLocal(t *testing.T) {
 	})
 }
 
+func TestExplicitSyncOfRemovedTargetKeepsOrphanBaseline(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+targetMetadataFile)
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+configDataDirectory+"/topgrade.toml")
+	repository.snapshot.Metadata.Commit = "topgrade-removed"
+
+	_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	require.Empty(t, repository.commits)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func TestSyncFullSelectionKeepsBaselineWithoutRemoteConfiguration(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	repository.snapshot.Files = map[string][]byte{}
+	repository.snapshot.ConfigInitialized = false
+	repository.snapshot.Metadata.Commit = "config-missing"
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Empty(t, result.RemovedBaselines)
+	require.Empty(t, repository.commits)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func TestSyncFullSelectionPrunesOrphanBaseline(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	writeFixture(t, filepath.Join(home, ".config", "mise", "config.toml"), "[tools]\ngo = \"latest\"\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Topgrade, Mise}})
+	require.NoError(t, err)
+	repository.commits = nil
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+targetMetadataFile)
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+configDataDirectory+"/topgrade.toml")
+	repository.snapshot.Metadata.Commit = "topgrade-removed"
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(t, []ID{Topgrade}, result.RemovedBaselines)
+	require.Empty(t, repository.commits)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.False(t, exists)
+	_, exists, err = service.options.State.Read(repository.snapshot.Metadata, Mise)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
 func TestSyncRejectsSymlinkTargetFileWithoutFollowing(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows 符号链接创建需要额外权限")
@@ -360,8 +422,12 @@ func TestFullSelectionSkipsOutOfScopeTarget(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result.Changed)
 	require.Empty(t, result.Targets)
+	require.Empty(t, result.RemovedBaselines)
 	require.Equal(t, "verbose = \"local\"\n", readFixture(t, localPath))
 	require.Empty(t, repository.commits)
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
 }
 
 func TestSyncSkipsRemoteAuthoritativeEnvironmentTarget(t *testing.T) {

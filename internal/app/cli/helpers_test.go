@@ -428,6 +428,17 @@ func (f *fixtureGitHub) replaceRemote(path string, data []byte) {
 	f.versions[f.head] = files
 }
 
+func (f *fixtureGitHub) removeRemote(paths ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	files := maps.Clone(f.versions[f.head])
+	for _, path := range paths {
+		delete(files, path)
+	}
+	f.head = fmt.Sprintf("%040x", 1000+len(f.versions))
+	f.versions[f.head] = files
+}
+
 type changedBindingState struct {
 	machine.State
 	reads int
