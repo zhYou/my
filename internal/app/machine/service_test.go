@@ -94,6 +94,124 @@ func TestLifecyclePreservesIdentityAndRegistrationTime(t *testing.T) {
 	require.Equal(t, first.Machine.Note, restored.Machine.Note)
 }
 
+func TestUpdateChangesOnlyKindAndNote(t *testing.T) {
+	r := newMemoryRepository()
+	s := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	_, err := s.Initialize(t.Context())
+	require.NoError(t, err)
+	registered, err := s.Register(t.Context(), RegisterOptions{ID: "fixture", Kind: "vm", Note: "old"})
+	require.NoError(t, err)
+	commits := r.commits
+	kind := "server"
+	note := "new note"
+	result, err := s.Update(t.Context(), UpdateOptions{ID: "fixture", Kind: &kind, Note: &note})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(t, "server", result.Machine.Kind)
+	require.Equal(t, "new note", result.Machine.Note)
+	require.Equal(t, registered.Machine.MachineID, result.Machine.MachineID)
+	require.Equal(t, registered.Machine.OS, result.Machine.OS)
+	require.Equal(t, registered.Machine.Arch, result.Machine.Arch)
+	require.Equal(t, registered.Machine.Status, result.Machine.Status)
+	require.Equal(t, registered.Machine.RegisteredAt, result.Machine.RegisteredAt)
+	require.Equal(t, registered.Machine.RetiredAt, result.Machine.RetiredAt)
+	require.Equal(t, commits+1, r.commits)
+	require.NotEqual(t, registered.Snapshot.Commit, result.Snapshot.Commit)
+}
+
+func TestUpdateUnchangedRecordDoesNotCommit(t *testing.T) {
+	r := newMemoryRepository()
+	s := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	_, err := s.Initialize(t.Context())
+	require.NoError(t, err)
+	registered, err := s.Register(t.Context(), RegisterOptions{ID: "fixture", Kind: "vm", Note: "same"})
+	require.NoError(t, err)
+	commits := r.commits
+	kind := "vm"
+	note := "same"
+	result, err := s.Update(t.Context(), UpdateOptions{ID: "fixture", Kind: &kind, Note: &note})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Equal(t, registered.Machine, result.Machine)
+	require.Equal(t, registered.Snapshot, result.Snapshot)
+	require.Equal(t, commits, r.commits)
+}
+
+func TestUpdateRetiredRecordKeepsRetirement(t *testing.T) {
+	r := newMemoryRepository()
+	s := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	_, err := s.Initialize(t.Context())
+	require.NoError(t, err)
+	_, err = s.Register(t.Context(), RegisterOptions{ID: "fixture", Kind: "vm", Note: "old"})
+	require.NoError(t, err)
+	retired, err := s.Retire(t.Context(), "fixture")
+	require.NoError(t, err)
+	note := "corrected"
+	result, err := s.Update(t.Context(), UpdateOptions{ID: "fixture", Note: &note})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(t, Retired, result.Machine.Status)
+	require.Equal(t, retired.Machine.RetiredAt, result.Machine.RetiredAt)
+	require.Equal(t, retired.Machine.RegisteredAt, result.Machine.RegisteredAt)
+	require.Equal(t, "vm", result.Machine.Kind)
+	require.Equal(t, note, result.Machine.Note)
+}
+
+func TestUpdateUnknownMachineDoesNotCommit(t *testing.T) {
+	r := newMemoryRepository()
+	s := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	_, err := s.Initialize(t.Context())
+	require.NoError(t, err)
+	commits := r.commits
+	note := "missing"
+	_, err = s.Update(t.Context(), UpdateOptions{ID: "missing", Note: &note})
+	require.Error(t, err)
+	require.Equal(t, fault.Code("machine.not_found"), fault.Details(err)[0].Code)
+	require.Equal(t, commits, r.commits)
+}
+
+func TestUpdateValidatesInputBeforeRepositoryRead(t *testing.T) {
+	r := newMemoryRepository()
+	s := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	invalidKind := "workstation"
+	emptyNote := ""
+	validKind := "vm"
+	for name, input := range map[string]UpdateOptions{
+		"no-fields":       {ID: "fixture"},
+		"invalid-kind":    {ID: "fixture", Kind: &invalidKind},
+		"empty-note":      {ID: "fixture", Note: &emptyNote},
+		"invalid-machine": {ID: "INVALID", Kind: &validKind},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := s.Update(t.Context(), input)
+			require.Error(t, err)
+			require.Equal(t, fault.Usage, fault.KindOf(err))
+			require.Equal(t, fault.Code("machine.invalid_input"), fault.Details(err)[0].Code)
+			require.Zero(t, r.commits)
+		})
+	}
+}
+
+func TestUpdateDoesNotRequireMatchingLocalBinding(t *testing.T) {
+	r := newMemoryRepository()
+	owner := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	_, err := owner.Initialize(t.Context())
+	require.NoError(t, err)
+	_, err = owner.Register(t.Context(), RegisterOptions{ID: "fixture", Kind: "vm", Note: "old"})
+	require.NoError(t, err)
+	other := serviceFixture(t, r, NewFileState(filepath.Join(t.TempDir(), "state")))
+	_, err = other.Register(t.Context(), RegisterOptions{ID: "other", Kind: "vm", Note: "other"})
+	require.NoError(t, err)
+	note := "managed-elsewhere"
+	result, err := other.Update(t.Context(), UpdateOptions{ID: "fixture", Note: &note})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(t, note, result.Machine.Note)
+	binding, err := other.Current(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "other", binding.MachineID)
+}
+
 type failedWriteState struct {
 	State
 	failure error

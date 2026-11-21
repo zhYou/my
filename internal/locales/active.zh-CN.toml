@@ -466,6 +466,9 @@ other = "机器ID\t状态\t系统\t架构\t类型\t备注"
 ["machine.record_result"]
 other = "机器：{{.ID}}\n类型：{{.Kind}}\n系统：{{.OS}}\n架构：{{.Arch}}\n备注：{{.Note}}\n登记时间：{{.RegisteredAt}}\n状态：{{.Status}}\n提交：{{.Commit}}"
 
+["machine.update_result"]
+other = "机器：{{.ID}}\n类型：{{.Kind}}\n系统：{{.OS}}\n架构：{{.Arch}}\n备注：{{.Note}}\n登记时间：{{.RegisteredAt}}\n状态：{{.Status}}\n提交：{{.Commit}}\n已变更：{{.Changed}}"
+
 ["machine.current_result"]
 other = "本机绑定：{{.ID}}，{{.Repository}}（{{.Branch}}）"
 
@@ -495,6 +498,9 @@ other = "在当前设备恢复已有机器身份。"
 
 ["cli.machine_retire"]
 other = "退役机器记录并清除匹配的本机绑定。"
+
+["cli.machine_update"]
+other = "修正机器记录的类型或备注，不改变身份。"
 
 ["cli.machine_kind"]
 other = "机器类型：laptop、desktop、server 或 vm。"

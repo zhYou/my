@@ -204,6 +204,7 @@ my data init
 my machine register workstation --kind desktop --note "Synthetic example"
 my machine list --json
 my machine show workstation --json
+my machine update workstation --kind server --note "Synthetic corrected example"
 my machine current --json
 my machine bind workstation
 my machine retire workstation
@@ -218,6 +219,8 @@ kind 为 laptop、desktop、server、vm；os/arch 由当前平台取得，note �
 相同 active 资料重复登记不提交新版本，并可补齐本机绑定；资料不同或已退役则拒绝登记。
 `bind` 保留原 kind、note 和登记时间；退役机器要求 `--reactivate`，平台变化要求 `--update-platform`。
 两个条件同时存在时须同时给出。绑定保存仓名、仓数字 ID、分支与机器 ID，不覆盖其他身份。仓名比较忽略大小写，其余身份字段严格比较。
+`update` 只修正 kind 或 note，至少给出一个；ID、平台、状态、登记和退役时间保持不变，退役记录修正后仍为退役。
+值未变化时返回 changed=false 且不提交新版本；操作不要求本机绑定到被修改的机器。
 `current` 只读本机，其他查询读取固定远端 HEAD；退役只清除精确匹配的本机绑定。
 
 远端变更以 expectedHeadOid 作 CAS，不自动重试。并发 HEAD 变化先重新查询；提交结果未知时，

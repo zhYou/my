@@ -1,0 +1,9 @@
+{
+  "id": "2026-11-21-machine-update",
+  "compatibility": "compatible",
+  "summary": "新增 machine update，仅修正机器记录的 kind 或 note。",
+  "paths": ["/schema/commands/contract-cli/commands/contract-cli machine/commands/contract-cli machine update"],
+  "previous_version": "v0.6.1",
+  "target_version": "v0.6.2",
+  "migration": "新增 machine update <id>，使用 --kind、--note 或两者修正资料，至少提供一个。ID、OS、架构、状态、登记和退役时间保持不变，退役记录不会被重新激活，也不要求本机绑定到该机器。值未变化时返回 changed=false 且不提交新版本。既有命令、选项、结果字段和远端机器格式保持兼容。"
+}

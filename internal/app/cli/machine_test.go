@@ -23,6 +23,134 @@ func TestMachineDiscoveryAndValidationPrecedeCredentials(t *testing.T) {
 	require.Contains(t, out, "kind")
 	require.Contains(t, out, "note")
 	_ = json.Valid([]byte(out))
+	code, out, stderr = invoke(t, "schema", "machine", "update")
+	require.Zero(t, code, stderr)
+	require.Contains(t, out, "kind")
+	require.Contains(t, out, "note")
+	require.Contains(t, out, "changed")
+	require.NotContains(t, out, "bound")
+	_ = json.Valid([]byte(out))
+}
+
+func TestMachineUpdateValidationPrecedesConfiguration(t *testing.T) {
+	for name, args := range map[string][]string{
+		"no-fields":    {"machine", "update", "fixture"},
+		"invalid-kind": {"machine", "update", "fixture", "--kind", "bogus"},
+		"empty-note":   {"machine", "update", "fixture", "--note", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			code, out, stderr := invoke(t, append(args, "--json")...)
+			require.Equal(t, 2, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, "machine.validate")
+			require.Contains(t, stderr, "supported kind")
+		})
+	}
+}
+
+func TestMachineUpdateChangesProfileAndIsIdempotent(t *testing.T) {
+	f := newFixtureGitHub(t)
+	home := workflowHome(t)
+	code, _, stderr := workflowCall(t, f, home, nil, "data", "init", "--json")
+	require.Zero(t, code, stderr)
+	code, out, stderr := workflowCall(
+		t,
+		f,
+		home,
+		nil,
+		"machine",
+		"register",
+		"fixture",
+		"--kind",
+		"vm",
+		"--note",
+		"old",
+		"--json",
+	)
+	require.Zero(t, code, stderr)
+	var registered machine.ChangeResult
+	require.NoError(t, json.Unmarshal([]byte(out), &registered))
+	commits := f.commits
+	code, out, stderr = workflowCall(t, f, home, nil, "machine", "update", "fixture", "--kind", "server", "--json")
+	require.Zero(t, code, stderr)
+	var updated machine.UpdateResult
+	require.NoError(t, json.Unmarshal([]byte(out), &updated))
+	require.True(t, updated.Changed)
+	require.Equal(t, "server", updated.Machine.Kind)
+	require.Equal(t, "old", updated.Machine.Note)
+	require.Equal(t, registered.Machine.MachineID, updated.Machine.MachineID)
+	require.Equal(t, registered.Machine.OS, updated.Machine.OS)
+	require.Equal(t, registered.Machine.Arch, updated.Machine.Arch)
+	require.Equal(t, registered.Machine.Status, updated.Machine.Status)
+	require.Equal(t, registered.Machine.RegisteredAt, updated.Machine.RegisteredAt)
+	require.NotContains(t, out, `"bound"`)
+	require.Equal(t, commits+1, f.commits)
+	code, out, stderr = workflowCall(
+		t,
+		f,
+		home,
+		nil,
+		"machine",
+		"update",
+		"fixture",
+		"--kind",
+		"server",
+		"--note",
+		"old",
+		"--json",
+	)
+	require.Zero(t, code, stderr)
+	var again machine.UpdateResult
+	require.NoError(t, json.Unmarshal([]byte(out), &again))
+	require.False(t, again.Changed)
+	require.Equal(t, updated.Snapshot, again.Snapshot)
+	require.Equal(t, commits+1, f.commits)
+	code, out, stderr = workflowCall(t, f, home, nil, "machine", "update", "fixture", "--note", "text note")
+	require.Zero(t, code, stderr)
+	require.Contains(t, out, "Note: text note")
+	require.Contains(t, out, "Commit:")
+	require.Contains(t, out, "Changed: true")
+	require.Equal(t, commits+2, f.commits)
+	code, out, stderr = workflowCall(t, f, home, nil, "machine", "update", "missing", "--note", "old", "--json")
+	require.Equal(t, 1, code)
+	require.Empty(t, out)
+	require.Contains(t, stderr, "machine.not_found")
+	require.Equal(t, commits+2, f.commits)
+}
+
+func TestMachineUpdateRetiredRecordStaysRetired(t *testing.T) {
+	f := newFixtureGitHub(t)
+	home := workflowHome(t)
+	code, _, stderr := workflowCall(t, f, home, nil, "data", "init", "--json")
+	require.Zero(t, code, stderr)
+	code, _, stderr = workflowCall(
+		t,
+		f,
+		home,
+		nil,
+		"machine",
+		"register",
+		"fixture",
+		"--kind",
+		"vm",
+		"--note",
+		"old",
+		"--json",
+	)
+	require.Zero(t, code, stderr)
+	code, _, stderr = workflowCall(t, f, home, nil, "machine", "retire", "fixture", "--json")
+	require.Zero(t, code, stderr)
+	retired := f.commits
+	code, out, stderr := workflowCall(t, f, home, nil, "machine", "update", "fixture", "--note", "corrected", "--json")
+	require.Zero(t, code, stderr)
+	var updated machine.UpdateResult
+	require.NoError(t, json.Unmarshal([]byte(out), &updated))
+	require.True(t, updated.Changed)
+	require.Equal(t, machine.Retired, updated.Machine.Status)
+	require.NotNil(t, updated.Machine.RetiredAt)
+	require.Equal(t, "corrected", updated.Machine.Note)
+	require.Equal(t, "vm", updated.Machine.Kind)
+	require.Equal(t, retired+1, f.commits)
 }
 
 func TestInternalRequestTimeoutIsRuntimeButParentCancellationWins(t *testing.T) {

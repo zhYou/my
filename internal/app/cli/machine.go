@@ -227,12 +227,13 @@ func newMachineCommand(call *invocation) *cobra.Command {
 	if err := registerResult[machine.ChangeResult](&call.results, retire, machineSchema(schemaChange)); err != nil {
 		panic(err)
 	}
-	group.AddCommand(register, list, show, current, bind, retire)
+	update := newUpdateCommand(call)
+	group.AddCommand(register, list, show, current, bind, retire, update)
 	call.bindCommand(group, commandTexts{short: message("cli.machine")})
 	for _, binding := range []struct {
 		cmd *cobra.Command
 		id  string
-	}{{list, "cli.machine_list"}, {show, "cli.machine_show"}, {current, "cli.machine_current"}, {retire, "cli.machine_retire"}} {
+	}{{list, "cli.machine_list"}, {show, "cli.machine_show"}, {current, "cli.machine_current"}, {retire, "cli.machine_retire"}, {update, "cli.machine_update"}} {
 		call.bindCommand(binding.cmd, commandTexts{short: message(binding.id)})
 	}
 	return group
@@ -325,6 +326,55 @@ func newBindCommand(call *invocation) *cobra.Command {
 	return cmd
 }
 
+func newUpdateCommand(call *invocation) *cobra.Command {
+	input := machine.UpdateOptions{}
+	var kind, note string
+	cmd := &cobra.Command{
+		Use:         "update <id>",
+		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
+		Args: func(cmd *cobra.Command, args []string) error {
+			if err := machineIDArgs(cmd, args); err != nil {
+				return err
+			}
+			input.ID = args[0]
+			if cmd.Flags().Changed(flagKind) {
+				input.Kind = &kind
+			}
+			if cmd.Flags().Changed(flagNote) {
+				input.Note = &note
+			}
+			return input.Validate()
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			service, err := call.machineService(cmd.Context(), true)
+			if err != nil {
+				return err
+			}
+			result, err := service.Update(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return businessOutput(
+				cmd,
+				call,
+				result,
+				"machine.update_result",
+				updateParams(result),
+			)
+		},
+	}
+	cmd.Flags().StringVar(&kind, flagKind, "", "机器类型")
+	cmd.Flags().StringVar(&note, flagNote, "", "单行备注")
+	cmd.MarkFlagsOneRequired(flagKind, flagNote)
+	call.bindCommand(cmd, commandTexts{short: message("cli.machine_update")})
+	call.bindFlag(cmd.Flags().Lookup(flagKind), message("cli.machine_kind"))
+	call.bindFlag(cmd.Flags().Lookup(flagNote), message("cli.machine_note"))
+	if err := registerResult[machine.UpdateResult](&call.results, cmd, machineSchema(schemaUpdate)); err != nil {
+		panic(err)
+	}
+	return cmd
+}
+
 func machineIDArgs(cmd *cobra.Command, args []string) error {
 	if err := cobra.ExactArgs(1)(cmd, args); err != nil {
 		return err
@@ -382,4 +432,10 @@ func recordParams(record machine.Record, commit string) map[string]any {
 		"Status":       record.Status,
 		paramCommit:    commit,
 	}
+}
+
+func updateParams(result machine.UpdateResult) map[string]any {
+	params := recordParams(result.Machine, result.Snapshot.Commit)
+	params[paramChanged] = result.Changed
+	return params
 }
