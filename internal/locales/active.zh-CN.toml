@@ -694,6 +694,12 @@ other = "目标状态或内容无效。"
 ["target.file_unsupported"]
 other = "目标文件是符号链接或特殊文件；my 不会跟随或写入该文件。"
 
+["target.not_managed"]
+other = "目标 {{.Target}} 尚未纳入数据仓管理。"
+
+["target.out_of_scope"]
+other = "目标 {{.Target}} 不在机器 {{.Machine}} 的适用范围内。"
+
 ["target.legacy"]
 other = "目标存在旧布局，需要显式清理。"
 
@@ -711,6 +717,12 @@ other = "重试前检查 target diff 和已确认副作用。数据版本：{{.C
 
 ["target.recover_file_unsupported"]
 other = "将目标文件替换为普通文件后重试 target diff、target sync 或 target capture；my 不会跟随符号链接，也不会写入特殊文件。"
+
+["target.recover_not_managed"]
+other = "在拥有该内容的机器上运行 target capture {{.Target}}，或省略该目标以继续跳过未纳管目标。"
+
+["target.recover_out_of_scope"]
+other = "在数据仓中把 {{.Machine}} 加入该目标的 machines 声明，或在适用范围内的机器上执行命令。"
 
 ["target.operation_event"]
 other = "目标阶段 {{.Operation}} 已结束。"

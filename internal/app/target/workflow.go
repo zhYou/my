@@ -740,7 +740,7 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 		}
 		paths := targetPaths(snapshot, target)
 		if len(paths) == 0 {
-			return result, invalidInput()
+			return result, notManaged(target, phaseValidate)
 		}
 		deletions = append(deletions, paths...)
 	}
@@ -785,7 +785,8 @@ func (s *Service) plan(
 		return snapshot, nil, err
 	}
 	selected := targets
-	if len(selected) == 0 {
+	explicit := len(selected) != 0
+	if !explicit {
 		for id := range remote {
 			selected = append(selected, id)
 		}
@@ -795,13 +796,19 @@ func (s *Service) plan(
 	for _, id := range selected {
 		remoteTarget, exists := remote[id]
 		if !exists {
-			continue
+			if !explicit {
+				continue
+			}
+			return snapshot, nil, notManaged(id, phaseCompare)
 		}
 		if remoteTarget.target.RemoteAuthoritative {
 			continue
 		}
 		if !remoteTarget.scope.Applies(s.options.MachineID) {
-			continue
+			if !explicit {
+				continue
+			}
+			return snapshot, nil, outOfScope(id, s.options.MachineID, phaseCompare)
 		}
 		definition := remoteTarget.target
 		local, readErr := definition.ReadLocal(s.options.Home, s.options.OS)

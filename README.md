@@ -282,6 +282,10 @@ configs/
 `diff` 只读并返回稳定单位 ID。`sync` 遇到任何冲突时，本轮不写本机、不提交远端；
 解决一个冲突后重新运行 `sync`。远端提交使用 expectedHeadOid CAS，不自动重试。
 
+显式指定目标时，`diff`、`sync` 和 `resolve` 要求目标已纳管且适用于当前机器；
+未纳管返回 `target.not_managed`，不适用返回 `target.out_of_scope`，并在写入前停止。
+`remove` 对未纳管目标返回同一语义的错误。不指定目标的全量 `diff`、`sync` 继续跳过这两类目标。
+
 目标文件必须是普通文件。`my` 不跟随符号链接，也不读写 FIFO、设备等特殊文件；遇到时返回
 `target.file_unsupported`，并提示将目标文件替换为普通文件后重试。原子写入保留已有普通文件的权限，
 新文件使用 `0600`。

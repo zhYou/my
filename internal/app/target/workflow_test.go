@@ -231,6 +231,139 @@ func TestDiffReportsLocalRemoteAndUnifiedText(t *testing.T) {
 	require.Contains(t, diff.Changes[0].Diff, `+verbose = "remote"`)
 }
 
+func TestDiffRejectsExplicitUnmanagedTarget(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Diff(t.Context(), DiffOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_not_managed", diagnostic.Recovery.Code)
+	require.Equal(t, "topgrade", diagnostic.Recovery.Params["Target"])
+	require.Empty(t, diagnostic.CompletedEffects)
+
+	full, err := service.Diff(t.Context(), DiffOptions{})
+	require.NoError(t, err)
+	require.Empty(t, full.Changes)
+	require.Empty(t, full.Conflicts)
+}
+
+func TestResolveRejectsExplicitUnmanagedTarget(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Resolve(t.Context(), ResolveOptions{
+		Target: Topgrade,
+		Unit:   FileUnitID("topgrade.toml"),
+		From:   ResolveRemote,
+	})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+	require.Empty(t, repository.commits)
+}
+
+func TestSyncRejectsExplicitUnmanagedTargetBeforeWriting(t *testing.T) {
+	home := t.TempDir()
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+	writeFixture(t, localPath, "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	require.Equal(t, "verbose = true\n", readFixture(t, localPath))
+	require.Empty(t, repository.commits)
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Empty(t, result.Targets)
+}
+
+func TestExplicitSelectionRejectsOutOfScopeTargetBeforeWriting(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	repository.snapshot.Files["configs/targets/topgrade/target.toml"] = []byte(
+		"schema_version = 1\ntarget = \"topgrade\"\nmachines = [\"laptop\"]\n",
+	)
+	repository.snapshot.Metadata.Commit = "scope-change"
+	repository.commits = nil
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+
+	operations := []struct {
+		name string
+		run  func() error
+	}{
+		{"diff", func() error {
+			_, err := service.Diff(t.Context(), DiffOptions{Targets: []ID{Topgrade}})
+			return err
+		}},
+		{"sync", func() error {
+			_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+			return err
+		}},
+		{"resolve", func() error {
+			_, err := service.Resolve(t.Context(), ResolveOptions{
+				Target: Topgrade,
+				Unit:   FileUnitID("topgrade.toml"),
+				From:   ResolveRemote,
+			})
+			return err
+		}},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			before := readFixture(t, localPath)
+			err := operation.run()
+			require.Error(t, err)
+			details := fault.Details(err)
+			require.Len(t, details, 1)
+			require.Equal(t, fault.Code("target.out_of_scope"), details[0].Code)
+			diagnostic, ok := fault.DiagnosticOf(err)
+			require.True(t, ok)
+			require.Equal(t, "target.recover_out_of_scope", diagnostic.Recovery.Code)
+			require.Equal(t, "workstation", diagnostic.Recovery.Params["Machine"])
+			require.Empty(t, diagnostic.CompletedEffects)
+			require.Equal(t, before, readFixture(t, localPath))
+			require.Empty(t, repository.commits)
+		})
+	}
+}
+
+func TestFullSelectionSkipsOutOfScopeTarget(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	repository.snapshot.Files["configs/targets/topgrade/target.toml"] = []byte(
+		"schema_version = 1\ntarget = \"topgrade\"\nmachines = [\"laptop\"]\n",
+	)
+	repository.snapshot.Metadata.Commit = "scope-change"
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+	writeFixture(t, localPath, "verbose = \"local\"\n")
+
+	diff, err := service.Diff(t.Context(), DiffOptions{})
+	require.NoError(t, err)
+	require.Empty(t, diff.Changes)
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Empty(t, result.Targets)
+	require.Equal(t, "verbose = \"local\"\n", readFixture(t, localPath))
+	require.Empty(t, repository.commits)
+}
+
 func TestSyncSkipsRemoteAuthoritativeEnvironmentTarget(t *testing.T) {
 	home, repository, service := capturedTopgrade(t, "verbose = true\n")
 	repository.snapshot.Files["configs/targets/shell-env/target.toml"] = []byte(
@@ -303,6 +436,24 @@ func TestResolveRemoteAndLocal(t *testing.T) {
 		require.True(t, exists)
 		require.Equal(t, repository.snapshot.Metadata.Commit, baseline.Commit)
 	})
+}
+
+func TestRemoveRejectsUnmanagedTarget(t *testing.T) {
+	home := t.TempDir()
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Remove(t.Context(), RemoveOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_not_managed", diagnostic.Recovery.Code)
+	require.Equal(t, "topgrade", diagnostic.Recovery.Params["Target"])
+	require.Empty(t, diagnostic.CompletedEffects)
+	require.Empty(t, repository.commits)
 }
 
 func TestRemoveDeletesRemoteTargetAndKeepsLocalFile(t *testing.T) {

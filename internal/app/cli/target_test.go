@@ -325,6 +325,120 @@ func TestTargetListWorkflow(t *testing.T) {
 	}
 }
 
+func TestTargetExplicitSelectionFailsForUnmanagedAndOutOfScope(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			localPath := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(localPath), 0o700))
+			require.NoError(t, os.WriteFile(localPath, []byte("verbose = true\n"), 0o600))
+			readLocal := func() string {
+				t.Helper()
+				data, err := os.ReadFile(localPath) // #nosec G304 -- 测试临时文件。
+				require.NoError(t, err)
+				return string(data)
+			}
+
+			commits := f.commits
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"sync",
+				"topgrade",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_not_managed"`)
+			if lang == "en" {
+				require.Contains(t, stderr, "is not managed")
+			} else {
+				require.Contains(t, stderr, "尚未纳入数据仓管理")
+			}
+			require.Equal(t, "verbose = true\n", readLocal())
+			require.Equal(t, commits, f.commits)
+
+			code, _, stderr = workflowCall(t, f, home, nil, "target", "capture", "topgrade", "--json")
+			require.Zero(t, code, stderr)
+			f.replaceRemote(
+				"configs/targets/topgrade/target.toml",
+				[]byte("schema_version = 1\ntarget = \"topgrade\"\nmachines = [\"laptop\"]\n"),
+			)
+			commits = f.commits
+			for _, args := range [][]string{
+				{"target", "diff", "topgrade"},
+				{"target", "sync", "topgrade"},
+				{"target", "resolve", "topgrade", "--unit", "file:topgrade.toml", "--from", "remote"},
+			} {
+				code, out, stderr := workflowCall(
+					t,
+					f,
+					home,
+					nil,
+					append(args, "--json", "--lang", lang)...,
+				)
+				require.Equal(t, 1, code, stderr)
+				require.Empty(t, out)
+				require.Contains(t, stderr, `"code":"target.out_of_scope"`)
+				require.Contains(t, stderr, `"recovery":{"code":"target.recover_out_of_scope"`)
+				if lang == "en" {
+					require.Contains(t, stderr, "is not in scope")
+				} else {
+					require.Contains(t, stderr, "不在机器")
+				}
+				require.Equal(t, "verbose = true\n", readLocal())
+				require.Equal(t, commits, f.commits)
+			}
+
+			for _, args := range [][]string{{"target", "diff"}, {"target", "sync"}} {
+				code, out, stderr := workflowCall(
+					t,
+					f,
+					home,
+					nil,
+					append(args, "--json", "--lang", lang)...,
+				)
+				require.Zero(t, code, stderr)
+				require.True(t, json.Valid([]byte(out)))
+				require.Equal(t, "verbose = true\n", readLocal())
+				require.Equal(t, commits, f.commits)
+			}
+
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"remove",
+				"mise",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_not_managed"`)
+			require.Equal(t, commits, f.commits)
+		})
+	}
+}
+
 func TestTargetSyncReportsUnsupportedFile(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows 符号链接创建需要额外权限")
