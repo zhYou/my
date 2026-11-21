@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,37 @@ func TestEntryRejectsInvalidArguments(t *testing.T) {
 	for _, args := range [][]string{nil, {"unknown"}, {"doc", "extra"}} {
 		require.ErrorContains(t, run(args), "用法")
 	}
+}
+
+// 检查名、用法和分发共用同一注册表；新增检查只需增加一条声明。
+func TestEntryRegistryDrivesUsageAndDispatch(t *testing.T) {
+	ran := false
+	checks := lintRegistry{
+		{name: "first", run: func() error {
+			ran = true
+			return nil
+		}},
+		{name: "second", run: func() error {
+			return errors.New("检查失败")
+		}},
+	}
+
+	require.NoError(t, checks.run([]string{"first"}))
+	require.True(t, ran)
+	require.EqualError(t, checks.run([]string{"second"}), "检查失败")
+
+	usage := "用法：lint <first|second>"
+	require.Equal(t, usage, checks.usage())
+	require.EqualError(t, checks.run(nil), usage)
+	require.EqualError(t, checks.run([]string{"unknown"}), usage+"，未知检查 \"unknown\"")
+}
+
+// 开发入口使用 codex-rules 并执行真实检查。
+func TestEntryDispatchesCodexRules(t *testing.T) {
+	t.Chdir(filepath.Join("..", ".."))
+	require.Contains(t, lintChecks.usage(), "codex-rules")
+	require.NoError(t, run([]string{"codex-rules"}))
+	require.EqualError(t, run(nil), lintChecks.usage())
 }
 
 // 开发入口必须执行真实检查，并向调用者返回配置错误。
