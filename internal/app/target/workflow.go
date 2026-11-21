@@ -321,6 +321,7 @@ func (s *Service) Capture(ctx context.Context, input CaptureOptions) (result Res
 		if !selected {
 			continue
 		}
+		baseline.Commit = metadata.Commit
 		if err := s.options.State.Write(metadata, baseline); err != nil {
 			return result, err
 		}
@@ -534,7 +535,9 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 			targetChanged = true
 		}
 		finalUnits := unitOverlay(plan.local, plan.remote)
-		if err := s.options.State.Write(metadata, baselineFromUnits(plan.target.ID, finalUnits)); err != nil {
+		finalBaseline := baselineFromUnits(plan.target.ID, finalUnits)
+		finalBaseline.Commit = metadata.Commit
+		if err := s.options.State.Write(metadata, finalBaseline); err != nil {
 			return result, err
 		}
 		progress.confirmed("target.baseline:" + string(plan.target.ID))
@@ -686,6 +689,7 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	progress.commit = snapshot.Metadata.Commit
 	progress.step(ctx, phaseStateWrite)
 	baseline.Pending = nil
+	baseline.Commit = snapshot.Metadata.Commit
 	baseline.Units[input.Unit] = baselineValueFromUnit(
 		chosen,
 		input.Target == CodexAuth || input.Target == ShellEnvSecret,
@@ -791,6 +795,9 @@ func (s *Service) plan(
 	for _, id := range selected {
 		remoteTarget, exists := remote[id]
 		if !exists {
+			continue
+		}
+		if remoteTarget.target.RemoteAuthoritative {
 			continue
 		}
 		if !remoteTarget.scope.Applies(s.options.MachineID) {

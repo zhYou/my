@@ -2345,6 +2345,129 @@
                   "type": "object"
                 }
               },
+              "contract-cli target list": {
+                "commands": [],
+                "flags": {
+                  "all": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "all",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "path": "contract-cli target list",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "baseline_commit": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": [
+                              "null",
+                              "array"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "units": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "target",
+                          "status",
+                          "scope",
+                          "baseline_commit",
+                          "units"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "targets"
+                  ],
+                  "type": "object"
+                }
+              },
               "contract-cli target remove": {
                 "commands": [],
                 "flags": {

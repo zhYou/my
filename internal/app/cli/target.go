@@ -32,6 +32,7 @@ func newTargetCommand(call *invocation) *cobra.Command {
 	group.AddCommand(
 		newTargetCaptureCommand(call),
 		newTargetDiffCommand(call),
+		newTargetListCommand(call),
 		newTargetSyncCommand(call),
 		newTargetResolveCommand(call),
 		newTargetRemoveCommand(call),
@@ -77,7 +78,7 @@ func newTargetCaptureCommand(call *invocation) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&input.All, "all", false, "收录所有现有普通配置目标")
+	cmd.Flags().BoolVar(&input.All, flagAll, false, "收录所有现有普通配置目标")
 	cmd.Flags().StringSliceVar(&input.Machines, flagMachine, nil, "限制目标适用的机器 ID")
 	call.addAgeIdentityFlag(cmd)
 	call.bindCommand(
@@ -90,7 +91,7 @@ func newTargetCaptureCommand(call *invocation) *cobra.Command {
 			},
 		},
 	)
-	call.bindFlag(cmd.Flags().Lookup("all"), message("cli.target_all"))
+	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_all"))
 	call.bindFlag(cmd.Flags().Lookup(flagMachine), message("cli.target_machine"))
 	registerOrPanic[target.Result](call, cmd)
 	return cmd
@@ -164,6 +165,73 @@ func newTargetDiffCommand(call *invocation) *cobra.Command {
 		},
 	)
 	registerOrPanic[target.DiffResult](call, cmd)
+	return cmd
+}
+
+func newTargetListCommand(call *invocation) *cobra.Command {
+	input := target.ListOptions{}
+	cmd := &cobra.Command{
+		Use:         "list",
+		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
+		Args:        noArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			service, _, err := call.targetService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := service.List(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			if call.asJSON {
+				return writeJSON(cmd.OutOrStdout(), result)
+			}
+			return writeText(cmd.OutOrStdout(), func(w io.Writer) error {
+				header, err := call.localizer.Format("target.list_header", messages.FormatOptions{})
+				if err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintln(w, header); err != nil {
+					return err
+				}
+				for _, item := range result.Targets {
+					scope := "-"
+					if len(item.Scope) != 0 {
+						scope = strings.Join(item.Scope, ",")
+					}
+					baseline := item.BaselineCommit
+					if baseline == "" {
+						baseline = "-"
+					}
+					if _, err := fmt.Fprintf(
+						w,
+						"%s\t%s\t%s\t%s\t%d\n",
+						item.Target,
+						item.Status,
+						scope,
+						baseline,
+						item.Units,
+					); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&input.All, flagAll, false, "包含远端和本机都不存在的内建目标")
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short: message("cli.target_list"),
+			example: textMessage{
+				id:     "cli.target_list_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
+	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_list_all"))
+	registerOrPanic[target.ListResult](call, cmd)
 	return cmd
 }
 
