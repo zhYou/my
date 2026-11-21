@@ -670,6 +670,9 @@ other = "配置已收录到 {{.Commit}}；changed={{.Changed}}。"
 ["target.sync_result"]
 other = "配置已同步到 {{.Commit}}；changed={{.Changed}}。"
 
+["target.sync_removed"]
+other = "已清理孤立基线：{{.Targets}}。"
+
 ["target.resolve_result"]
 other = "配置冲突已在 {{.Commit}} 解决。"
 

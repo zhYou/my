@@ -117,6 +117,8 @@ type Result struct {
 	Snapshot datarepo.Metadata `json:"snapshot"`
 	Targets  []ItemResult      `json:"targets"`
 	Changed  bool              `json:"changed"`
+	// RemovedBaselines 列出全量同步清理孤立基线的目标 ID。
+	RemovedBaselines []ID `json:"removed_baselines,omitempty"`
 }
 
 // DiffChange 描述一个单位的只读比较结果。
@@ -561,6 +563,16 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 			Changes: len(plan.comparisons),
 		})
 		if targetChanged {
+			result.Changed = true
+		}
+	}
+	if len(input.Targets) == 0 {
+		removed, err := s.clearOrphanBaselines(metadata, snapshot, progress)
+		if err != nil {
+			return result, err
+		}
+		result.RemovedBaselines = removed
+		if len(removed) != 0 {
 			result.Changed = true
 		}
 	}

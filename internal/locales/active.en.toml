@@ -671,6 +671,9 @@ other = "Targets captured at {{.Commit}}; changed={{.Changed}}."
 ["target.sync_result"]
 other = "Targets synchronized at {{.Commit}}; changed={{.Changed}}."
 
+["target.sync_removed"]
+other = "Removed orphan baselines: {{.Targets}}."
+
 ["target.resolve_result"]
 other = "Target conflict resolved at {{.Commit}}."
 

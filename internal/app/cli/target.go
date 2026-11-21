@@ -307,9 +307,35 @@ func newTargetSyncCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return businessOutput(cmd, call, result, "target.sync_result", map[string]any{
-				paramCommit:  result.Snapshot.Commit,
-				paramChanged: result.Changed,
+			if call.asJSON {
+				return writeJSON(cmd.OutOrStdout(), result)
+			}
+			return writeText(cmd.OutOrStdout(), func(w io.Writer) error {
+				text, err := call.localizer.Format("target.sync_result", messages.FormatOptions{Params: map[string]any{
+					paramCommit:  result.Snapshot.Commit,
+					paramChanged: result.Changed,
+				}})
+				if err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintln(w, text); err != nil {
+					return err
+				}
+				if len(result.RemovedBaselines) == 0 {
+					return nil
+				}
+				removed := make([]string, len(result.RemovedBaselines))
+				for index, id := range result.RemovedBaselines {
+					removed[index] = string(id)
+				}
+				text, err = call.localizer.Format("target.sync_removed", messages.FormatOptions{Params: map[string]any{
+					"Targets": strings.Join(removed, ", "),
+				}})
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintln(w, text)
+				return err
 			})
 		},
 	}
