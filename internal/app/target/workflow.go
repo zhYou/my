@@ -91,20 +91,6 @@ type RemoveOptions struct {
 	Targets []ID
 }
 
-// UpdateOptions 指定一个已纳管目标及其唯一的新机器范围。
-type UpdateOptions struct {
-	Target ID
-	Scope  MachineScope
-}
-
-// UpdateResult 描述范围修正后的目标、范围和读取版本。
-type UpdateResult struct {
-	Snapshot datarepo.Metadata `json:"snapshot"`
-	Target   ID                `json:"target"`
-	Scope    []string          `json:"scope"`
-	Changed  bool              `json:"changed"`
-}
-
 // ItemResult 汇总一个目标的变化。
 type ItemResult struct {
 	Target    ID   `json:"target"`
@@ -125,7 +111,6 @@ type Result struct {
 // ResolveResult 汇总一次冲突解决；剩余列表在成功时为空数组。
 type ResolveResult struct {
 	Snapshot  datarepo.Metadata `json:"snapshot"`
-	Targets   []ItemResult      `json:"targets"`
 	Changed   bool              `json:"changed"`
 	Resolved  []UnitID          `json:"resolved"`
 	Remaining []Conflict        `json:"remaining"`
@@ -654,10 +639,11 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 	if !baselineExists {
 		baseline = Baseline{Target: input.Target, Units: map[UnitID]BaselineValue{}}
 	}
-	values, key, ciphertext, err := s.resolveValues(*plan, units, input.From)
+	chosen, err := s.resolveValues(*plan, units, input.From)
 	if err != nil {
 		return result, err
 	}
+	values := chosen.values
 
 	resolved := make([]UnitID, 0, len(units))
 	switch input.From {
@@ -670,13 +656,13 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 		}
 		if plan.target.Kind == UnitSecret {
 			secret := values[SecretUnitID]
-			if key == nil || len(ciphertext) == 0 || len(plan.target.Files) != 1 {
+			if chosen.key == nil || len(chosen.ciphertext) == 0 || len(plan.target.Files) != 1 {
 				return result, problem(codeStateInvalid, phaseStateWrite, nil)
 			}
 			updated.units[SecretUnitID] = UnitValue{Exists: true, Digest: secret.Digest}
 			updated.version = secret.Digest
-			updated.recipient = key.Recipient()
-			updated.files = map[string][]byte{plan.target.Files[0].Name: ciphertext}
+			updated.recipient = chosen.key.Recipient()
+			updated.files = map[string][]byte{plan.target.Files[0].Name: chosen.ciphertext}
 		}
 		files, encodeErr := remoteFilesForTarget(updated)
 		if encodeErr != nil {
@@ -704,7 +690,11 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 			baseline.Units[unit] = baselineValueFromUnit(values[unit], plan.target.Kind == UnitSecret)
 		}
 		if writeErr := s.options.State.Write(metadata, baseline); writeErr != nil {
-			return resolveResult(metadata, input.Target, resolved, []Conflict{}), writeErr
+			if input.All {
+				return resolveResult(metadata, resolved, []Conflict{}),
+					partialFailure(input, resolved, nil, writeErr)
+			}
+			return resolveResult(metadata, resolved, []Conflict{}), writeErr
 		}
 		progress.confirmed("target.baseline:" + string(input.Target))
 	case ResolveRemote:
@@ -719,7 +709,7 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 					SnapshotDigest: values[unit].Digest,
 				}
 				if writeErr := s.options.State.Write(snapshot.Metadata, pending); writeErr != nil {
-					return resolveResult(snapshot.Metadata, input.Target, resolved, selected[index:]),
+					return resolveResult(snapshot.Metadata, resolved, selected[index:]),
 						partialFailure(input, resolved, selected[index:], writeErr)
 				}
 				progress.confirmed("target.pending:" + string(plan.target.ID))
@@ -729,7 +719,7 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 				map[UnitID]UnitValue{unit: values[unit]},
 				progress,
 			); applyErr != nil {
-				return resolveResult(snapshot.Metadata, input.Target, resolved, selected[index:]),
+				return resolveResult(snapshot.Metadata, resolved, selected[index:]),
 					partialFailure(input, resolved, selected[index:], applyErr)
 			}
 			resolved = append(resolved, unit)
@@ -738,32 +728,24 @@ func (s *Service) Resolve(ctx context.Context, input ResolveOptions) (result Res
 			baseline.Pending = nil
 			baseline.Commit = snapshot.Metadata.Commit
 			if writeErr := s.options.State.Write(snapshot.Metadata, baseline); writeErr != nil {
-				return resolveResult(snapshot.Metadata, input.Target, resolved, selected[index+1:]),
+				return resolveResult(snapshot.Metadata, resolved, selected[index+1:]),
 					partialFailure(input, resolved, selected[index+1:], writeErr)
 			}
 			progress.confirmed("target.baseline:" + string(input.Target))
 		}
 	}
 	progress.commit = snapshot.Metadata.Commit
-	return resolveResult(snapshot.Metadata, input.Target, resolved, []Conflict{}), nil
+	return resolveResult(snapshot.Metadata, resolved, []Conflict{}), nil
 }
 
 func resolveResult(
 	metadata datarepo.Metadata,
-	target ID,
 	resolved []UnitID,
 	remaining []Conflict,
 ) ResolveResult {
-	changed := len(resolved) != 0
 	return ResolveResult{
-		Snapshot: metadata,
-		Targets: []ItemResult{{
-			Target:    target,
-			Changed:   changed,
-			Changes:   len(resolved),
-			Conflicts: len(remaining),
-		}},
-		Changed:   changed,
+		Snapshot:  metadata,
+		Changed:   len(resolved) != 0,
 		Resolved:  append([]UnitID(nil), resolved...),
 		Remaining: append([]Conflict{}, remaining...),
 	}
@@ -775,7 +757,7 @@ func partialFailure(
 	remaining []Conflict,
 	cause error,
 ) error {
-	if len(resolved) == 0 || len(remaining) == 0 {
+	if len(resolved) == 0 || len(remaining) == 0 && !input.All {
 		return cause
 	}
 	return partialResolve(input.Target, input.From, len(resolved), remaining, cause)
@@ -810,16 +792,16 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 	if err != nil {
 		return result, err
 	}
+	remote, err := parseRemoteTargets(snapshot, s.definitions())
+	if err != nil {
+		return result, err
+	}
 	deletions := []string{}
 	for _, target := range input.Targets {
-		if err := target.Validate(); err != nil {
-			return result, err
-		}
-		paths := targetPaths(snapshot, target)
-		if len(paths) == 0 {
+		if _, managed := remote[target]; !managed {
 			return result, notManaged(target, phaseValidate)
 		}
-		deletions = append(deletions, paths...)
+		deletions = append(deletions, targetPaths(snapshot, target)...)
 	}
 	metadata, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
 		Message:   "my: 移除目标",
@@ -844,87 +826,16 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 	return result, nil
 }
 
-// Update 只重写已纳管目标的机器范围，保留单位和数据文件。
-func (s *Service) Update(ctx context.Context, input UpdateOptions) (result UpdateResult, err error) {
-	ctx, progress := s.begin(ctx, "target.update")
-	defer progress.finish(&err)
-	if err := ctx.Err(); err != nil {
-		return result, err
-	}
-
-	if err := input.Validate(s.options.Definitions); err != nil {
-		return result, err
-	}
-	if err = s.validate(); err != nil {
-		return result, err
-	}
-	if err := input.Scope.Validate(s.options.KnownMachines); err != nil {
-		return result, err
-	}
-	unlock, err := s.options.State.Lock(ctx)
-	if err != nil {
-		return result, err
-	}
-	defer func() {
-		err = errors.Join(err, unlock())
-	}()
-	snapshot, err := s.options.Repository.Read(ctx)
-	if err != nil {
-		return result, err
-	}
-	progress.step(ctx, phaseCompare)
-	remote, err := parseRemoteTargets(snapshot, s.definitions())
-	if err != nil {
-		return result, err
-	}
-	existing, managed := remote[input.Target]
-	if !managed {
-		return result, notManaged(input.Target, phaseValidate)
-	}
-	scope := canonicalScope(input.Scope)
-	result = UpdateResult{
-		Snapshot: snapshot.Metadata,
-		Target:   input.Target,
-		Scope:    scopeValues(scope),
-	}
-	if slices.Equal(scopeValues(existing.scope), result.Scope) {
-		return result, nil
-	}
-	metadata, err := encodeRemoteMetadata(existing.id, scope)
-	if existing.target.Kind == UnitSecret {
-		metadata, err = encodeRemoteMetadataWithSecret(
-			existing.id,
-			scope,
-			existing.version,
-			existing.recipient,
-		)
-	}
-	if err != nil {
-		return result, err
-	}
-	progress.commit = snapshot.Metadata.Commit
-	progress.step(ctx, phaseCommit)
-	committed, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
-		Message: "my: 更新目标范围",
-		Files: map[string][]byte{
-			remoteTargetMetadataPath(input.Target): metadata,
-		},
-	})
-	if err != nil {
-		return result, err
-	}
-	if committed.Commit != snapshot.Metadata.Commit {
-		progress.confirmed(effectDataCommit)
-	}
-	progress.commit = committed.Commit
-	result.Snapshot = committed
-	result.Changed = true
-	return result, nil
-}
-
 // String 返回用于诊断的稳定服务摘要。
 func (s *Service) String() string {
 	return fmt.Sprintf("target service for %s", s.options.MachineID)
+}
+
+// selectedValues 汇总一次冲突解决在写入前确定的值和秘密加密材料。
+type selectedValues struct {
+	values     map[UnitID]UnitValue
+	key        *agecrypt.Key
+	ciphertext []byte
 }
 
 // resolveValues 在写入前确定并校验全部冲突单位在所选来源中的值。
@@ -932,7 +843,7 @@ func (s *Service) resolveValues(
 	plan targetPlan,
 	units []UnitID,
 	from ResolveSource,
-) (map[UnitID]UnitValue, *agecrypt.Key, []byte, error) {
+) (selectedValues, error) {
 	values := make(map[UnitID]UnitValue, len(units))
 	switch from {
 	case ResolveLocal:
@@ -942,43 +853,43 @@ func (s *Service) resolveValues(
 				value = plan.localSecret
 			}
 			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
-				return nil, nil, nil, invalidInput()
+				return selectedValues{}, invalidInput()
 			}
 			if plan.target.Kind == UnitSecret && len(value.Data) == 0 {
-				return nil, nil, nil, invalidInput()
+				return selectedValues{}, invalidInput()
 			}
 			values[unit] = value
 		}
 		if plan.target.Kind != UnitSecret {
-			return values, nil, nil, nil
+			return selectedValues{values: values}, nil
 		}
 		key, err := s.ageKey()
 		if err != nil {
-			return nil, nil, nil, err
+			return selectedValues{}, err
 		}
 		ciphertext, err := key.Encrypt(values[SecretUnitID].Data)
 		if err != nil {
-			return nil, nil, nil, problem(codeStateInvalid, phaseStateWrite, err)
+			return selectedValues{}, problem(codeStateInvalid, phaseStateWrite, err)
 		}
-		return values, key, ciphertext, nil
+		return selectedValues{values: values, key: key, ciphertext: ciphertext}, nil
 	case ResolveRemote:
 		for _, unit := range units {
 			value := plan.remote[unit]
 			if !value.Exists && (plan.target.Kind == UnitFile || plan.target.Kind == UnitSecret) {
-				return nil, nil, nil, invalidInput()
+				return selectedValues{}, invalidInput()
 			}
 			values[unit] = value
 		}
 		if plan.target.Kind == UnitSecret {
 			decrypted, err := s.decryptSecretUnits(plan, values)
 			if err != nil {
-				return nil, nil, nil, err
+				return selectedValues{}, err
 			}
 			values = decrypted
 		}
-		return values, nil, nil, nil
+		return selectedValues{values: values}, nil
 	default:
-		return nil, nil, nil, invalidInput()
+		return selectedValues{}, invalidInput()
 	}
 }
 
@@ -1325,16 +1236,6 @@ func containsAny(value string, parts ...string) bool {
 		}
 	}
 	return false
-}
-
-// canonicalScope 以稳定顺序保存机器集合；范围是集合，不保留输入顺序。
-func canonicalScope(scope MachineScope) MachineScope {
-	if scope.All {
-		return MachineScope{All: true}
-	}
-	ids := append([]string(nil), scope.IDs...)
-	slices.Sort(ids)
-	return MachineScope{IDs: ids}
 }
 
 func (s *Service) captureScope(

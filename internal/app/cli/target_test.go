@@ -761,6 +761,80 @@ func TestTargetUpdateWorkflow(t *testing.T) {
 	}
 }
 
+func TestTargetUpdateRejectsEnvironmentManagedTargets(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			code, _, stderr := workflowInput(
+				t,
+				f,
+				home,
+				nil,
+				"synthetic-env-value",
+				"env",
+				"set",
+				"EDITOR",
+				"--json",
+			)
+			require.Zero(t, code, stderr)
+
+			commits := f.commits
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"update",
+				"shell-env",
+				"--machine",
+				"fixture",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.remote_authoritative"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_remote_authoritative"`)
+			if lang == "en" {
+				require.Contains(t, stderr, "managed through env")
+			} else {
+				require.Contains(t, stderr, "由 env 管理")
+			}
+			require.Equal(t, commits, f.commits)
+
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"update",
+				"shell-env-secret",
+				"--machine",
+				"fixture",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_not_managed"`)
+			require.Equal(t, commits, f.commits)
+		})
+	}
+}
+
 func TestTargetSyncReportsUnsupportedFile(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows 符号链接创建需要额外权限")

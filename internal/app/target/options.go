@@ -73,10 +73,13 @@ func (o ResolveOptions) Validate(definitions []Definition) error {
 	return invalidInput()
 }
 
-// Validate 校验单个已纳管目标和唯二选一的机器范围。
+// Validate 校验单个已知目标和唯二选一的机器范围；是否由 env 管理留给业务层判断。
 func (o UpdateOptions) Validate(definitions []Definition) error {
-	if err := validateSelection([]ID{o.Target}, definitions, false); err != nil {
-		return err
+	if o.Target.Validate() != nil {
+		return invalidInput()
+	}
+	if _, exists := definitionByID(o.Target, definitions); !exists {
+		return invalidInput()
 	}
 	return o.Scope.validateShape()
 }
@@ -90,17 +93,22 @@ func validateSelection(ids []ID, definitions []Definition, allowEmpty bool) erro
 	if len(ids) == 0 && !allowEmpty {
 		return invalidInput()
 	}
-	known := make(map[ID]Definition, len(definitions))
-	for _, definition := range definitions {
-		known[definition.ID] = definition
-	}
 	seen := map[ID]bool{}
 	for _, id := range ids {
-		definition, exists := known[id]
+		definition, exists := definitionByID(id, definitions)
 		if id.Validate() != nil || !exists || seen[id] || definition.RemoteAuthoritative {
 			return invalidInput()
 		}
 		seen[id] = true
 	}
 	return nil
+}
+
+func definitionByID(id ID, definitions []Definition) (Definition, bool) {
+	for _, definition := range definitions {
+		if definition.ID == id {
+			return definition, true
+		}
+	}
+	return Definition{}, false
 }

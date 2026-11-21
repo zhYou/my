@@ -270,7 +270,8 @@ my target remove topgrade
 它保留远端单位、秘密版本、recipient 和数据文件，不重新收录内容；`--all-machines` 恢复为全部 active 机器。
 机器 ID 必须已登记且 active；范围未变化时返回 changed=false 且不提交新版本。
 未纳管目标返回 `target.not_managed`；目标即使不在当前机器范围也可调整范围。
-`shell-env` 和 `shell-env-secret` 的变量范围由 `env` 管理，不支持 `target update`。
+`shell-env` 和 `shell-env-secret` 的变量范围由 `env` 按变量管理：未纳管时返回 `target.not_managed`，
+已纳管时返回 `target.remote_authoritative`，不通过 `target update` 改写目标级范围；请使用 `env set NAME --machine <id>`。
 
 `target list` 默认列出远端已纳管、本机已有和不在本机范围的目标，`--all` 还会包含远端与本机都不存在的内建目标。
 状态为 managed、local、absent、out-of-scope；范围为 `*` 或机器 ID，未纳管目标不补默认范围。

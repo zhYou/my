@@ -727,6 +727,81 @@ func TestResolveAllRemoteReportsPartialProgressAndRerunOnlyRemaining(t *testing.
 	)
 }
 
+func TestResolveAllRemoteReportsFinalBaselineFailureAsPartial(t *testing.T) {
+	home, _, service := conflictingCodexRules(t, "git.rules", "go.rules")
+	state := service.options.State
+	service.options.State = &failAfterBaselineWrites{State: state, remaining: 1}
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveRemote})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.resolve_partial"), details[0].Code)
+	require.Equal(t, 2, details[0].Params["Resolved"])
+	require.Equal(t, 0, details[0].Params["Remaining"])
+	require.Empty(t, details[0].Params["RemainingUnits"])
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_resolve_partial", diagnostic.Recovery.Code)
+	require.Equal(t, "remote", diagnostic.Recovery.Params["From"])
+	require.Equal(
+		t,
+		[]UnitID{FileUnitID("git.rules"), FileUnitID("go.rules")},
+		result.Resolved,
+	)
+	require.Empty(t, result.Remaining)
+	require.Equal(
+		t,
+		"git.rules-remote\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "git.rules")),
+	)
+	require.Equal(
+		t,
+		"go.rules-remote\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "go.rules")),
+	)
+}
+
+func TestResolveAllLocalReportsFinalBaselineFailureAsPartial(t *testing.T) {
+	home, repository, service := conflictingCodexRules(t, "git.rules", "go.rules")
+	state := service.options.State
+	service.options.State = &failAfterBaselineWrites{State: state}
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveLocal})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.resolve_partial"), details[0].Code)
+	require.Equal(t, 2, details[0].Params["Resolved"])
+	require.Equal(t, 0, details[0].Params["Remaining"])
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_resolve_partial", diagnostic.Recovery.Code)
+	require.Equal(t, "local", diagnostic.Recovery.Params["From"])
+	require.Contains(t, diagnostic.CompletedEffects, "data.commit")
+	require.Equal(
+		t,
+		[]UnitID{FileUnitID("git.rules"), FileUnitID("go.rules")},
+		result.Resolved,
+	)
+	require.Empty(t, result.Remaining)
+	require.Equal(
+		t,
+		"git.rules-local\n",
+		string(repository.snapshot.Files["configs/targets/codex-rules/data/git.rules"]),
+	)
+	require.Equal(
+		t,
+		"go.rules-local\n",
+		string(repository.snapshot.Files["configs/targets/codex-rules/data/go.rules"]),
+	)
+	require.Equal(
+		t,
+		"git.rules-local\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "git.rules")),
+	)
+}
+
 func TestResolveAllSecretRemoteAppliesNewVersion(t *testing.T) {
 	home, repository, service := capturedCodexAuth(t)
 	authPath := filepath.Join(home, ".codex", "auth.json")
@@ -870,6 +945,24 @@ func TestRemoveRejectsUnmanagedTarget(t *testing.T) {
 	require.Equal(t, "topgrade", diagnostic.Recovery.Params["Target"])
 	require.Empty(t, diagnostic.CompletedEffects)
 	require.Empty(t, repository.commits)
+}
+
+func TestRemoveRejectsResidualFilesWithoutTargetMetadata(t *testing.T) {
+	home := t.TempDir()
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	repository.snapshot.ConfigInitialized = true
+	repository.snapshot.Files["configs/manifest.toml"] = []byte("schema_version = 1\n")
+	residual := "configs/targets/topgrade/data/topgrade.toml"
+	repository.snapshot.Files[residual] = []byte("verbose = true\n")
+	service := newTestService(home, repository)
+
+	_, err := service.Remove(t.Context(), RemoveOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	require.Empty(t, repository.commits)
+	require.Contains(t, repository.snapshot.Files, residual)
 }
 
 func TestRemoveDeletesRemoteTargetAndKeepsLocalFile(t *testing.T) {

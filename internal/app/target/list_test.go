@@ -98,6 +98,20 @@ func TestListShowsRemoteAuthoritativeTarget(t *testing.T) {
 	require.False(t, synced.Changed)
 }
 
+func TestListMarksExistingConfigWithoutManagedFieldsAsLocal(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "mise", "config.toml"), "[settings]\nverbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	result, err := service.List(t.Context(), ListOptions{})
+	require.NoError(t, err)
+	mise := listItem(t, result.Targets, Mise)
+	require.Equal(t, StatusLocal, mise.Status)
+	require.Empty(t, mise.Scope)
+	require.Empty(t, repository.commits)
+}
+
 func TestListDoesNotCreateLocalState(t *testing.T) {
 	home := t.TempDir()
 	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
@@ -110,23 +124,6 @@ func TestListDoesNotCreateLocalState(t *testing.T) {
 	_, err = os.Stat(filepath.Join(home, "state"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 	require.Empty(t, repository.commits)
-}
-
-func setRemoteFieldTarget(
-	t *testing.T,
-	repository *memoryRepository,
-	id ID,
-	scope MachineScope,
-	units map[UnitID]UnitValue,
-) {
-	t.Helper()
-	metadata, err := encodeRemoteMetadata(id, scope)
-	require.NoError(t, err)
-	values, err := encodeFieldValues(units)
-	require.NoError(t, err)
-	repository.snapshot.Files[remoteTargetPrefix(id)+"/"+targetMetadataFile] = metadata
-	repository.snapshot.Files[remoteTargetPrefix(id)+"/"+configDataDirectory+"/"+fieldValuesFile] = values
-	repository.snapshot.ConfigInitialized = true
 }
 
 func listTargetIDs(items []ListItem) []ID {

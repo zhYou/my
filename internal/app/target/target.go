@@ -161,6 +161,26 @@ func (s MachineScope) Applies(machineID string) bool {
 	return slices.Contains(s.IDs, machineID)
 }
 
+// Values 返回稳定排序的范围展示值；全部机器为 *，空范围为不共享底层数组的空切片。
+func (s MachineScope) Values() []string {
+	if s.All {
+		return []string{"*"}
+	}
+	values := append([]string{}, s.IDs...)
+	slices.Sort(values)
+	return values
+}
+
+// Canonical 以稳定顺序保存机器集合；范围是集合，不保留输入顺序。
+func (s MachineScope) Canonical() MachineScope {
+	if s.All {
+		return MachineScope{All: true}
+	}
+	ids := append([]string(nil), s.IDs...)
+	slices.Sort(ids)
+	return MachineScope{IDs: ids}
+}
+
 // validateShape 校验范围结构、机器 ID 格式和重复项，不检查登记状态。
 func (s MachineScope) validateShape() error {
 	if s.All {

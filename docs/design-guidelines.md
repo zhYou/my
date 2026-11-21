@@ -319,8 +319,10 @@ SIGKILL，并额外保留一次 WaitDelay 观察进程组退出；确认组不�
 秘密只保存版本摘要与密文。无同步基线时，本机缺失的单位按远端下发，本机已有值不覆盖；
 双方都有但不同仍是冲突。`target list` 只读汇总纳管状态、范围、成功同步提交和远端单位数，
 不写远端或本机状态，也不加载 age identity。`target update` 只重写已纳管目标的机器范围元数据，
-保留单位、秘密版本、recipient 和数据文件；不在当前机器范围的目标仍可调整，范围未变化时不提交；
-`env` 管理的环境目标不在此入口修改。冲突在写入前停止，用户使用 `target diff` 返回的稳定单位 ID 显式选择来源。
+保留单位、秘密版本、recipient 和数据文件；不在当前机器范围的目标仍可调整，范围未变化时不提交。
+未纳管的 `shell-env`、`shell-env-secret` 返回 `target.not_managed`，已纳管的返回
+`target.remote_authoritative`，因为这两个目标的变量范围由 `env set --machine` 按变量维护，
+`target update` 不静默改写其目标级范围。冲突在写入前停止，用户使用 `target diff` 返回的稳定单位 ID 显式选择来源。
 `resolve --unit` 只处理一个单位，`resolve --all` 只处理一个目标的全部冲突且两者互斥；批量模式先校验全部来源可应用，
 再按稳定单位顺序执行，成功时列出已解决单位并返回空剩余冲突，部分失败时报告数量、剩余单位和重跑建议。
 两种模式都不承诺整体原子，也不跨目标批量；没有冲突时返回 `target.no_conflicts`。
@@ -385,7 +387,7 @@ go-gh 的 Host、APIHost、AuthToken、Transport、Timeout 显式设置，LogIgn
 
 业务 span 为 data.init、machine.register、machine.bind、machine.update、machine.retire，以及 target.capture、
 target.diff、target.sync、target.resolve、target.remove、target.list、target.update；子阶段为 data.read、data.commit、
-machine.binding.write/clear、target.validate、target.compare、target.commit、target.local_write、target.state_write。
+machine.binding.write/clear、target.validate、target.list_read、target.compare、target.commit、target.local_write、target.state_write。
 所属模块事件记录 phase、outcome、duration、error_code 和必要版本；data.commit 区分 base_commit 与确认成功的 commit。
 Session 负责 run_id 与日志、Trace 出口和降级；业务复用 telemetry.RecordError，禁止直接记录原始 error 字符串。
 stdout 输出成功结果；stderr 在 --json 下逐行区分 error/warning，普通日志保留 event。

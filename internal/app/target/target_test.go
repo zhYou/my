@@ -43,3 +43,19 @@ func TestMachineScope(t *testing.T) {
 	require.NoError(t, (MachineScope{IDs: []string{"workstation"}}).Validate([]string{"workstation", "laptop"}))
 	require.False(t, (MachineScope{All: true, IDs: []string{"workstation"}}).Applies("workstation"))
 }
+
+func TestMachineScopeValuesAndCanonicalOrder(t *testing.T) {
+	require.Equal(t, []string{"*"}, (MachineScope{All: true}).Values())
+	require.Equal(t, []string{}, MachineScope{}.Values())
+	require.Equal(
+		t,
+		[]string{"laptop", "workstation"},
+		(MachineScope{IDs: []string{"workstation", "laptop"}}).Values(),
+	)
+	require.Equal(t, MachineScope{All: true}, (MachineScope{All: true}).Canonical())
+	require.Equal(
+		t,
+		MachineScope{IDs: []string{"laptop", "workstation"}},
+		(MachineScope{IDs: []string{"workstation", "laptop"}}).Canonical(),
+	)
+}
