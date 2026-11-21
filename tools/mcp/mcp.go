@@ -90,7 +90,7 @@ func runMCPChecks(ctx context.Context, root string, checks []mcpCheck) error {
 	return &mcpCheckError{err: result, logDir: logDir}
 }
 
-func checkSerenaMCP(ctx context.Context, root string, log io.Writer) (resultErr error) {
+func checkSerenaMCP(ctx context.Context, root string, stderr io.Writer) (resultErr error) {
 	configPath := filepath.Join(root, serenaDirectory, serenaProjectFile)
 	//nolint:gosec // G304：只读取当前 checkout 的固定 Serena 项目配置，检测意外迁移。
 	configBefore, err := os.ReadFile(configPath)
@@ -117,7 +117,7 @@ func checkSerenaMCP(ctx context.Context, root string, log io.Writer) (resultErr 
 		ctx,
 		root,
 		"mcp:serve",
-		log,
+		stderr,
 		"SERENA_HOME="+filepath.Join(temporary, "serena-home"),
 	)
 	if err != nil {
@@ -194,7 +194,7 @@ func checkSerenaMCP(ctx context.Context, root string, log io.Writer) (resultErr 
 	return nil
 }
 
-func checkOpenCodeSerenaMCP(ctx context.Context, root string, log io.Writer) (resultErr error) {
+func checkOpenCodeSerenaMCP(ctx context.Context, root string, stderr io.Writer) (resultErr error) {
 	temporary, err := os.MkdirTemp("", "serena-opencode-mcp-check-*")
 	if err != nil {
 		return err
@@ -206,7 +206,7 @@ func checkOpenCodeSerenaMCP(ctx context.Context, root string, log io.Writer) (re
 		ctx,
 		root,
 		openCodeMCPTask,
-		log,
+		stderr,
 		"SERENA_HOME="+filepath.Join(temporary, "serena-home"),
 	)
 	if err != nil {

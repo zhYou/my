@@ -43,6 +43,7 @@ func TestRunMCPChecksRunsConcurrentlyAndJoinsErrors(t *testing.T) {
 	done := make(chan error, 1)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+	logs := isolateMCPLogs(t)
 	root := t.TempDir()
 	go func() {
 		done <- runMCPChecks(ctx, root, checks)
@@ -55,9 +56,6 @@ func TestRunMCPChecksRunsConcurrentlyAndJoinsErrors(t *testing.T) {
 			cancel()
 			select {
 			case err := <-done:
-				if checkErr, ok := errors.AsType[*mcpCheckError](err); ok {
-					require.NoError(t, os.RemoveAll(checkErr.logDir))
-				}
 				if err == nil {
 					t.Fatal("MCP 验收未并行启动但未返回预期错误")
 				}
@@ -71,18 +69,17 @@ func TestRunMCPChecksRunsConcurrentlyAndJoinsErrors(t *testing.T) {
 	err := <-done
 	var checkErr *mcpCheckError
 	require.ErrorAs(t, err, &checkErr)
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(checkErr.logDir))
-	})
+	requireMCPLogsOwned(t, logs, checkErr)
 	require.ErrorContains(t, err, "验收 first：first failed")
 	require.ErrorContains(t, err, "验收 second：second failed")
 }
 
 func TestRunMCPChecksPreservesFailureLogs(t *testing.T) {
+	logs := isolateMCPLogs(t)
 	checks := []mcpCheck{{
 		name: "fixture check",
-		run: func(_ context.Context, _ string, log io.Writer) error {
-			_, err := io.WriteString(log, "fixture detail")
+		run: func(_ context.Context, _ string, stderr io.Writer) error {
+			_, err := io.WriteString(stderr, "fixture detail")
 			return errors.Join(err, errors.New("fixture failed"))
 		},
 	}}
@@ -90,9 +87,7 @@ func TestRunMCPChecksPreservesFailureLogs(t *testing.T) {
 	err := runMCPChecks(context.Background(), t.TempDir(), checks)
 	var checkErr *mcpCheckError
 	require.ErrorAs(t, err, &checkErr)
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(checkErr.logDir))
-	})
+	requireMCPLogsOwned(t, logs, checkErr)
 	require.DirExists(t, checkErr.logDir)
 	entries, err := os.ReadDir(checkErr.logDir)
 	require.NoError(t, err)
@@ -103,31 +98,27 @@ func TestRunMCPChecksPreservesFailureLogs(t *testing.T) {
 }
 
 func TestRunMCPChecksRemovesLogsOnSuccess(t *testing.T) {
-	tempParent := t.TempDir()
-	t.Setenv("TMPDIR", tempParent)
-	t.Setenv("TMP", tempParent)
-	t.Setenv("TEMP", tempParent)
+	logs := isolateMCPLogs(t)
 	checks := []mcpCheck{{
 		name: "fixture check",
-		run: func(_ context.Context, _ string, log io.Writer) error {
-			_, err := io.WriteString(log, "successful detail")
+		run: func(_ context.Context, _ string, stderr io.Writer) error {
+			_, err := io.WriteString(stderr, "successful detail")
 			return err
 		},
 	}}
 
 	require.NoError(t, runMCPChecks(context.Background(), t.TempDir(), checks))
-	entries, err := os.ReadDir(tempParent)
-	require.NoError(t, err)
-	require.Empty(t, entries)
+	requireNoMCPLogs(t, logs)
 }
 
 func TestRunMCPChecksKeepsSlowCheckLogOpen(t *testing.T) {
+	logs := isolateMCPLogs(t)
 	checks := []mcpCheck{
 		{
 			name: "slow failure",
-			run: func(_ context.Context, _ string, log io.Writer) error {
+			run: func(_ context.Context, _ string, stderr io.Writer) error {
 				time.Sleep(50 * time.Millisecond)
-				_, err := io.WriteString(log, "late detail")
+				_, err := io.WriteString(stderr, "late detail")
 				return errors.Join(err, errors.New("slow failed"))
 			},
 		},
@@ -142,9 +133,7 @@ func TestRunMCPChecksKeepsSlowCheckLogOpen(t *testing.T) {
 	err := runMCPChecks(context.Background(), t.TempDir(), checks)
 	var checkErr *mcpCheckError
 	require.ErrorAs(t, err, &checkErr)
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(checkErr.logDir))
-	})
+	requireMCPLogsOwned(t, logs, checkErr)
 	entries, err := os.ReadDir(checkErr.logDir)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
