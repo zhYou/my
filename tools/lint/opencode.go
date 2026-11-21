@@ -80,12 +80,11 @@ func checkOpenCodeConfig(root string) error {
 		return fmt.Errorf(resolveRepositoryError, err)
 	}
 	path := filepath.Join(root, filepath.FromSlash(openCodeConfigPath))
-	info, err := os.Lstat(path)
-	if err != nil {
+	if err := checkRegularFile(path); err != nil {
+		if errors.Is(err, errNotRegularFile) {
+			return fmt.Errorf(notRegularError, path)
+		}
 		return fmt.Errorf("检查 %s: %w", path, err)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf(notRegularError, path)
 	}
 	config, err := loadOpenCodeConfig(path)
 	if err != nil {

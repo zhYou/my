@@ -65,7 +65,7 @@ depends = [
   "lint:i18n",
   "lint:config",
   "lint:opencode",
-  "lint:agent-rules",
+  "lint:codex-rules",
   "lint:doc",
   "lint:style",
   "lint:versions",
@@ -86,9 +86,9 @@ run = "go run ./tools/lint config"
 description = "检查 OpenCode 项目配置、MCP 和权限边界"
 run = "go run ./tools/lint opencode"
 
-[tasks."lint:agent-rules"]
+[tasks."lint:codex-rules"]
 description = "检查 Codex 项目规则文件和中文 justification"
-run = "go run ./tools/lint agent-rules"
+run = "go run ./tools/lint codex-rules"
 
 [tasks."lint:doc"]
 description = "检查各平台正式 Go 包的 doc.go 布局与有效包说明"

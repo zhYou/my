@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAgentRulesRepositoryPasses(t *testing.T) {
+func TestCodexRulesRepositoryPasses(t *testing.T) {
 	t.Chdir(filepath.Join("..", ".."))
-	require.NoError(t, checkAgentRules("."))
+	require.NoError(t, checkCodexRules("."))
 }
 
-func TestAgentRulesRejectsInvalidJustifications(t *testing.T) {
+func TestCodexRulesRejectsInvalidJustifications(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		content string
@@ -27,15 +27,15 @@ func TestAgentRulesRejectsInvalidJustifications(t *testing.T) {
 		{"unbalanced", "prefix_rule(\n    justification = \"运行测试\",\n    decision = \"allow\"\n", "括号"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			root, rulesDir := agentRulesFixture(t)
+			root, rulesDir := codexRulesFixture(t)
 			require.NoError(t, os.WriteFile(filepath.Join(rulesDir, "fixture.rules"), []byte(tt.content), 0o600))
 
-			require.ErrorContains(t, checkAgentRules(root), tt.want)
+			require.ErrorContains(t, checkCodexRules(root), tt.want)
 		})
 	}
 }
 
-func TestAgentRulesAcceptsValidRuleSyntax(t *testing.T) {
+func TestCodexRulesAcceptsValidRuleSyntax(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		content string
@@ -51,15 +51,15 @@ func TestAgentRulesAcceptsValidRuleSyntax(t *testing.T) {
 		{"comments", "# 行首注释\n" + `prefix_rule(pattern = ["go"], justification = "运行测试")  # 行尾注释` + "\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			root, rulesDir := agentRulesFixture(t)
+			root, rulesDir := codexRulesFixture(t)
 			require.NoError(t, os.WriteFile(filepath.Join(rulesDir, "fixture.rules"), []byte(tt.content), 0o600))
 
-			require.NoError(t, checkAgentRules(root))
+			require.NoError(t, checkCodexRules(root))
 		})
 	}
 }
 
-func TestAgentRulesRejectsInvalidRuleSyntax(t *testing.T) {
+func TestCodexRulesRejectsInvalidRuleSyntax(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		content string
@@ -79,26 +79,33 @@ func TestAgentRulesRejectsInvalidRuleSyntax(t *testing.T) {
 		{"second rule missing pattern", `prefix_rule(pattern = ["go"], justification = "运行测试")` + "\n" + `prefix_rule(decision = "allow", justification = "再次运行")` + "\n", "pattern"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			root, rulesDir := agentRulesFixture(t)
+			root, rulesDir := codexRulesFixture(t)
 			require.NoError(t, os.WriteFile(filepath.Join(rulesDir, "fixture.rules"), []byte(tt.content), 0o600))
 
-			require.ErrorContains(t, checkAgentRules(root), tt.want)
+			require.ErrorContains(t, checkCodexRules(root), tt.want)
 		})
 	}
 }
 
-func TestAgentRulesRejectsSymlinkedRule(t *testing.T) {
-	root, rulesDir := agentRulesFixture(t)
+func TestCodexRulesRejectsSymlinkedRule(t *testing.T) {
+	root, rulesDir := codexRulesFixture(t)
 	target := filepath.Join(t.TempDir(), "target.rules")
 	require.NoError(t, os.WriteFile(target, []byte(`prefix_rule(justification = "运行测试", decision = "allow")`), 0o600))
 	if err := os.Symlink(target, filepath.Join(rulesDir, "linked.rules")); err != nil {
 		t.Skipf("当前系统无法创建符号链接：%v", err)
 	}
 
-	require.ErrorContains(t, checkAgentRules(root), "不是普通文件")
+	require.ErrorContains(t, checkCodexRules(root), "不是普通文件")
 }
 
-func agentRulesFixture(t *testing.T) (string, string) {
+func TestCodexRulesRejectsNonRegularRule(t *testing.T) {
+	root, rulesDir := codexRulesFixture(t)
+	require.NoError(t, os.Mkdir(filepath.Join(rulesDir, "directory.rules"), 0o700))
+
+	require.ErrorContains(t, checkCodexRules(root), "不是普通文件")
+}
+
+func codexRulesFixture(t *testing.T) (string, string) {
 	t.Helper()
 	root := t.TempDir()
 	rulesDir := filepath.Join(root, ".codex", "rules")
