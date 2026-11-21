@@ -613,6 +613,12 @@ other = "列出内建目标及同步基线"
 ["cli.target_list_all"]
 other = "包含远端和本机都不存在的内建目标"
 
+["cli.target_update"]
+other = "修改已纳管目标的机器范围"
+
+["cli.target_all_machines"]
+other = "将目标应用到全部 active 机器"
+
 ["cli.target_sync"]
 other = "同步纳管配置"
 
@@ -669,6 +675,9 @@ other = "配置冲突已在 {{.Commit}} 解决。"
 
 ["target.remove_result"]
 other = "取消纳管已提交到 {{.Commit}}。"
+
+["target.update_result"]
+other = "目标：{{.Target}}\n范围：{{.Scope}}\n提交：{{.Commit}}\n已变更：{{.Changed}}"
 
 ["target.no_changes"]
 other = "没有配置变化。"
@@ -765,6 +774,9 @@ other = "{{.Name}} target diff --json"
 
 ["cli.target_list_example"]
 other = "{{.Name}} target list\n{{.Name}} target list --all"
+
+["cli.target_update_example"]
+other = "{{.Name}} target update topgrade --machine laptop\n{{.Name}} target update topgrade --all-machines"
 
 ["cli.target_sync_example"]
 other = "{{.Name}} target sync"
