@@ -3,6 +3,8 @@ package cli
 // 业务协议与消息标识集中维护，避免局部拼写漂移。
 const (
 	paramCommit                   = "Commit"
+	paramTarget                   = "Target"
+	messageTargetMachine          = "cli.target_machine"
 	schemaList                    = "list"
 	schemaChange                  = "change"
 	schemaUpdate                  = "update"

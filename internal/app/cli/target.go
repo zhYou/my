@@ -93,7 +93,7 @@ func newTargetCaptureCommand(call *invocation) *cobra.Command {
 		},
 	)
 	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_all"))
-	call.bindFlag(cmd.Flags().Lookup(flagMachine), message("cli.target_machine"))
+	call.bindFlag(cmd.Flags().Lookup(flagMachine), message(messageTargetMachine))
 	registerOrPanic[target.Result](call, cmd)
 	return cmd
 }
@@ -136,9 +136,9 @@ func newTargetDiffCommand(call *invocation) *cobra.Command {
 					text, err := call.localizer.Format(
 						"target.diff_line",
 						messages.FormatOptions{Params: map[string]any{
-							"Target": change.Target,
-							"Unit":   change.Unit,
-							"Action": change.Action,
+							paramTarget: change.Target,
+							"Unit":      change.Unit,
+							"Action":    change.Action,
 						}},
 					)
 					if err != nil {
@@ -258,7 +258,7 @@ func newTargetUpdateCommand(call *invocation) *cobra.Command {
 				return err
 			}
 			return businessOutput(cmd, call, result, "target.update_result", map[string]any{
-				"Target":     result.Target,
+				paramTarget:  result.Target,
 				"Scope":      strings.Join(result.Scope, ","),
 				paramCommit:  result.Snapshot.Commit,
 				paramChanged: result.Changed,
@@ -279,7 +279,7 @@ func newTargetUpdateCommand(call *invocation) *cobra.Command {
 			},
 		},
 	)
-	call.bindFlag(cmd.Flags().Lookup(flagMachine), message("cli.target_machine"))
+	call.bindFlag(cmd.Flags().Lookup(flagMachine), message(messageTargetMachine))
 	call.bindFlag(cmd.Flags().Lookup(flagAllMachines), message("cli.target_all_machines"))
 	registerOrPanic[target.UpdateResult](call, cmd)
 	return cmd
@@ -377,7 +377,7 @@ func newTargetResolveCommand(call *invocation) *cobra.Command {
 				units = append(units, string(unit))
 			}
 			return businessOutput(cmd, call, result, "target.resolve_result", map[string]any{
-				"Target":    input.Target,
+				paramTarget: input.Target,
 				"Resolved":  len(result.Resolved),
 				"Remaining": len(result.Remaining),
 				"Units":     strings.Join(units, ", "),

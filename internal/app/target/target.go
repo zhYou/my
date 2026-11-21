@@ -153,6 +153,14 @@ func (s MachineScope) Validate(known []string) error {
 	return nil
 }
 
+// Applies 报告范围是否包含指定机器。
+func (s MachineScope) Applies(machineID string) bool {
+	if s.All {
+		return len(s.IDs) == 0
+	}
+	return slices.Contains(s.IDs, machineID)
+}
+
 // validateShape 校验范围结构、机器 ID 格式和重复项，不检查登记状态。
 func (s MachineScope) validateShape() error {
 	if s.All {
@@ -175,12 +183,4 @@ func (s MachineScope) validateShape() error {
 		seen[id] = struct{}{}
 	}
 	return nil
-}
-
-// Applies 报告范围是否包含指定机器。
-func (s MachineScope) Applies(machineID string) bool {
-	if s.All {
-		return len(s.IDs) == 0
-	}
-	return slices.Contains(s.IDs, machineID)
 }

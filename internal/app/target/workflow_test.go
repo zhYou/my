@@ -1354,17 +1354,6 @@ func TestPartialFailureKeepsEachDomainCodeAndCause(t *testing.T) {
 	}
 }
 
-func tomlTool(t *testing.T, path, name string) string {
-	t.Helper()
-	var document struct {
-		Tools map[string]string `toml:"tools"`
-	}
-	require.NoError(t, toml.Unmarshal([]byte(readFixture(t, path)), &document))
-	value, exists := document.Tools[name]
-	require.True(t, exists)
-	return value
-}
-
 func TestPendingAuthTakeoverRejectsChangedEvidence(t *testing.T) {
 	for _, changed := range []string{"local", "remote"} {
 		t.Run(changed, func(t *testing.T) {
@@ -1398,4 +1387,15 @@ func TestPendingAuthTakeoverRejectsChangedEvidence(t *testing.T) {
 			require.Len(t, repository.commits, commits)
 		})
 	}
+}
+
+func tomlTool(t *testing.T, path, name string) string {
+	t.Helper()
+	var document struct {
+		Tools map[string]string `toml:"tools"`
+	}
+	require.NoError(t, toml.Unmarshal([]byte(readFixture(t, path)), &document))
+	value, exists := document.Tools[name]
+	require.True(t, exists)
+	return value
 }

@@ -24,6 +24,7 @@
 | [配置同步与环境激活](compatibility/changes/2026-11-09-config-sync.json)         | config、env、activate 命令及可选 age identity       |
 | [首次同步下发](compatibility/changes/2026-11-21-target-first-sync.json)         | 无基线下本机缺失单位按远端下发                      |
 | [机器资料更新](compatibility/changes/2026-11-21-machine-update.json)            | 新增 machine update，仅修正 kind 或 note            |
+| [目标生命周期](compatibility/changes/2026-11-21-target-lifecycle.json)          | target list/update、resolve --all、显式选择错误     |
 
 [0.4.0 诊断契约记录](compatibility/changes/2026-11-07-my-diagnostic-contract.json)声明 stderr 文本转 JSONL 的破坏变更；schema_version 仍为 1。
 
@@ -43,3 +44,9 @@ doctor 从空报告改为实际只读检查，未就绪返回完整报告与退�
 [目标管理命名与状态隔离记录](compatibility/changes/2026-11-11-target-review.json)将业务入口统一为
 `target`，移除尚未部署的 `config` 入口；CLI 自身 `--config` 和配置文件职责不变。
 远端仍使用 `configs/` 和 `schema_version=1`，本机基线与缓存按机器身份隔离。
+
+[目标生命周期记录](compatibility/changes/2026-11-21-target-lifecycle.json)新增 `target list`、
+`target update` 和 `resolve --all`，显式目标选择在未纳管或不适用时稳定失败，全量 `sync` 清理孤立基线，
+目标文件为 symlink 或特殊文件时返回专用诊断。`resolve --unit` 由必填改为与 `--all` 二选一，
+连同显式选择由静默成功改为失败，按 0.x 破坏规则从 v0.6.2 提升到 v0.7.0；远端 `target.toml`、
+`values.toml` 和 `schema_version=1` 不变。

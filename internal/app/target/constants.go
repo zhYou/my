@@ -14,6 +14,8 @@ const (
 	phaseListRead          = "target.list_read"
 	phaseStateWrite        = "target.state_write"
 	phaseCompare           = "target.compare"
+	phaseCommit            = "target.commit"
+	paramTarget            = "Target"
 	codeInvalidInput       = "target.invalid_input"
 	codeStateInvalid       = "target.state_invalid"
 	codeFileUnsupported    = "target.file_unsupported"

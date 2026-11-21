@@ -36,7 +36,7 @@ func problem(code fault.Code, phase string, cause error) error {
 }
 
 func notManaged(target ID, phase string) error {
-	params := fault.Params{"Target": string(target)}
+	params := fault.Params{paramTarget: string(target)}
 	return (fault.Definition{Code: codeNotManaged, Kind: fault.Runtime}).New(
 		fault.WithParams(params),
 		fault.WithDiagnostic(
@@ -50,7 +50,7 @@ func notManaged(target ID, phase string) error {
 }
 
 func outOfScope(target ID, machineID, phase string) error {
-	params := fault.Params{"Target": string(target), "Machine": machineID}
+	params := fault.Params{paramTarget: string(target), "Machine": machineID}
 	return (fault.Definition{Code: codeOutOfScope, Kind: fault.Runtime}).New(
 		fault.WithParams(params),
 		fault.WithDiagnostic(
@@ -76,7 +76,7 @@ func unsupportedFile(phase string) error {
 }
 
 func noConflicts(target ID, phase string) error {
-	params := fault.Params{"Target": string(target)}
+	params := fault.Params{paramTarget: string(target)}
 	return (fault.Definition{Code: codeNoConflicts, Kind: fault.Runtime}).New(
 		fault.WithParams(params),
 		fault.WithDiagnostic(
@@ -101,7 +101,7 @@ func partialResolve(
 		units = append(units, string(conflict.Unit))
 	}
 	params := fault.Params{
-		"Target":         string(target),
+		paramTarget:      string(target),
 		"From":           string(from),
 		"Resolved":       resolved,
 		"Remaining":      len(remaining),
