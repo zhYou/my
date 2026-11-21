@@ -71,6 +71,13 @@ type ChangeResult struct {
 	Bound    bool              `json:"bound"`
 }
 
+// UpdateResult 描述资料修正后的机器与读取版本，不包含本机绑定状态。
+type UpdateResult struct {
+	Machine  Record            `json:"machine"`
+	Snapshot datarepo.Metadata `json:"snapshot"`
+	Changed  bool              `json:"changed"`
+}
+
 // ListResult 始终编码机器数组，包括空清单。
 type ListResult struct {
 	Machines []Record          `json:"machines"`
@@ -340,6 +347,50 @@ func (s *Service) Retire(ctx context.Context, id string) (result ChangeResult, e
 			Bound:    bound && sameBinding(local, expected),
 		}, nil
 	})
+}
+
+// Update 修正允许的资料字段，不改变身份、平台、状态、登记信息或本机绑定。
+func (s *Service) Update(ctx context.Context, input UpdateOptions) (result UpdateResult, err error) {
+	if err = input.Validate(); err != nil {
+		return result, err
+	}
+	ctx, finish := s.observe(ctx, "machine.update")
+	defer func() { finish(err, result.Changed, result.Snapshot) }()
+	change, err := s.locked(ctx, input.ID, false, func(ctx context.Context) (ChangeResult, error) {
+		snapshot, records, err := s.read(ctx)
+		if err != nil {
+			return ChangeResult{}, err
+		}
+		current, ok := records[input.ID]
+		if !ok {
+			return ChangeResult{}, problem(
+				codeNotFound,
+				phaseRead,
+				nil,
+				[]string{},
+				recoverRecord,
+			)
+		}
+		proposed := current
+		if input.Kind != nil {
+			proposed.Kind = *input.Kind
+		}
+		if input.Note != nil {
+			proposed.Note = *input.Note
+		}
+		changed := proposed.Kind != current.Kind || proposed.Note != current.Note
+		if changed {
+			snapshot.Metadata, err = s.commitRecord(ctx, snapshot, proposed)
+			if err != nil {
+				return ChangeResult{}, err
+			}
+		}
+		return ChangeResult{Machine: proposed, Snapshot: snapshot.Metadata, Changed: changed}, nil
+	})
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	return UpdateResult{Machine: change.Machine, Snapshot: change.Snapshot, Changed: change.Changed}, nil
 }
 
 func (s *Service) ready(ctx context.Context) error {
