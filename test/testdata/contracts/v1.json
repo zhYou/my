@@ -2130,6 +2130,15 @@
                     "changed": {
                       "type": "boolean"
                     },
+                    "removed_baselines": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
                     "snapshot": {
                       "additionalProperties": true,
                       "properties": {
@@ -2522,6 +2531,15 @@
                     "changed": {
                       "type": "boolean"
                     },
+                    "removed_baselines": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
                     "snapshot": {
                       "additionalProperties": true,
                       "properties": {
@@ -2814,6 +2832,15 @@
                     "changed": {
                       "type": "boolean"
                     },
+                    "removed_baselines": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
                     "snapshot": {
                       "additionalProperties": true,
                       "properties": {
@@ -2872,6 +2899,113 @@
                   "required": [
                     "snapshot",
                     "targets",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              },
+              "contract-cli target update": {
+                "commands": [],
+                "flags": {
+                  "all-machines": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "all-machines",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "config": {
+                    "default": "",
+                    "inherited": true,
+                    "name": "config",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "help": {
+                    "default": "false",
+                    "inherited": false,
+                    "name": "help",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "json": {
+                    "default": "false",
+                    "inherited": true,
+                    "name": "json",
+                    "required": false,
+                    "type": "bool"
+                  },
+                  "lang": {
+                    "default": "en",
+                    "inherited": true,
+                    "name": "lang",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "log-level": {
+                    "default": "info",
+                    "inherited": true,
+                    "name": "log-level",
+                    "required": false,
+                    "type": "string"
+                  },
+                  "machine": {
+                    "default": "[]",
+                    "inherited": false,
+                    "name": "machine",
+                    "required": false,
+                    "type": "stringSlice"
+                  }
+                },
+                "path": "contract-cli target update",
+                "result_schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": true,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "scope": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "snapshot": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commit": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "repository_id": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "repository",
+                        "repository_id",
+                        "branch",
+                        "commit"
+                      ],
+                      "type": "object"
+                    },
+                    "target": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "target",
+                    "scope",
                     "changed"
                   ],
                   "type": "object"

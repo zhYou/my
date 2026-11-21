@@ -46,7 +46,7 @@ type Options struct {
 	EnvironmentCache EnvironmentCacheSyncer
 }
 
-// Service 执行目标收录、差异、同步、冲突解决和移除。
+// Service 执行目标收录、差异、同步、冲突解决、范围更新和移除。
 type Service struct {
 	options Options
 }
@@ -91,6 +91,20 @@ type RemoveOptions struct {
 	Targets []ID
 }
 
+// UpdateOptions 指定一个已纳管目标及其唯一的新机器范围。
+type UpdateOptions struct {
+	Target ID
+	Scope  MachineScope
+}
+
+// UpdateResult 描述范围修正后的目标、范围和读取版本。
+type UpdateResult struct {
+	Snapshot datarepo.Metadata `json:"snapshot"`
+	Target   ID                `json:"target"`
+	Scope    []string          `json:"scope"`
+	Changed  bool              `json:"changed"`
+}
+
 // ItemResult 汇总一个目标的变化。
 type ItemResult struct {
 	Target    ID   `json:"target"`
@@ -104,6 +118,8 @@ type Result struct {
 	Snapshot datarepo.Metadata `json:"snapshot"`
 	Targets  []ItemResult      `json:"targets"`
 	Changed  bool              `json:"changed"`
+	// RemovedBaselines 列出全量同步清理孤立基线的目标 ID。
+	RemovedBaselines []ID `json:"removed_baselines,omitempty"`
 }
 
 // ResolveResult 汇总一次冲突解决；剩余列表在成功时为空数组。
@@ -560,6 +576,16 @@ func (s *Service) Sync(ctx context.Context, input SyncOptions) (result Result, e
 			result.Changed = true
 		}
 	}
+	if len(input.Targets) == 0 {
+		removed, err := s.clearOrphanBaselines(metadata, snapshot, progress)
+		if err != nil {
+			return result, err
+		}
+		result.RemovedBaselines = removed
+		if len(removed) != 0 {
+			result.Changed = true
+		}
+	}
 	if s.options.EnvironmentCache != nil {
 		progress.step(ctx, "target.environment_cache")
 		if err := s.options.EnvironmentCache.SyncCache(ctx); err != nil {
@@ -870,6 +896,84 @@ func (s *Service) Remove(ctx context.Context, input RemoveOptions) (result Resul
 		progress.confirmed("target.baseline_removed:" + string(target))
 		result.Targets = append(result.Targets, ItemResult{Target: target, Changed: true})
 	}
+	return result, nil
+}
+
+// Update 只重写已纳管目标的机器范围，保留单位和数据文件。
+func (s *Service) Update(ctx context.Context, input UpdateOptions) (result UpdateResult, err error) {
+	ctx, progress := s.begin(ctx, "target.update")
+	defer progress.finish(&err)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	if err := input.Validate(s.options.Definitions); err != nil {
+		return result, err
+	}
+	if err = s.validate(); err != nil {
+		return result, err
+	}
+	if err := input.Scope.Validate(s.options.KnownMachines); err != nil {
+		return result, err
+	}
+	unlock, err := s.options.State.Lock(ctx)
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		err = errors.Join(err, unlock())
+	}()
+	snapshot, err := s.options.Repository.Read(ctx)
+	if err != nil {
+		return result, err
+	}
+	progress.step(ctx, phaseCompare)
+	remote, err := parseRemoteTargets(snapshot, s.definitions())
+	if err != nil {
+		return result, err
+	}
+	existing, managed := remote[input.Target]
+	if !managed {
+		return result, notManaged(input.Target, phaseValidate)
+	}
+	scope := canonicalScope(input.Scope)
+	result = UpdateResult{
+		Snapshot: snapshot.Metadata,
+		Target:   input.Target,
+		Scope:    scopeValues(scope),
+	}
+	if slices.Equal(scopeValues(existing.scope), result.Scope) {
+		return result, nil
+	}
+	metadata, err := encodeRemoteMetadata(existing.id, scope)
+	if existing.target.Kind == UnitSecret {
+		metadata, err = encodeRemoteMetadataWithSecret(
+			existing.id,
+			scope,
+			existing.version,
+			existing.recipient,
+		)
+	}
+	if err != nil {
+		return result, err
+	}
+	progress.commit = snapshot.Metadata.Commit
+	progress.step(ctx, "target.commit")
+	committed, err := s.options.Repository.CommitChanges(ctx, snapshot, datarepo.Changes{
+		Message: "my: 更新目标范围",
+		Files: map[string][]byte{
+			remoteTargetMetadataPath(input.Target): metadata,
+		},
+	})
+	if err != nil {
+		return result, err
+	}
+	if committed.Commit != snapshot.Metadata.Commit {
+		progress.confirmed(effectDataCommit)
+	}
+	progress.commit = committed.Commit
+	result.Snapshot = committed
+	result.Changed = true
 	return result, nil
 }
 
@@ -1221,6 +1325,16 @@ func containsAny(value string, parts ...string) bool {
 		}
 	}
 	return false
+}
+
+// canonicalScope 以稳定顺序保存机器集合；范围是集合，不保留输入顺序。
+func canonicalScope(scope MachineScope) MachineScope {
+	if scope.All {
+		return MachineScope{All: true}
+	}
+	ids := append([]string(nil), scope.IDs...)
+	slices.Sort(ids)
+	return MachineScope{IDs: ids}
 }
 
 func (s *Service) captureScope(

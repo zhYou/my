@@ -3,7 +3,7 @@
 `my` 是个人数据与资源管理 CLI，支持机器登记、配置文件管理与同步，以及 shell 环境变量声明和激活。
 代码仓公开，实际数据位于独立私有仓库；敏感数据使用 age 加密，唯一解密凭据由用户在仓外保管。
 
-当前支持私有数据仓初始化、机器登记与查询、本机绑定、退役、目标清单、
+当前支持私有数据仓初始化、机器登记与查询、本机绑定、退役、目标清单与范围更新、
 配置收录与双向同步、age 加密认证、shell 环境变量激活，以及只读 doctor 检查。
 CLI 提供文本和 JSON 输出、双语消息、严格 TOML 配置、Schema、shell 补全、日志和 Trace。
 `greet` 保留为模板验收示例；账号和云服务管理留待后续模块实现。
@@ -252,6 +252,8 @@ my target capture codex-settings codex-rules mise
 my target capture --all
 my target list
 my target list --all
+my target update topgrade --machine laptop
+my target update topgrade --all-machines
 my target diff
 my target sync
 my target resolve codex-settings --unit field:features.network_proxy --from remote
@@ -263,6 +265,12 @@ my target remove topgrade
 `topgrade`、`clash-global`、`clash-lan`、`shell-env` 和 `shell-env-secret`。
 `clash-lan` 默认只适用于执行 capture 的当前机器，其余文件目标默认适用全部 active 机器，
 `--machine` 可缩小范围。
+
+`target update <target>` 只重写目标的机器范围，`--machine` 与 `--all-machines` 互斥且必须二选一。
+它保留远端单位、秘密版本、recipient 和数据文件，不重新收录内容；`--all-machines` 恢复为全部 active 机器。
+机器 ID 必须已登记且 active；范围未变化时返回 changed=false 且不提交新版本。
+未纳管目标返回 `target.not_managed`；目标即使不在当前机器范围也可调整范围。
+`shell-env` 和 `shell-env-secret` 的变量范围由 `env` 管理，不支持 `target update`。
 
 `target list` 默认列出远端已纳管、本机已有和不在本机范围的目标，`--all` 还会包含远端与本机都不存在的内建目标。
 状态为 managed、local、absent、out-of-scope；范围为 `*` 或机器 ID，未纳管目标不补默认范围。
@@ -290,6 +298,14 @@ configs/
 显式指定目标时，`diff`、`sync` 和 `resolve` 要求目标已纳管且适用于当前机器；
 未纳管返回 `target.not_managed`，不适用返回 `target.out_of_scope`，并在写入前停止。
 `remove` 对未纳管目标返回同一语义的错误。不指定目标的全量 `diff`、`sync` 继续跳过这两类目标。
+
+全量 `sync` 在远端配置已初始化时还会清除远端已移除目标的本机同步基线，并在结果的
+`removed_baselines` 中列出被清理的目标；清理只修改本机状态，不提交远端，也不修改本机目标文件。
+显式同步已移除目标仍返回 `target.not_managed`，且不会清理状态。
+
+远端不保存删除标记或代次。`remove` 后立即重新收录同一目标时，其他机器如果尚未执行全量 `sync`，
+不会观察到这次移除，仍按旧基线比较，重新收录后的内容变化可能表现为冲突。需要这些机器重置状态时，
+应在移除后先让它们完成一次全量 `sync` 再重新收录，或在重新收录后于各机器显式处理比较结果。
 
 目标文件必须是普通文件。`my` 不跟随符号链接，也不读写 FIFO、设备等特殊文件；遇到时返回
 `target.file_unsupported`，并提示将目标文件替换为普通文件后重试。原子写入保留已有普通文件的权限，

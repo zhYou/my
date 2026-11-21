@@ -614,6 +614,12 @@ other = "List built-in targets and synchronization baselines"
 ["cli.target_list_all"]
 other = "Include targets absent from both the repository and this machine"
 
+["cli.target_update"]
+other = "Change the machine scope of a managed target"
+
+["cli.target_all_machines"]
+other = "Apply the target to all active machines"
+
 ["cli.target_sync"]
 other = "Synchronize managed configuration"
 
@@ -668,11 +674,17 @@ other = "Targets captured at {{.Commit}}; changed={{.Changed}}."
 ["target.sync_result"]
 other = "Targets synchronized at {{.Commit}}; changed={{.Changed}}."
 
+["target.sync_removed"]
+other = "Removed orphan baselines: {{.Targets}}."
+
 ["target.resolve_result"]
 other = "Target {{.Target}} resolved {{.Resolved}} conflicts at {{.Commit}}; remaining={{.Remaining}}; units={{.Units}}."
 
 ["target.remove_result"]
 other = "Target removal committed at {{.Commit}}."
+
+["target.update_result"]
+other = "Target: {{.Target}}\nScope: {{.Scope}}\nCommit: {{.Commit}}\nChanged: {{.Changed}}"
 
 ["target.no_changes"]
 other = "No configuration changes."
@@ -781,6 +793,9 @@ other = "{{.Name}} target diff --json"
 
 ["cli.target_list_example"]
 other = "{{.Name}} target list\n{{.Name}} target list --all"
+
+["cli.target_update_example"]
+other = "{{.Name}} target update topgrade --machine laptop\n{{.Name}} target update topgrade --all-machines"
 
 ["cli.target_sync_example"]
 other = "{{.Name}} target sync"

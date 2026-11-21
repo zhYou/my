@@ -73,6 +73,14 @@ func (o ResolveOptions) Validate(definitions []Definition) error {
 	return invalidInput()
 }
 
+// Validate 校验单个已纳管目标和唯二选一的机器范围。
+func (o UpdateOptions) Validate(definitions []Definition) error {
+	if err := validateSelection([]ID{o.Target}, definitions, false); err != nil {
+		return err
+	}
+	return o.Scope.validateShape()
+}
+
 // Validate 校验非空、无重复的目标选择。
 func (o RemoveOptions) Validate(definitions []Definition) error {
 	return validateSelection(o.Targets, definitions, false)

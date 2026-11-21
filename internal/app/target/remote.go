@@ -307,6 +307,10 @@ func remoteTargetPrefix(target ID) string {
 	return path.Join(configTargetsRoot, string(target))
 }
 
+func remoteTargetMetadataPath(target ID) string {
+	return path.Join(remoteTargetPrefix(target), targetMetadataFile)
+}
+
 func targetPaths(snapshot datarepo.Snapshot, target ID) []string {
 	prefix := remoteTargetPrefix(target) + "/"
 	result := make([]string, 0)

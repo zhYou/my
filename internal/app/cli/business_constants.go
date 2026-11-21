@@ -10,6 +10,7 @@ const (
 	flagKind                      = "kind"
 	flagMachine                   = "machine"
 	flagAll                       = "all"
+	flagAllMachines               = "all-machines"
 	flagUnit                      = "unit"
 	flagFrom                      = "from"
 	flagSecret                    = "secret"
