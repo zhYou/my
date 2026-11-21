@@ -1,0 +1,9 @@
+{
+  "id": "2026-11-21-target-first-sync",
+  "compatibility": "review-required",
+  "summary": "无同步基线且本机缺失单位时，target sync 直接采用远端内容；本机已有值仍保持冲突。",
+  "paths": ["/schema/commands/contract-cli/commands/contract-cli target"],
+  "previous_version": "v0.6.0",
+  "target_version": "v0.6.1",
+  "migration": "新机器首次同步不再为单位缺失报 target.first_takeover。远端存在而本机缺失的文件或字段会直接下发；本机已有内容不会被覆盖，双方都有但不同仍需 target resolve。首次同步应在启动 Codex、mise 等会生成默认配置的应用之前执行。命令、选项和 JSON 字段不变；该场景下 target sync 由冲突失败改为成功下发。"
+}
