@@ -32,3 +32,15 @@ func problem(code fault.Code, phase string, cause error) error {
 	}
 	return (fault.Definition{Code: code, Kind: fault.Runtime}).Wrap(cause, options...)
 }
+
+func unsupportedFile(phase string) error {
+	return (fault.Definition{Code: codeFileUnsupported, Kind: fault.Runtime}).New(
+		fault.WithDiagnostic(
+			fault.Diagnostic{
+				Phase:            phase,
+				CompletedEffects: []string{},
+				Recovery:         &fault.Recovery{Code: recoverFileUnsupported},
+			},
+		),
+	)
+}
