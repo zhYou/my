@@ -73,6 +73,31 @@ func TestListShowsManagedLocalOutOfScopeAndHidesAbsent(t *testing.T) {
 	require.Zero(t, absent.Units)
 }
 
+func TestListShowsRemoteAuthoritativeTarget(t *testing.T) {
+	home := t.TempDir()
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	repository.snapshot.ConfigInitialized = true
+	repository.snapshot.Files["configs/manifest.toml"] = []byte("schema_version = 1\n")
+	repository.snapshot.Files["configs/targets/shell-env/target.toml"] = []byte(
+		"schema_version = 1\ntarget = \"shell-env\"\nmachines = [\"*\"]\n",
+	)
+	repository.snapshot.Files["configs/targets/shell-env/data/env.toml"] = []byte(
+		"schema_version = 1\n[env.EDITOR]\nvalue = \"nvim\"\nmachines = [\"*\"]\n",
+	)
+	service := newTestService(home, repository)
+
+	result, err := service.List(t.Context(), ListOptions{})
+	require.NoError(t, err)
+	shellEnv := listItem(t, result.Targets, ShellEnv)
+	require.Equal(t, StatusManaged, shellEnv.Status)
+	require.Equal(t, []string{"*"}, shellEnv.Scope)
+	require.Zero(t, shellEnv.Units)
+
+	synced, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, synced.Changed)
+}
+
 func TestListDoesNotCreateLocalState(t *testing.T) {
 	home := t.TempDir()
 	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")

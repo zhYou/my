@@ -263,6 +263,7 @@ my target remove topgrade
 `target list` 默认列出远端已纳管、本机已有和不在本机范围的目标，`--all` 还会包含远端与本机都不存在的内建目标。
 状态为 managed、local、absent、out-of-scope；范围为 `*` 或机器 ID，未纳管目标不补默认范围。
 清单显示本机上次成功同步提交和远端单位数，JSON 按目标 ID 稳定排序；旧基线没有提交记录时按空值显示。
+`shell-env` 和 `shell-env-secret` 由 `env` 管理，清单只显示其远端纳管状态，单位数为 0；变量清单使用 `env list`。
 命令只读，不提交远端、不创建本机状态，也不加载 age identity。
 
 数据仓布局为：

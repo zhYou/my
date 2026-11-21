@@ -91,6 +91,7 @@ func parseRemoteTargets(
 		}
 		switch {
 		case definition.RemoteAuthoritative:
+			result[id] = target
 			continue
 		case definition.Kind == UnitSecret:
 			if metadata.Version == "" || metadata.Recipient == "" || len(definition.Files) != 1 {

@@ -797,6 +797,9 @@ func (s *Service) plan(
 		if !exists {
 			continue
 		}
+		if remoteTarget.target.RemoteAuthoritative {
+			continue
+		}
 		if !remoteTarget.scope.Applies(s.options.MachineID) {
 			continue
 		}
