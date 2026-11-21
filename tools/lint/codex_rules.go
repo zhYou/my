@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	agentRulesDirectory = ".codex/rules"
-	agentRuleExtension  = ".rules"
+	codexRulesDirectory = ".codex/rules"
+	codexRuleExtension  = ".rules"
 	prefixRuleCall      = "prefix_rule"
 	patternField        = "pattern"
 	decisionField       = "decision"
@@ -36,52 +36,51 @@ type ruleToken struct {
 	line int
 }
 
-// checkAgentRules 校验项目 Codex 规则文件的 prefix_rule 语法，
+// checkCodexRules 校验项目 Codex 规则文件的 prefix_rule 语法，
 // 并要求每个文件至少包含一条面向用户的中文理由。
-func checkAgentRules(root string) error {
+func checkCodexRules(root string) error {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf(resolveRepositoryError, err)
 	}
-	directory := filepath.Join(root, filepath.FromSlash(agentRulesDirectory))
+	directory := filepath.Join(root, filepath.FromSlash(codexRulesDirectory))
 	entries, err := os.ReadDir(directory)
 	if err != nil {
-		return fmt.Errorf("读取 %s：%w", agentRulesDirectory, err)
+		return fmt.Errorf("读取 %s：%w", codexRulesDirectory, err)
 	}
 	found := false
 	var problems []error
 	for _, entry := range entries {
-		if filepath.Ext(entry.Name()) != agentRuleExtension {
+		if filepath.Ext(entry.Name()) != codexRuleExtension {
 			continue
 		}
 		found = true
 		path := filepath.Join(directory, entry.Name())
-		info, err := os.Lstat(path)
-		if err != nil {
-			problems = append(problems, fmt.Errorf("检查 %s：%w", entry.Name(), err))
+		if err := checkRegularFile(path); err != nil {
+			if errors.Is(err, errNotRegularFile) {
+				problems = append(problems, fmt.Errorf(notRegularError, entry.Name()))
+			} else {
+				problems = append(problems, fmt.Errorf("检查 %s：%w", entry.Name(), err))
+			}
 			continue
 		}
-		if !info.Mode().IsRegular() {
-			problems = append(problems, fmt.Errorf(notRegularError, entry.Name()))
-			continue
-		}
-		if err := checkAgentRuleFile(path); err != nil {
+		if err := checkCodexRuleFile(path); err != nil {
 			problems = append(problems, err)
 		}
 	}
 	if !found {
-		problems = append(problems, fmt.Errorf("%s 缺少 %s 文件", agentRulesDirectory, agentRuleExtension))
+		problems = append(problems, fmt.Errorf("%s 缺少 %s 文件", codexRulesDirectory, codexRuleExtension))
 	}
 	return errors.Join(problems...)
 }
 
-func checkAgentRuleFile(path string) error {
+func checkCodexRuleFile(path string) error {
 	//nolint:gosec // G304：只读取调用者指定仓库中的固定规则目录。
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf(readPathError, path, err)
 	}
-	tokens, err := lexAgentRule(path, string(data))
+	tokens, err := lexCodexRule(path, string(data))
 	if err != nil {
 		return err
 	}
@@ -104,9 +103,9 @@ func checkAgentRuleFile(path string) error {
 			problems = append(problems, err)
 			return errors.Join(problems...)
 		}
-		callJustifications, callProblems := inspectRuleCall(path, tokens[i].line, tokens[i+2:end])
-		problems = append(problems, callProblems...)
-		for _, value := range callJustifications {
+		arguments := parseRuleArguments(path, tokens[i].line, tokens[i+2:end])
+		problems = append(problems, arguments.problems...)
+		for _, value := range arguments.justifications {
 			count++
 			if !containsHan(value.text) {
 				problems = append(problems, fmt.Errorf("%s:%d justification 必须使用中文", path, value.line))
@@ -120,7 +119,7 @@ func checkAgentRuleFile(path string) error {
 	return errors.Join(problems...)
 }
 
-func lexAgentRule(path, source string) ([]ruleToken, error) {
+func lexCodexRule(path, source string) ([]ruleToken, error) {
 	var tokens []ruleToken
 	line := 1
 	for offset := 0; offset < len(source); {
@@ -285,7 +284,16 @@ func matchingRuleDelimiter(path string, tokens []ruleToken, start int) (int, err
 	return 0, fmt.Errorf("%s:%d 括号未闭合", path, tokens[start].line)
 }
 
-func inspectRuleCall(path string, callLine int, tokens []ruleToken) ([]ruleToken, []error) {
+// ruleArguments 是 prefix_rule 参数解析结果：justifications 是待校验的理由字符串，
+// problems 是字段、取值或结构错误。
+type ruleArguments struct {
+	justifications []ruleToken
+	problems       []error
+}
+
+// parseRuleArguments 解析 prefix_rule 括号内的参数，挑出所有 justification 字符串；
+// 参数结构和 pattern、decision 的取值错误写入 problems。示例命令的语义不在本检查范围内。
+func parseRuleArguments(path string, callLine int, tokens []ruleToken) ruleArguments {
 	var justifications []ruleToken
 	var problems []error
 	seen := make(map[string]struct{})
@@ -296,13 +304,13 @@ func inspectRuleCall(path string, callLine int, tokens []ruleToken) ([]ruleToken
 		}
 		if tokens[i].kind != ruleIdentifier {
 			problems = append(problems, fmt.Errorf("%s:%d 规则参数无效", path, tokens[i].line))
-			return justifications, problems
+			return ruleArguments{justifications: justifications, problems: problems}
 		}
 		field := tokens[i]
 		i++
 		if i >= len(tokens) || tokens[i].text != "=" {
 			problems = append(problems, fmt.Errorf("%s:%d %s 缺少等号", path, field.line, field.text))
-			return justifications, problems
+			return ruleArguments{justifications: justifications, problems: problems}
 		}
 		i++
 		valueStart := i
@@ -354,7 +362,7 @@ func inspectRuleCall(path string, callLine int, tokens []ruleToken) ([]ruleToken
 	if _, ok := seen[patternField]; !ok {
 		problems = append(problems, fmt.Errorf("%s:%d prefix_rule 缺少 pattern", path, callLine))
 	}
-	return justifications, problems
+	return ruleArguments{justifications: justifications, problems: problems}
 }
 
 func inspectRulePattern(path string, field ruleToken, value []ruleToken) []error {

@@ -45,7 +45,7 @@ mise 聚合流程，领域 Go 入口只处理各自能力；参数不足、未�
 | `mise run lint:syntax`                                       | 用现成 CLI 检查 JSON、XML、TOML 语法和重复键                                         |
 | `mise run lint`                                              | 只读检查格式、双语消息、应用及客户端配置、包文档、源码风格、版本声明和静态规则       |
 | `mise run lint:i18n` / `lint:config` / `lint:opencode`       | 校验双语消息、受管应用配置 / OpenCode MCP 与权限边界；均纳入 lint 和 check           |
-| `mise run lint:agent-rules`                                  | 校验 `.codex/rules/*.rules` 的语法、字段与中文 justification；纳入 lint 和 check     |
+| `mise run lint:codex-rules`                                  | 校验 `.codex/rules/*.rules` 的语法、字段与中文 justification；纳入 lint 和 check     |
 | `mise run lint:style`                                        | 检查具名和匿名结构体字段逐项声明；纳入 lint 和 check                                 |
 | `mise run lint:doc`                                          | 检查正式 Go 包的 doc.go 与包说明位置；纳入 lint 和 check                             |
 | `mise run lint:test`                                         | 用真实 fixture 测试静态规则自身；仅纳入 check                                        |
@@ -140,7 +140,7 @@ base 不依赖 app、command、tools 或 Cobra。领域码及结果由所属模�
 开发工具用 `scaffold.Inspect` 静态识别唯一入口，不根据模块路径末段猜测命令名。
 
 mise 聚合完整流程，领域 Go 入口只承接自己的能力：`tools/lint` 接收
-i18n/config/opencode/agent-rules/doc/style/versions/test，
+i18n/config/opencode/codex-rules/doc/style/versions/test，
 `tools/contract` 接收 check/update，`tools/template` 接收 init/check，`tools/verify` 在隔离缓存中组合完整验收；
 其他领域入口不接受位置参数。
 初始化的 `--module`、`--name` 和契约检查的 `--against` 保持原用途。参数不足、未知或多余时立即失败。
@@ -580,7 +580,7 @@ fault.Definition.Code 和 fault.Recovery.Code：显式结构体初始化及普�
 300 秒启动与 180 秒执行超时、`.worktrees` 路径、shell 审批边界和 Graphify 七工具面。
 它不解析 `.codex/rules`，也不替代真实 OpenCode 客户端验收。
 
-`mise run lint:agent-rules` 解析 `.codex/rules/` 下所有 `.rules` 普通文件，顶层只能是 `prefix_rule` 调用。
+`mise run lint:codex-rules` 解析 `.codex/rules/` 下所有 `.rules` 普通文件，顶层只能是 `prefix_rule` 调用。
 每条规则必须提供非空 `pattern` 列表，元素只能是字符串或非空字符串列表；`decision` 可省略，出现时只能是
 `allow`、`prompt` 或 `forbidden`。未知字段和重复字段失败；`match`、`not_match` 作为已知字段接受，
 示例命令语义不在检查范围内。`justification` 出现时必须是可解码字符串且含中文，每个文件至少一条。
