@@ -317,7 +317,8 @@ SIGKILL，并额外保留一次 WaitDelay 观察进程组退出；确认组不�
 
 配置同步复用固定提交读取和一次 `expectedHeadOid` CAS 提交。普通字段和完整文件保留未纳管内容；
 秘密只保存版本摘要与密文。无同步基线时，本机缺失的单位按远端下发，本机已有值不覆盖；
-双方都有但不同仍是冲突。冲突在写入前停止，用户使用 `target diff` 返回的稳定单位 ID 显式选择来源。
+双方都有但不同仍是冲突。`target list` 只读汇总纳管状态、范围、成功同步提交和远端单位数，
+不写远端或本机状态，也不加载 age identity。冲突在写入前停止，用户使用 `target diff` 返回的稳定单位 ID 显式选择来源。
 显式目标选择在未纳管或不适用当前机器时分别返回 `target.not_managed` 与 `target.out_of_scope`，在写入前停止；
 不指定目标的全量选择继续跳过这两类目标，`remove` 复用未纳管错误。
 目标文件必须是普通文件；符号链接和特殊文件返回 `target.file_unsupported`，不跟随也不写入。
@@ -373,7 +374,7 @@ Result 的 checks 始终编码为数组。RequiredAvailable 表示所有必需�
 go-gh 的 Host、APIHost、AuthToken、Transport、Timeout 显式设置，LogIgnoreEnv=true、EnableCache=false，禁止重定向携带凭据。
 读取只消费格式标记与机器文件，严格 TOML、固定 HEAD、限长响应；不得把响应体或备注放入诊断字段。
 
-业务 span 为 data.init、machine.register、machine.bind、machine.retire；子阶段为 data.read、data.commit、machine.binding.write/clear。
+业务 span 为 data.init、machine.register、machine.bind、machine.update、machine.retire；子阶段为 data.read、data.commit、machine.binding.write/clear。
 所属模块事件记录 phase、outcome、duration、error_code 和必要版本；data.commit 区分 base_commit 与确认成功的 commit。
 Session 负责 run_id 与日志、Trace 出口和降级；业务复用 telemetry.RecordError，禁止直接记录原始 error 字符串。
 stdout 输出成功结果；stderr 在 --json 下逐行区分 error/warning，普通日志保留 event。

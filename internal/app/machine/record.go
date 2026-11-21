@@ -40,17 +40,47 @@ type RegisterOptions struct {
 	Note string
 }
 
+// UpdateOptions 声明允许修正的资料字段；nil 表示保持原值。
+type UpdateOptions struct {
+	ID   string
+	Kind *string
+	Note *string
+}
+
+// Validate 在读取配置及创建资源之前校验更新参数。
+func (o UpdateOptions) Validate() error {
+	if err := ValidateID(o.ID); err != nil {
+		return err
+	}
+	if o.Kind == nil && o.Note == nil {
+		return invalidInput()
+	}
+	if o.Kind != nil && !validKind(*o.Kind) {
+		return invalidInput()
+	}
+	if o.Note != nil && !validNote(*o.Note) {
+		return invalidInput()
+	}
+	return nil
+}
+
 // Validate 在读取配置及创建资源之前校验登记参数。
 func (o RegisterOptions) Validate() error {
 	if err := ValidateID(o.ID); err != nil {
 		return err
 	}
-	if o.Kind != "laptop" && o.Kind != "desktop" && o.Kind != "server" && o.Kind != "vm" ||
-		strings.TrimSpace(o.Note) == "" ||
-		strings.ContainsAny(o.Note, "\r\n\x00") {
+	if !validKind(o.Kind) || !validNote(o.Note) {
 		return invalidInput()
 	}
 	return nil
+}
+
+func validKind(kind string) bool {
+	return kind == "laptop" || kind == "desktop" || kind == "server" || kind == "vm"
+}
+
+func validNote(note string) bool {
+	return strings.TrimSpace(note) != "" && !strings.ContainsAny(note, "\r\n\x00")
 }
 
 // BindOptions 声明恢复身份时允许的显式状态改变。

@@ -467,6 +467,9 @@ other = "ID\tSTATUS\tOS\tARCH\tKIND\tNOTE"
 ["machine.record_result"]
 other = "Machine: {{.ID}}\nKind: {{.Kind}}\nOS: {{.OS}}\nArchitecture: {{.Arch}}\nNote: {{.Note}}\nRegistered: {{.RegisteredAt}}\nStatus: {{.Status}}\nCommit: {{.Commit}}"
 
+["machine.update_result"]
+other = "Machine: {{.ID}}\nKind: {{.Kind}}\nOS: {{.OS}}\nArchitecture: {{.Arch}}\nNote: {{.Note}}\nRegistered: {{.RegisteredAt}}\nStatus: {{.Status}}\nCommit: {{.Commit}}\nChanged: {{.Changed}}"
+
 ["machine.current_result"]
 other = "Local binding: {{.ID}} — {{.Repository}} ({{.Branch}})"
 
@@ -496,6 +499,9 @@ other = "Restore an existing machine identity on this device."
 
 ["cli.machine_retire"]
 other = "Retire a record and clear a matching local binding."
+
+["cli.machine_update"]
+other = "Correct a machine record's kind or note without changing its identity."
 
 ["cli.machine_kind"]
 other = "Machine kind: laptop, desktop, server or vm."
@@ -602,6 +608,12 @@ other = "Capture local configuration targets"
 ["cli.target_diff"]
 other = "Show configuration changes and conflicts without writing"
 
+["cli.target_list"]
+other = "List built-in targets and synchronization baselines"
+
+["cli.target_list_all"]
+other = "Include targets absent from both the repository and this machine"
+
 ["cli.target_sync"]
 other = "Synchronize managed configuration"
 
@@ -664,6 +676,9 @@ other = "No configuration changes."
 
 ["target.diff_line"]
 other = "{{.Target}}\t{{.Unit}}\t{{.Action}}"
+
+["target.list_header"]
+other = "TARGET\tSTATUS\tSCOPE\tBASELINE\tUNITS"
 
 ["shellenv.set_result"]
 other = "Environment variable {{.Name}} saved; secret={{.Secret}}; changed={{.Changed}}."
@@ -748,6 +763,9 @@ other = "{{.Name}} target capture mise codex-settings\n{{.Name}} target capture 
 
 ["cli.target_diff_example"]
 other = "{{.Name}} target diff --json"
+
+["cli.target_list_example"]
+other = "{{.Name}} target list\n{{.Name}} target list --all"
 
 ["cli.target_sync_example"]
 other = "{{.Name}} target sync"

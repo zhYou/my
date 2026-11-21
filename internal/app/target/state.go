@@ -21,9 +21,10 @@ import (
 	"github.com/zhYou/my/internal/datarepo"
 )
 
-// Baseline 保存一个目标上次成功同步的单位状态。
+// Baseline 保存一个目标上次成功同步的单位状态和提交。
 type Baseline struct {
 	Target  ID
+	Commit  string
 	Units   map[UnitID]BaselineValue
 	Pending *PendingSecret
 }
@@ -43,6 +44,7 @@ type baselineEnvelope struct {
 	Repository    string                   `json:"repository"`
 	Branch        string                   `json:"branch"`
 	Target        ID                       `json:"target"`
+	Commit        string                   `json:"commit,omitempty"`
 	Units         map[UnitID]BaselineValue `json:"units"`
 	Pending       *PendingSecret           `json:"pending,omitempty"`
 }
@@ -130,7 +132,7 @@ func (s *FileState) Read(metadata datarepo.Metadata, target ID) (Baseline, bool,
 		envelope.Units == nil {
 		return Baseline{}, false, problem(codeStateInvalid, phaseStateRead, nil)
 	}
-	baseline := Baseline{Target: target, Units: envelope.Units, Pending: envelope.Pending}
+	baseline := Baseline{Target: target, Commit: envelope.Commit, Units: envelope.Units, Pending: envelope.Pending}
 	if err := baseline.Validate(); err != nil {
 		return Baseline{}, false, problem(codeStateInvalid, phaseStateRead, err)
 	}
@@ -155,7 +157,7 @@ func (s *FileState) Write(metadata datarepo.Metadata, baseline Baseline) error {
 	envelope := baselineEnvelope{
 		SchemaVersion: stateSchemaVersion, RepositoryID: metadata.RepositoryID, MachineID: s.machineID,
 		Repository: metadata.Repository, Branch: metadata.Branch, Target: baseline.Target,
-		Units: baseline.Units, Pending: baseline.Pending,
+		Commit: baseline.Commit, Units: baseline.Units, Pending: baseline.Pending,
 	}
 	data, err := json.Marshal(envelope)
 	if err != nil {
