@@ -680,6 +680,12 @@ other = "Target state or content is invalid."
 ["target.file_unsupported"]
 other = "The target file is a symlink or special file; my does not follow or write it."
 
+["target.not_managed"]
+other = "Target {{.Target}} is not managed in the data repository."
+
+["target.out_of_scope"]
+other = "Target {{.Target}} is not in scope for machine {{.Machine}}."
+
 ["target.legacy"]
 other = "A legacy target layout requires explicit cleanup."
 
@@ -697,6 +703,12 @@ other = "Inspect target diff and the confirmed effects before retrying. Data com
 
 ["target.recover_file_unsupported"]
 other = "Replace the target file with a regular file, then retry target diff, target sync or target capture; my never follows symlinks or writes special files."
+
+["target.recover_not_managed"]
+other = "Run target capture {{.Target}} on a machine that owns the content, or omit the target to keep skipping unmanaged targets."
+
+["target.recover_out_of_scope"]
+other = "Include {{.Machine}} in the target's machines declaration, or run the command from a machine already in scope."
 
 ["target.operation_event"]
 other = "Target phase {{.Operation}} finished."

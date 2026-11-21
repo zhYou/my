@@ -16,6 +16,8 @@ const (
 	codeInvalidInput       = "target.invalid_input"
 	codeStateInvalid       = "target.state_invalid"
 	codeFileUnsupported    = "target.file_unsupported"
+	codeNotManaged         = "target.not_managed"
+	codeOutOfScope         = "target.out_of_scope"
 	codeLegacyConflict     = "target.legacy"
 	firstTakeoverCode      = "target.first_takeover"
 	changedBothCode        = "target.changed_both"
@@ -23,6 +25,8 @@ const (
 	recoverUsage           = "cli.recover_usage"
 	recoverConfiguration   = "target.recover"
 	recoverFileUnsupported = "target.recover_file_unsupported"
+	recoverNotManaged      = "target.recover_not_managed"
+	recoverOutOfScope      = "target.recover_out_of_scope"
 )
 
 const (
