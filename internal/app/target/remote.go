@@ -91,6 +91,7 @@ func parseRemoteTargets(
 		}
 		switch {
 		case definition.RemoteAuthoritative:
+			result[id] = target
 			continue
 		case definition.Kind == UnitSecret:
 			if metadata.Version == "" || metadata.Recipient == "" || len(definition.Files) != 1 {
@@ -304,6 +305,10 @@ func remoteFilesForTarget(target remoteTarget) (map[string][]byte, error) {
 
 func remoteTargetPrefix(target ID) string {
 	return path.Join(configTargetsRoot, string(target))
+}
+
+func remoteTargetMetadataPath(target ID) string {
+	return path.Join(remoteTargetPrefix(target), targetMetadataFile)
 }
 
 func targetPaths(snapshot datarepo.Snapshot, target ID) []string {

@@ -25,6 +25,17 @@ func TestAtomicWriteFilePreservesExistingMode(t *testing.T) {
 	require.Equal(t, os.FileMode(0o640), info.Mode().Perm())
 }
 
+func TestAtomicWriteFileCreatesNewFilePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不提供 POSIX mode")
+	}
+	path := filepath.Join(t.TempDir(), "nested", "config.toml")
+	require.NoError(t, AtomicWriteFile(path, []byte("new\n"), 0o600))
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
 func TestAtomicWriteFileRejectsSymlink(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("符号链接创建需要额外 Windows 权限")
@@ -34,5 +45,7 @@ func TestAtomicWriteFileRejectsSymlink(t *testing.T) {
 	require.NoError(t, os.WriteFile(target, []byte("old"), 0o600))
 	link := filepath.Join(directory, "link")
 	require.NoError(t, os.Symlink(target, link))
-	require.Error(t, AtomicWriteFile(link, []byte("new"), 0o600))
+	err := AtomicWriteFile(link, []byte("new"), 0o600)
+	requireUnsupportedFile(t, err)
+	require.Equal(t, "old", readFixture(t, target))
 }

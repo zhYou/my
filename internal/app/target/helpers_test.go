@@ -68,6 +68,44 @@ func conflictingTopgrade(t *testing.T) (string, *memoryRepository, *Service) {
 	return home, repository, service
 }
 
+func conflictingMiseFields(t *testing.T) (string, *memoryRepository, *Service) {
+	t.Helper()
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".config", "mise", "config.toml")
+	writeFixture(t, configPath, "[tools]\ngo = \"latest\"\nnode = \"latest\"\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Mise}})
+	require.NoError(t, err)
+	repository.commits = nil
+	writeFixture(t, configPath, "[tools]\ngo = \"local-go\"\nnode = \"local-node\"\n")
+	setRemoteFieldTarget(t, repository, Mise, MachineScope{All: true}, map[UnitID]UnitValue{
+		FieldUnitID("tools", "go"):   UnitValueFromBytes([]byte(`"remote-go"`)),
+		FieldUnitID("tools", "node"): UnitValueFromBytes([]byte(`"remote-node"`)),
+	})
+	repository.snapshot.Metadata.Commit = "remote-change"
+	return home, repository, service
+}
+
+func conflictingCodexRules(t *testing.T, names ...string) (string, *memoryRepository, *Service) {
+	t.Helper()
+	home := t.TempDir()
+	for _, name := range names {
+		writeFixture(t, filepath.Join(home, ".codex", "rules", name), name+"-base\n")
+	}
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{CodexRules}})
+	require.NoError(t, err)
+	repository.commits = nil
+	for _, name := range names {
+		writeFixture(t, filepath.Join(home, ".codex", "rules", name), name+"-local\n")
+		repository.snapshot.Files["configs/targets/codex-rules/data/"+name] = []byte(name + "-remote\n")
+	}
+	repository.snapshot.Metadata.Commit = "remote-change"
+	return home, repository, service
+}
+
 func newTestService(home string, repository Repository) *Service {
 	return New(Options{
 		Repository:    repository,
@@ -177,6 +215,26 @@ func setRemoteAuthVersion(
 	repository.snapshot.Files["configs/targets/codex-auth/target.toml"] = metadata
 }
 
+// makeSecretConflict 构造 pending 版本与远端一致但本机文件已被未知内容替换的状态。
+func makeSecretConflict(
+	t *testing.T,
+	service *Service,
+	repository *memoryRepository,
+	remote []byte,
+) {
+	t.Helper()
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, CodexAuth)
+	require.NoError(t, err)
+	require.True(t, exists)
+	baseline.Pending = &PendingSecret{
+		Version:        UnitValueFromBytes(remote).Digest,
+		BeforeDigest:   baseline.Units[SecretUnitID].Digest,
+		BeforeExists:   true,
+		SnapshotDigest: digestBytes([]byte("pending-snapshot")),
+	}
+	require.NoError(t, service.options.State.Write(repository.snapshot.Metadata, baseline))
+}
+
 func writeFixture(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
@@ -217,10 +275,50 @@ func (s stopAfterPending) Write(metadata datarepo.Metadata, baseline Baseline) e
 	return nil
 }
 
+type failAfterBaselineWrites struct {
+	State
+	remaining int
+}
+
+func (s *failAfterBaselineWrites) Write(metadata datarepo.Metadata, baseline Baseline) error {
+	if s.remaining == 0 {
+		return errors.New("synthetic baseline write failure")
+	}
+	s.remaining--
+	return s.State.Write(metadata, baseline)
+}
+
 type failedWriteAndUnlock struct {
 	State
 	writeCause  error
 	unlockCause error
+}
+
+func requireUnsupportedFile(t *testing.T, err error) {
+	t.Helper()
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.file_unsupported"), details[0].Code)
+	require.NotNil(t, details[0].Diagnostic.Recovery)
+	require.Equal(t, "target.recover_file_unsupported", details[0].Diagnostic.Recovery.Code)
+}
+
+func setRemoteFieldTarget(
+	t *testing.T,
+	repository *memoryRepository,
+	id ID,
+	scope MachineScope,
+	units map[UnitID]UnitValue,
+) {
+	t.Helper()
+	metadata, err := encodeRemoteMetadata(id, scope)
+	require.NoError(t, err)
+	values, err := encodeFieldValues(units)
+	require.NoError(t, err)
+	repository.snapshot.Files[remoteTargetPrefix(id)+"/"+targetMetadataFile] = metadata
+	repository.snapshot.Files[remoteTargetPrefix(id)+"/"+configDataDirectory+"/"+fieldValuesFile] = values
+	repository.snapshot.ConfigInitialized = true
 }
 
 func (s failedWriteAndUnlock) Write(datarepo.Metadata, Baseline) error {

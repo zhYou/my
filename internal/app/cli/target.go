@@ -32,6 +32,8 @@ func newTargetCommand(call *invocation) *cobra.Command {
 	group.AddCommand(
 		newTargetCaptureCommand(call),
 		newTargetDiffCommand(call),
+		newTargetListCommand(call),
+		newTargetUpdateCommand(call),
 		newTargetSyncCommand(call),
 		newTargetResolveCommand(call),
 		newTargetRemoveCommand(call),
@@ -77,7 +79,7 @@ func newTargetCaptureCommand(call *invocation) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&input.All, "all", false, "收录所有现有普通配置目标")
+	cmd.Flags().BoolVar(&input.All, flagCaptureAll, false, "收录所有现有普通配置目标")
 	cmd.Flags().StringSliceVar(&input.Machines, flagMachine, nil, "限制目标适用的机器 ID")
 	call.addAgeIdentityFlag(cmd)
 	call.bindCommand(
@@ -90,8 +92,8 @@ func newTargetCaptureCommand(call *invocation) *cobra.Command {
 			},
 		},
 	)
-	call.bindFlag(cmd.Flags().Lookup("all"), message("cli.target_all"))
-	call.bindFlag(cmd.Flags().Lookup(flagMachine), message("cli.target_machine"))
+	call.bindFlag(cmd.Flags().Lookup(flagCaptureAll), message("cli.target_all"))
+	call.bindFlag(cmd.Flags().Lookup(flagMachine), message(messageTargetMachine))
 	registerOrPanic[target.Result](call, cmd)
 	return cmd
 }
@@ -134,9 +136,9 @@ func newTargetDiffCommand(call *invocation) *cobra.Command {
 					text, err := call.localizer.Format(
 						"target.diff_line",
 						messages.FormatOptions{Params: map[string]any{
-							"Target": change.Target,
-							"Unit":   change.Unit,
-							"Action": change.Action,
+							paramTarget: change.Target,
+							"Unit":      change.Unit,
+							"Action":    change.Action,
 						}},
 					)
 					if err != nil {
@@ -167,6 +169,122 @@ func newTargetDiffCommand(call *invocation) *cobra.Command {
 	return cmd
 }
 
+func newTargetListCommand(call *invocation) *cobra.Command {
+	input := target.ListOptions{}
+	cmd := &cobra.Command{
+		Use:         "list",
+		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
+		Args:        noArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			service, _, err := call.targetService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := service.List(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			if call.asJSON {
+				return writeJSON(cmd.OutOrStdout(), result)
+			}
+			return writeText(cmd.OutOrStdout(), func(w io.Writer) error {
+				header, err := call.localizer.Format("target.list_header", messages.FormatOptions{})
+				if err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintln(w, header); err != nil {
+					return err
+				}
+				for _, item := range result.Targets {
+					scope := "-"
+					if len(item.Scope) != 0 {
+						scope = strings.Join(item.Scope, ",")
+					}
+					baseline := item.BaselineCommit
+					if baseline == "" {
+						baseline = "-"
+					}
+					if _, err := fmt.Fprintf(
+						w,
+						"%s\t%s\t%s\t%s\t%d\n",
+						item.Target,
+						item.Status,
+						scope,
+						baseline,
+						item.Units,
+					); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&input.All, flagListAll, false, "包含远端和本机都不存在的内建目标")
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short: message("cli.target_list"),
+			example: textMessage{
+				id:     "cli.target_list_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
+	call.bindFlag(cmd.Flags().Lookup(flagListAll), message("cli.target_list_all"))
+	registerOrPanic[target.ListResult](call, cmd)
+	return cmd
+}
+
+func newTargetUpdateCommand(call *invocation) *cobra.Command {
+	input := target.UpdateOptions{}
+	cmd := &cobra.Command{
+		Use:         "update <target> --machine <id>... | --all-machines",
+		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
+		Args: func(command *cobra.Command, args []string) error {
+			if err := cobra.ExactArgs(1)(command, args); err != nil {
+				return err
+			}
+			input.Target = target.ID(args[0])
+			return input.Validate(target.DefaultDefinitions())
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			service, _, err := call.targetService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := service.Update(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return businessOutput(cmd, call, result, "target.update_result", map[string]any{
+				paramTarget:  result.Target,
+				"Scope":      strings.Join(result.Scope, ","),
+				paramCommit:  result.Snapshot.Commit,
+				paramChanged: result.Changed,
+			})
+		},
+	}
+	cmd.Flags().StringSliceVar(&input.Scope.IDs, flagMachine, nil, "将目标限制到机器 ID")
+	cmd.Flags().BoolVar(&input.Scope.All, flagAllMachines, false, "将目标应用到全部 active 机器")
+	cmd.MarkFlagsOneRequired(flagMachine, flagAllMachines)
+	cmd.MarkFlagsMutuallyExclusive(flagMachine, flagAllMachines)
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short: message("cli.target_update"),
+			example: textMessage{
+				id:     "cli.target_update_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
+	call.bindFlag(cmd.Flags().Lookup(flagMachine), message(messageTargetMachine))
+	call.bindFlag(cmd.Flags().Lookup(flagAllMachines), message("cli.target_all_machines"))
+	registerOrPanic[target.UpdateResult](call, cmd)
+	return cmd
+}
+
 func newTargetSyncCommand(call *invocation) *cobra.Command {
 	input := target.SyncOptions{}
 	cmd := &cobra.Command{
@@ -189,9 +307,35 @@ func newTargetSyncCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return businessOutput(cmd, call, result, "target.sync_result", map[string]any{
-				paramCommit:  result.Snapshot.Commit,
-				paramChanged: result.Changed,
+			if call.asJSON {
+				return writeJSON(cmd.OutOrStdout(), result)
+			}
+			return writeText(cmd.OutOrStdout(), func(w io.Writer) error {
+				text, err := call.localizer.Format("target.sync_result", messages.FormatOptions{Params: map[string]any{
+					paramCommit:  result.Snapshot.Commit,
+					paramChanged: result.Changed,
+				}})
+				if err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintln(w, text); err != nil {
+					return err
+				}
+				if len(result.RemovedBaselines) == 0 {
+					return nil
+				}
+				removed := make([]string, len(result.RemovedBaselines))
+				for index, id := range result.RemovedBaselines {
+					removed[index] = string(id)
+				}
+				text, err = call.localizer.Format("target.sync_removed", messages.FormatOptions{Params: map[string]any{
+					"Targets": strings.Join(removed, ", "),
+				}})
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintln(w, text)
+				return err
 			})
 		},
 	}
@@ -210,16 +354,13 @@ func newTargetSyncCommand(call *invocation) *cobra.Command {
 func newTargetResolveCommand(call *invocation) *cobra.Command {
 	input := target.ResolveOptions{}
 	cmd := &cobra.Command{
-		Use:         "resolve <target> --unit <id> --from local|remote",
+		Use:         "resolve <target> (--unit <id> | --all) --from local|remote",
 		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
 		Args: func(command *cobra.Command, args []string) error {
 			if err := cobra.ExactArgs(1)(command, args); err != nil {
 				return err
 			}
 			input.Target = target.ID(args[0])
-			if !command.Flags().Changed(flagUnit) || !command.Flags().Changed(flagFrom) {
-				return input.Target.Validate()
-			}
 			return input.Validate(target.DefaultDefinitions())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -231,18 +372,27 @@ func newTargetResolveCommand(call *invocation) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			units := make([]string, 0, len(result.Resolved))
+			for _, unit := range result.Resolved {
+				units = append(units, string(unit))
+			}
 			return businessOutput(cmd, call, result, "target.resolve_result", map[string]any{
+				paramTarget: input.Target,
+				"Resolved":  len(result.Resolved),
+				"Remaining": len(result.Remaining),
+				"Units":     strings.Join(units, ", "),
 				paramCommit: result.Snapshot.Commit,
 			})
 		},
 	}
 	cmd.Flags().StringVar((*string)(&input.Unit), flagUnit, "", "冲突单位 ID")
+	cmd.Flags().BoolVar(&input.All, flagResolveAll, false, "解决目标的全部冲突")
 	cmd.Flags().StringVar((*string)(&input.From), flagFrom, "", "采用 local 或 remote")
-	for _, name := range []string{flagUnit, flagFrom} {
-		if err := cmd.MarkFlagRequired(name); err != nil {
-			panic(err)
-		}
+	if err := cmd.MarkFlagRequired(flagFrom); err != nil {
+		panic(err)
 	}
+	cmd.MarkFlagsMutuallyExclusive(flagUnit, flagResolveAll)
+	cmd.MarkFlagsOneRequired(flagUnit, flagResolveAll)
 	call.addAgeIdentityFlag(cmd)
 	call.bindCommand(
 		cmd,
@@ -255,8 +405,9 @@ func newTargetResolveCommand(call *invocation) *cobra.Command {
 		},
 	)
 	call.bindFlag(cmd.Flags().Lookup(flagUnit), message("cli.target_unit"))
+	call.bindFlag(cmd.Flags().Lookup(flagResolveAll), message("cli.target_resolve_all"))
 	call.bindFlag(cmd.Flags().Lookup(flagFrom), message("cli.target_from"))
-	registerOrPanic[target.Result](call, cmd)
+	registerOrPanic[target.ResolveResult](call, cmd)
 	return cmd
 }
 

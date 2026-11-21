@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/pelletier/go-toml/v2"
@@ -41,6 +42,38 @@ func TestCaptureCreatesTargetAndBaseline(t *testing.T) {
 	require.True(t, baseline.Units[FileUnitID("topgrade.toml")].Exists)
 }
 
+func TestBaselineRecordsLastSuccessfulSyncCommit(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	capturedCommit := repository.snapshot.Metadata.Commit
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, capturedCommit, baseline.Commit)
+
+	repository.snapshot.Files["configs/targets/topgrade/data/topgrade.toml"] = []byte("verbose = false\n")
+	repository.snapshot.Metadata.Commit = "remote-two"
+	_, err = service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	baseline, exists, err = service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, "remote-two", baseline.Commit)
+
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = 3\n")
+	_, err = service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.NoError(t, err)
+	baseline, exists, err = service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, repository.snapshot.Metadata.Commit, baseline.Commit)
+}
+
 func TestSyncAppliesRemoteAndUploadsLocal(t *testing.T) {
 	t.Run("remote", func(t *testing.T) {
 		home, repository, service := capturedTopgrade(t, "verbose = true\n")
@@ -68,6 +101,94 @@ func TestSyncAppliesRemoteAndUploadsLocal(t *testing.T) {
 			string(repository.snapshot.Files["configs/targets/topgrade/data/topgrade.toml"]),
 		)
 	})
+}
+
+func TestExplicitSyncOfRemovedTargetKeepsOrphanBaseline(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+targetMetadataFile)
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+configDataDirectory+"/topgrade.toml")
+	repository.snapshot.Metadata.Commit = "topgrade-removed"
+
+	_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	require.Empty(t, repository.commits)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func TestSyncFullSelectionKeepsBaselineWithoutRemoteConfiguration(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	repository.snapshot.Files = map[string][]byte{}
+	repository.snapshot.ConfigInitialized = false
+	repository.snapshot.Metadata.Commit = "config-missing"
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Empty(t, result.RemovedBaselines)
+	require.Empty(t, repository.commits)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func TestSyncFullSelectionPrunesOrphanBaseline(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	writeFixture(t, filepath.Join(home, ".config", "mise", "config.toml"), "[tools]\ngo = \"latest\"\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+	_, err := service.Capture(t.Context(), CaptureOptions{Targets: []ID{Topgrade, Mise}})
+	require.NoError(t, err)
+	repository.commits = nil
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+targetMetadataFile)
+	delete(repository.snapshot.Files, remoteTargetPrefix(Topgrade)+"/"+configDataDirectory+"/topgrade.toml")
+	repository.snapshot.Metadata.Commit = "topgrade-removed"
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(t, []ID{Topgrade}, result.RemovedBaselines)
+	require.Empty(t, repository.commits)
+	require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.False(t, exists)
+	_, exists, err = service.options.State.Read(repository.snapshot.Metadata, Mise)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func TestSyncRejectsSymlinkTargetFileWithoutFollowing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 符号链接创建需要额外权限")
+	}
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	path := filepath.Join(home, ".config", "topgrade.toml")
+	outside := filepath.Join(t.TempDir(), "outside.toml")
+	writeFixture(t, outside, "synthetic-outside-content\n")
+	require.NoError(t, os.Remove(path))
+	require.NoError(t, os.Symlink(outside, path))
+
+	_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.file_unsupported"), details[0].Code)
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_file_unsupported", diagnostic.Recovery.Code)
+	info, statErr := os.Lstat(path)
+	require.NoError(t, statErr)
+	require.NotZero(t, info.Mode()&os.ModeSymlink)
+	require.Equal(t, "synthetic-outside-content\n", readFixture(t, outside))
+	require.Empty(t, repository.commits)
 }
 
 func TestSyncAppliesRemoteWhenLocalMissingOnFirstSync(t *testing.T) {
@@ -172,6 +293,152 @@ func TestDiffReportsLocalRemoteAndUnifiedText(t *testing.T) {
 	require.Contains(t, diff.Changes[0].Diff, `+verbose = "remote"`)
 }
 
+func TestDiffRejectsExplicitUnmanagedTarget(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Diff(t.Context(), DiffOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_not_managed", diagnostic.Recovery.Code)
+	require.Equal(t, "topgrade", diagnostic.Recovery.Params["Target"])
+	require.Empty(t, diagnostic.CompletedEffects)
+
+	full, err := service.Diff(t.Context(), DiffOptions{})
+	require.NoError(t, err)
+	require.Empty(t, full.Changes)
+	require.Empty(t, full.Conflicts)
+}
+
+func TestResolveRejectsExplicitUnmanagedTarget(t *testing.T) {
+	home := t.TempDir()
+	writeFixture(t, filepath.Join(home, ".config", "topgrade.toml"), "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	for _, input := range []ResolveOptions{
+		{Target: Topgrade, Unit: FileUnitID("topgrade.toml"), From: ResolveRemote},
+		{Target: Topgrade, All: true, From: ResolveRemote},
+	} {
+		_, err := service.Resolve(t.Context(), input)
+		require.Error(t, err)
+		details := fault.Details(err)
+		require.Len(t, details, 1)
+		require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+		require.Equal(t, "verbose = true\n", readFixture(t, filepath.Join(home, ".config", "topgrade.toml")))
+		require.Empty(t, repository.commits)
+	}
+}
+
+func TestSyncRejectsExplicitUnmanagedTargetBeforeWriting(t *testing.T) {
+	home := t.TempDir()
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+	writeFixture(t, localPath, "verbose = true\n")
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	require.Equal(t, "verbose = true\n", readFixture(t, localPath))
+	require.Empty(t, repository.commits)
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Empty(t, result.Targets)
+}
+
+func TestExplicitSelectionRejectsOutOfScopeTargetBeforeWriting(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	repository.snapshot.Files["configs/targets/topgrade/target.toml"] = []byte(
+		"schema_version = 1\ntarget = \"topgrade\"\nmachines = [\"laptop\"]\n",
+	)
+	repository.snapshot.Metadata.Commit = "scope-change"
+	repository.commits = nil
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+
+	operations := []struct {
+		name string
+		run  func() error
+	}{
+		{"diff", func() error {
+			_, err := service.Diff(t.Context(), DiffOptions{Targets: []ID{Topgrade}})
+			return err
+		}},
+		{"sync", func() error {
+			_, err := service.Sync(t.Context(), SyncOptions{Targets: []ID{Topgrade}})
+			return err
+		}},
+		{"resolve", func() error {
+			_, err := service.Resolve(t.Context(), ResolveOptions{
+				Target: Topgrade,
+				Unit:   FileUnitID("topgrade.toml"),
+				From:   ResolveRemote,
+			})
+			return err
+		}},
+		{"resolve-all", func() error {
+			_, err := service.Resolve(t.Context(), ResolveOptions{
+				Target: Topgrade,
+				All:    true,
+				From:   ResolveRemote,
+			})
+			return err
+		}},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			before := readFixture(t, localPath)
+			err := operation.run()
+			require.Error(t, err)
+			details := fault.Details(err)
+			require.Len(t, details, 1)
+			require.Equal(t, fault.Code("target.out_of_scope"), details[0].Code)
+			diagnostic, ok := fault.DiagnosticOf(err)
+			require.True(t, ok)
+			require.Equal(t, "target.recover_out_of_scope", diagnostic.Recovery.Code)
+			require.Equal(t, "workstation", diagnostic.Recovery.Params["Machine"])
+			require.Empty(t, diagnostic.CompletedEffects)
+			require.Equal(t, before, readFixture(t, localPath))
+			require.Empty(t, repository.commits)
+		})
+	}
+}
+
+func TestFullSelectionSkipsOutOfScopeTarget(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	repository.snapshot.Files["configs/targets/topgrade/target.toml"] = []byte(
+		"schema_version = 1\ntarget = \"topgrade\"\nmachines = [\"laptop\"]\n",
+	)
+	repository.snapshot.Metadata.Commit = "scope-change"
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+	writeFixture(t, localPath, "verbose = \"local\"\n")
+
+	diff, err := service.Diff(t.Context(), DiffOptions{})
+	require.NoError(t, err)
+	require.Empty(t, diff.Changes)
+
+	result, err := service.Sync(t.Context(), SyncOptions{})
+	require.NoError(t, err)
+	require.False(t, result.Changed)
+	require.Empty(t, result.Targets)
+	require.Empty(t, result.RemovedBaselines)
+	require.Equal(t, "verbose = \"local\"\n", readFixture(t, localPath))
+	require.Empty(t, repository.commits)
+	_, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
 func TestSyncSkipsRemoteAuthoritativeEnvironmentTarget(t *testing.T) {
 	home, repository, service := capturedTopgrade(t, "verbose = true\n")
 	repository.snapshot.Files["configs/targets/shell-env/target.toml"] = []byte(
@@ -215,6 +482,10 @@ func TestResolveRemoteAndLocal(t *testing.T) {
 		require.True(t, result.Changed)
 		require.Equal(t, "verbose = \"remote\"\n", readFixture(t, localPath))
 		require.Empty(t, repository.commits)
+		baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.Equal(t, "remote-change", baseline.Commit)
 	})
 
 	t.Run("local", func(t *testing.T) {
@@ -235,7 +506,463 @@ func TestResolveRemoteAndLocal(t *testing.T) {
 			"verbose = \"local\"\n",
 			string(repository.snapshot.Files["configs/targets/topgrade/data/topgrade.toml"]),
 		)
+		baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Topgrade)
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.Equal(t, repository.snapshot.Metadata.Commit, baseline.Commit)
 	})
+}
+
+func TestResolveRejectsMissingOrConflictingSelection(t *testing.T) {
+	_, repository, service := conflictingTopgrade(t)
+
+	for _, input := range []ResolveOptions{
+		{Target: Topgrade, From: ResolveLocal},
+		{Target: Topgrade, Unit: FileUnitID("topgrade.toml"), All: true, From: ResolveLocal},
+	} {
+		_, err := service.Resolve(t.Context(), input)
+		require.Error(t, err)
+		details := fault.Details(err)
+		require.Len(t, details, 1)
+		require.Equal(t, fault.Code("target.invalid_input"), details[0].Code)
+		diagnostic, ok := fault.DiagnosticOf(err)
+		require.True(t, ok)
+		require.Empty(t, diagnostic.CompletedEffects)
+		require.Empty(t, repository.commits)
+	}
+}
+
+func TestResolveAllWithoutConflictsReturnsNoConflicts(t *testing.T) {
+	home, repository, service := capturedTopgrade(t, "verbose = true\n")
+	localPath := filepath.Join(home, ".config", "topgrade.toml")
+
+	_, err := service.Resolve(t.Context(), ResolveOptions{Target: Topgrade, All: true, From: ResolveRemote})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.no_conflicts"), details[0].Code)
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_no_conflicts", diagnostic.Recovery.Code)
+	require.Equal(t, "topgrade", diagnostic.Recovery.Params["Target"])
+	require.Empty(t, diagnostic.CompletedEffects)
+	require.Equal(t, "verbose = true\n", readFixture(t, localPath))
+	require.Empty(t, repository.commits)
+}
+
+func TestResolveAllRemoteAppliesEveryFieldInStableOrder(t *testing.T) {
+	home, repository, service := conflictingMiseFields(t)
+	localPath := filepath.Join(home, ".config", "mise", "config.toml")
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: Mise, All: true, From: ResolveRemote})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(
+		t,
+		[]UnitID{FieldUnitID("tools", "go"), FieldUnitID("tools", "node")},
+		result.Resolved,
+	)
+	require.Empty(t, result.Remaining)
+	require.NotNil(t, result.Remaining)
+	require.Equal(t, "remote-go", tomlTool(t, localPath, "go"))
+	require.Equal(t, "remote-node", tomlTool(t, localPath, "node"))
+	require.Empty(t, repository.commits)
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Mise)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, "remote-change", baseline.Commit)
+	require.Equal(t, digestBytes([]byte(`"remote-go"`)), baseline.Units[FieldUnitID("tools", "go")].Digest)
+	require.Equal(t, digestBytes([]byte(`"remote-node"`)), baseline.Units[FieldUnitID("tools", "node")].Digest)
+}
+
+func TestResolveAllLocalPublishesEveryFieldConflict(t *testing.T) {
+	home, repository, service := conflictingMiseFields(t)
+	localPath := filepath.Join(home, ".config", "mise", "config.toml")
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: Mise, All: true, From: ResolveLocal})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(
+		t,
+		[]UnitID{FieldUnitID("tools", "go"), FieldUnitID("tools", "node")},
+		result.Resolved,
+	)
+	require.Empty(t, result.Remaining)
+	require.Len(t, repository.commits, 1)
+	require.Equal(t, "local-go", tomlTool(t, localPath, "go"))
+	require.Equal(t, "local-node", tomlTool(t, localPath, "node"))
+	values, err := decodeFieldValues(
+		repository.snapshot.Files["configs/targets/mise/data/values.toml"],
+	)
+	require.NoError(t, err)
+	require.Equal(t, `"local-go"`, string(values[FieldUnitID("tools", "go")].Data))
+	require.Equal(t, `"local-node"`, string(values[FieldUnitID("tools", "node")].Data))
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, Mise)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, repository.snapshot.Metadata.Commit, baseline.Commit)
+	require.Equal(t, digestBytes([]byte(`"local-go"`)), baseline.Units[FieldUnitID("tools", "go")].Digest)
+}
+
+func TestResolveAllRemoteAppliesEveryFileInStableOrder(t *testing.T) {
+	home, repository, service := conflictingCodexRules(t, "git.rules", "go.rules")
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveRemote})
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.Equal(
+		t,
+		[]UnitID{FileUnitID("git.rules"), FileUnitID("go.rules")},
+		result.Resolved,
+	)
+	require.Empty(t, result.Remaining)
+	require.Equal(
+		t,
+		"git.rules-remote\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "git.rules")),
+	)
+	require.Equal(
+		t,
+		"go.rules-remote\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "go.rules")),
+	)
+	require.Empty(t, repository.commits)
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, CodexRules)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, "remote-change", baseline.Commit)
+	require.Equal(
+		t,
+		digestBytes([]byte("git.rules-remote\n")),
+		baseline.Units[FileUnitID("git.rules")].Digest,
+	)
+}
+
+func TestResolveAllRejectsUnappliableSelectionBeforeWriting(t *testing.T) {
+	t.Run("remote", func(t *testing.T) {
+		home, repository, service := conflictingCodexRules(t, "git.rules", "go.rules")
+		delete(repository.snapshot.Files, "configs/targets/codex-rules/data/git.rules")
+
+		_, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveRemote})
+		require.Error(t, err)
+		details := fault.Details(err)
+		require.Len(t, details, 1)
+		require.Equal(t, fault.Code("target.invalid_input"), details[0].Code)
+		diagnostic, ok := fault.DiagnosticOf(err)
+		require.True(t, ok)
+		require.Empty(t, diagnostic.CompletedEffects)
+		require.Equal(
+			t,
+			"git.rules-local\n",
+			readFixture(t, filepath.Join(home, ".codex", "rules", "git.rules")),
+		)
+		require.Equal(
+			t,
+			"go.rules-local\n",
+			readFixture(t, filepath.Join(home, ".codex", "rules", "go.rules")),
+		)
+		require.Empty(t, repository.commits)
+	})
+
+	t.Run("local", func(t *testing.T) {
+		home, repository, service := conflictingCodexRules(t, "git.rules", "go.rules")
+		require.NoError(t, os.Remove(filepath.Join(home, ".codex", "rules", "git.rules")))
+
+		_, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveLocal})
+		require.Error(t, err)
+		details := fault.Details(err)
+		require.Len(t, details, 1)
+		require.Equal(t, fault.Code("target.invalid_input"), details[0].Code)
+		require.Equal(
+			t,
+			"go.rules-remote\n",
+			string(repository.snapshot.Files["configs/targets/codex-rules/data/go.rules"]),
+		)
+		require.Empty(t, repository.commits)
+	})
+}
+
+func TestResolveAllRemoteReportsPartialProgressAndRerunOnlyRemaining(t *testing.T) {
+	home, _, service := conflictingCodexRules(t, "git.rules", "go.rules", "node.rules")
+	state := service.options.State
+	service.options.State = &failAfterBaselineWrites{State: state, remaining: 1}
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveRemote})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.resolve_partial"), details[0].Code)
+	require.Equal(t, 2, details[0].Params["Resolved"])
+	require.Equal(t, 1, details[0].Params["Remaining"])
+	require.Equal(t, "file:node.rules", details[0].Params["RemainingUnits"])
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_resolve_partial", diagnostic.Recovery.Code)
+	require.Equal(t, "remote", diagnostic.Recovery.Params["From"])
+	require.Contains(t, diagnostic.CompletedEffects, "target.resolved:file:git.rules")
+	require.Contains(t, diagnostic.CompletedEffects, "target.resolved:file:go.rules")
+	require.Equal(
+		t,
+		[]UnitID{FileUnitID("git.rules"), FileUnitID("go.rules")},
+		result.Resolved,
+	)
+	require.Equal(t, []Conflict{{
+		Target: CodexRules, Unit: FileUnitID("node.rules"), Code: changedBothCode,
+	}}, result.Remaining)
+	require.Equal(
+		t,
+		"node.rules-local\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "node.rules")),
+	)
+
+	service.options.State = state
+	resumed, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveRemote})
+	require.NoError(t, err)
+	require.Equal(t, []UnitID{FileUnitID("node.rules")}, resumed.Resolved)
+	require.Empty(t, resumed.Remaining)
+	require.Equal(
+		t,
+		"node.rules-remote\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "node.rules")),
+	)
+}
+
+func TestResolveAllRemoteReportsFinalBaselineFailureAsPartial(t *testing.T) {
+	home, _, service := conflictingCodexRules(t, "git.rules", "go.rules")
+	state := service.options.State
+	service.options.State = &failAfterBaselineWrites{State: state, remaining: 1}
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveRemote})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.resolve_partial"), details[0].Code)
+	require.Equal(t, 2, details[0].Params["Resolved"])
+	require.Equal(t, 0, details[0].Params["Remaining"])
+	require.Empty(t, details[0].Params["RemainingUnits"])
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_resolve_partial", diagnostic.Recovery.Code)
+	require.Equal(t, "remote", diagnostic.Recovery.Params["From"])
+	require.Equal(
+		t,
+		[]UnitID{FileUnitID("git.rules"), FileUnitID("go.rules")},
+		result.Resolved,
+	)
+	require.Empty(t, result.Remaining)
+	require.Equal(
+		t,
+		"git.rules-remote\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "git.rules")),
+	)
+	require.Equal(
+		t,
+		"go.rules-remote\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "go.rules")),
+	)
+}
+
+func TestResolveAllLocalReportsFinalBaselineFailureAsPartial(t *testing.T) {
+	home, repository, service := conflictingCodexRules(t, "git.rules", "go.rules")
+	state := service.options.State
+	service.options.State = &failAfterBaselineWrites{State: state}
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexRules, All: true, From: ResolveLocal})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.resolve_partial"), details[0].Code)
+	require.Equal(t, 2, details[0].Params["Resolved"])
+	require.Equal(t, 0, details[0].Params["Remaining"])
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_resolve_partial", diagnostic.Recovery.Code)
+	require.Equal(t, "local", diagnostic.Recovery.Params["From"])
+	require.Contains(t, diagnostic.CompletedEffects, "data.commit")
+	require.Equal(
+		t,
+		[]UnitID{FileUnitID("git.rules"), FileUnitID("go.rules")},
+		result.Resolved,
+	)
+	require.Empty(t, result.Remaining)
+	require.Equal(
+		t,
+		"git.rules-local\n",
+		string(repository.snapshot.Files["configs/targets/codex-rules/data/git.rules"]),
+	)
+	require.Equal(
+		t,
+		"go.rules-local\n",
+		string(repository.snapshot.Files["configs/targets/codex-rules/data/go.rules"]),
+	)
+	require.Equal(
+		t,
+		"git.rules-local\n",
+		readFixture(t, filepath.Join(home, ".codex", "rules", "git.rules")),
+	)
+}
+
+func TestResolveAllSecretRemoteAppliesNewVersion(t *testing.T) {
+	home, repository, service := capturedCodexAuth(t)
+	authPath := filepath.Join(home, ".codex", "auth.json")
+	writeFixture(t, authPath, `{"auth_mode":"chatgpt","tokens":{"access_token":"local-refresh"}}`)
+	updated := []byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"distributed-version"}}`)
+	setRemoteAuthVersion(t, repository, service.options.AgeKey, updated)
+	makeSecretConflict(t, service, repository, updated)
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexAuth, All: true, From: ResolveRemote})
+	require.NoError(t, err)
+	require.Equal(t, []UnitID{SecretUnitID}, result.Resolved)
+	require.Empty(t, result.Remaining)
+	require.Equal(t, string(updated), readFixture(t, authPath))
+	require.Empty(t, repository.commits)
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, CodexAuth)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Nil(t, baseline.Pending)
+	require.Equal(t, "auth-version-2", baseline.Commit)
+	require.Equal(t, UnitValueFromBytes(updated).Digest, baseline.Units[SecretUnitID].Digest)
+}
+
+func TestResolveAllSecretLocalPublishesNewVersion(t *testing.T) {
+	home, repository, service := capturedCodexAuth(t)
+	authPath := filepath.Join(home, ".codex", "auth.json")
+	local := []byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"local-refresh"}}`)
+	writeFixture(t, authPath, string(local))
+	updated := []byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"distributed-version"}}`)
+	setRemoteAuthVersion(t, repository, service.options.AgeKey, updated)
+	makeSecretConflict(t, service, repository, updated)
+
+	result, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexAuth, All: true, From: ResolveLocal})
+	require.NoError(t, err)
+	require.Equal(t, []UnitID{SecretUnitID}, result.Resolved)
+	require.Len(t, repository.commits, 1)
+	require.Equal(t, string(local), readFixture(t, authPath))
+	version := UnitValueFromBytes(local).Digest
+	var metadata remoteMetadata
+	require.NoError(
+		t,
+		toml.Unmarshal(repository.snapshot.Files["configs/targets/codex-auth/target.toml"], &metadata),
+	)
+	require.Equal(t, version, metadata.Version)
+	decrypted, err := service.options.AgeKey.Decrypt(
+		repository.snapshot.Files["configs/targets/codex-auth/data/auth.json.age"],
+		metadata.Recipient,
+	)
+	require.NoError(t, err)
+	require.Equal(t, string(local), string(decrypted))
+	baseline, exists, err := service.options.State.Read(repository.snapshot.Metadata, CodexAuth)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Nil(t, baseline.Pending)
+	require.Equal(t, version, baseline.Units[SecretUnitID].Digest)
+	require.Equal(t, repository.snapshot.Metadata.Commit, baseline.Commit)
+}
+
+func TestResolveAllSecretPrevalidationDoesNotWrite(t *testing.T) {
+	t.Run("malformed-remote", func(t *testing.T) {
+		home, repository, service := capturedCodexAuth(t)
+		authPath := filepath.Join(home, ".codex", "auth.json")
+		writeFixture(t, authPath, `{"auth_mode":"chatgpt","tokens":{"access_token":"local-refresh"}}`)
+		setRemoteAuthVersion(
+			t,
+			repository,
+			service.options.AgeKey,
+			[]byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"distributed-version"}}`),
+		)
+		makeSecretConflict(
+			t,
+			service,
+			repository,
+			[]byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"distributed-version"}}`),
+		)
+		repository.snapshot.Files["configs/targets/codex-auth/data/auth.json.age"] = []byte("not-age")
+		before := readFixture(t, authPath)
+
+		_, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexAuth, All: true, From: ResolveRemote})
+		require.Error(t, err)
+		details := fault.Details(err)
+		require.Len(t, details, 1)
+		require.Equal(t, fault.Code("target.state_invalid"), details[0].Code)
+		diagnostic, ok := fault.DiagnosticOf(err)
+		require.True(t, ok)
+		require.Empty(t, diagnostic.CompletedEffects)
+		require.Equal(t, before, readFixture(t, authPath))
+		require.Empty(t, repository.commits)
+	})
+
+	t.Run("missing-identity", func(t *testing.T) {
+		home, repository, service := capturedCodexAuth(t)
+		authPath := filepath.Join(home, ".codex", "auth.json")
+		writeFixture(t, authPath, `{"auth_mode":"chatgpt","tokens":{"access_token":"local-refresh"}}`)
+		setRemoteAuthVersion(
+			t,
+			repository,
+			service.options.AgeKey,
+			[]byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"distributed-version"}}`),
+		)
+		makeSecretConflict(
+			t,
+			service,
+			repository,
+			[]byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"distributed-version"}}`),
+		)
+		service.options.AgeKey = nil
+		before := readFixture(t, authPath)
+		remoteBefore := string(repository.snapshot.Files["configs/targets/codex-auth/data/auth.json.age"])
+
+		_, err := service.Resolve(t.Context(), ResolveOptions{Target: CodexAuth, All: true, From: ResolveLocal})
+		require.Error(t, err)
+		details := fault.Details(err)
+		require.Len(t, details, 1)
+		require.Equal(t, fault.Code("target.identity"), details[0].Code)
+		diagnostic, ok := fault.DiagnosticOf(err)
+		require.True(t, ok)
+		require.Empty(t, diagnostic.CompletedEffects)
+		require.Equal(t, before, readFixture(t, authPath))
+		require.Equal(
+			t,
+			remoteBefore,
+			string(repository.snapshot.Files["configs/targets/codex-auth/data/auth.json.age"]),
+		)
+		require.Empty(t, repository.commits)
+	})
+}
+
+func TestRemoveRejectsUnmanagedTarget(t *testing.T) {
+	home := t.TempDir()
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	service := newTestService(home, repository)
+
+	_, err := service.Remove(t.Context(), RemoveOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	diagnostic, ok := fault.DiagnosticOf(err)
+	require.True(t, ok)
+	require.Equal(t, "target.recover_not_managed", diagnostic.Recovery.Code)
+	require.Equal(t, "topgrade", diagnostic.Recovery.Params["Target"])
+	require.Empty(t, diagnostic.CompletedEffects)
+	require.Empty(t, repository.commits)
+}
+
+func TestRemoveRejectsResidualFilesWithoutTargetMetadata(t *testing.T) {
+	home := t.TempDir()
+	repository := &memoryRepository{snapshot: initializedSnapshot()}
+	repository.snapshot.ConfigInitialized = true
+	repository.snapshot.Files["configs/manifest.toml"] = []byte("schema_version = 1\n")
+	residual := "configs/targets/topgrade/data/topgrade.toml"
+	repository.snapshot.Files[residual] = []byte("verbose = true\n")
+	service := newTestService(home, repository)
+
+	_, err := service.Remove(t.Context(), RemoveOptions{Targets: []ID{Topgrade}})
+	require.Error(t, err)
+	details := fault.Details(err)
+	require.Len(t, details, 1)
+	require.Equal(t, fault.Code("target.not_managed"), details[0].Code)
+	require.Empty(t, repository.commits)
+	require.Contains(t, repository.snapshot.Files, residual)
 }
 
 func TestRemoveDeletesRemoteTargetAndKeepsLocalFile(t *testing.T) {
@@ -753,4 +1480,15 @@ func TestPendingAuthTakeoverRejectsChangedEvidence(t *testing.T) {
 			require.Len(t, repository.commits, commits)
 		})
 	}
+}
+
+func tomlTool(t *testing.T, path, name string) string {
+	t.Helper()
+	var document struct {
+		Tools map[string]string `toml:"tools"`
+	}
+	require.NoError(t, toml.Unmarshal([]byte(readFixture(t, path)), &document))
+	value, exists := document.Tools[name]
+	require.True(t, exists)
+	return value
 }

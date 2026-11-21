@@ -3,8 +3,8 @@
 `my` 是个人数据与资源管理 CLI，支持机器登记、配置文件管理与同步，以及 shell 环境变量声明和激活。
 代码仓公开，实际数据位于独立私有仓库；敏感数据使用 age 加密，唯一解密凭据由用户在仓外保管。
 
-当前支持私有数据仓初始化、机器登记与查询、本机绑定、退役、配置收录与双向同步、
-age 加密认证、shell 环境变量激活，以及只读 doctor 检查。
+当前支持私有数据仓初始化、机器登记与查询、本机绑定、退役、目标清单与范围更新、
+配置收录与双向同步、age 加密认证、shell 环境变量激活，以及只读 doctor 检查。
 CLI 提供文本和 JSON 输出、双语消息、严格 TOML 配置、Schema、shell 补全、日志和 Trace。
 `greet` 保留为模板验收示例；账号和云服务管理留待后续模块实现。
 
@@ -204,6 +204,7 @@ my data init
 my machine register workstation --kind desktop --note "Synthetic example"
 my machine list --json
 my machine show workstation --json
+my machine update workstation --kind server --note "Synthetic corrected example"
 my machine current --json
 my machine bind workstation
 my machine retire workstation
@@ -218,6 +219,8 @@ kind 为 laptop、desktop、server、vm；os/arch 由当前平台取得，note �
 相同 active 资料重复登记不提交新版本，并可补齐本机绑定；资料不同或已退役则拒绝登记。
 `bind` 保留原 kind、note 和登记时间；退役机器要求 `--reactivate`，平台变化要求 `--update-platform`。
 两个条件同时存在时须同时给出。绑定保存仓名、仓数字 ID、分支与机器 ID，不覆盖其他身份。仓名比较忽略大小写，其余身份字段严格比较。
+`update` 只修正 kind 或 note，至少给出一个；ID、平台、状态、登记和退役时间保持不变，退役记录修正后仍为退役。
+值未变化时返回 changed=false 且不提交新版本；操作不要求本机绑定到被修改的机器。
 `current` 只读本机，其他查询读取固定远端 HEAD；退役只清除精确匹配的本机绑定。
 
 远端变更以 expectedHeadOid 作 CAS，不自动重试。并发 HEAD 变化先重新查询；提交结果未知时，
@@ -247,9 +250,14 @@ MY_HOME="$example_home" ./bin/my greet --name Codex --lang zh-CN --json
 ```sh
 my target capture codex-settings codex-rules mise
 my target capture --all
+my target list
+my target list --all
+my target update topgrade --machine laptop
+my target update topgrade --all-machines
 my target diff
 my target sync
 my target resolve codex-settings --unit field:features.network_proxy --from remote
+my target resolve mise --all --from remote
 my target remove topgrade
 ```
 
@@ -257,6 +265,19 @@ my target remove topgrade
 `topgrade`、`clash-global`、`clash-lan`、`shell-env` 和 `shell-env-secret`。
 `clash-lan` 默认只适用于执行 capture 的当前机器，其余文件目标默认适用全部 active 机器，
 `--machine` 可缩小范围。
+
+`target update <target>` 只重写目标的机器范围，`--machine` 与 `--all-machines` 互斥且必须二选一。
+它保留远端单位、秘密版本、recipient 和数据文件，不重新收录内容；`--all-machines` 恢复为全部 active 机器。
+机器 ID 必须已登记且 active；范围未变化时返回 changed=false 且不提交新版本。
+未纳管目标返回 `target.not_managed`；目标即使不在当前机器范围也可调整范围。
+`shell-env` 和 `shell-env-secret` 的变量范围由 `env` 按变量管理：未纳管时返回 `target.not_managed`，
+已纳管时返回 `target.remote_authoritative`，不通过 `target update` 改写目标级范围；请使用 `env set NAME --machine <id>`。
+
+`target list` 默认列出远端已纳管、本机已有和不在本机范围的目标，`--all` 还会包含远端与本机都不存在的内建目标。
+状态为 managed、local、absent、out-of-scope；范围为 `*` 或机器 ID，未纳管目标不补默认范围。
+清单显示本机上次成功同步提交和远端单位数，JSON 按目标 ID 稳定排序；旧基线没有提交记录时按空值显示。
+`shell-env` 和 `shell-env-secret` 由 `env` 管理，清单只显示其远端纳管状态，单位数为 0；变量清单使用 `env list`。
+命令只读，不提交远端、不创建本机状态，也不加载 age identity。
 
 数据仓布局为：
 
@@ -270,9 +291,30 @@ configs/
 字段同步只修改声明单位，保留未纳管字段、注释和排版；完整文件按整份内容比较。
 `diff` 只读并返回稳定单位 ID。`sync` 遇到任何冲突时，本轮不写本机、不提交远端；
 解决一个冲突后重新运行 `sync`。远端提交使用 expectedHeadOid CAS，不自动重试。
+`resolve` 使用 `--unit` 选择一个单位，或使用 `--all` 解决一个目标的全部冲突，两者互斥且必须二选一。
+`--all` 在写入前校验全部冲突都能从所选来源应用，再按稳定单位顺序执行；成功结果列出已解决单位，
+剩余冲突为空。部分失败时报告已解决数量、剩余单位和恢复建议，可安全重跑且只处理剩余项。
+它一次只处理一个目标，没有冲突时返回 `target.no_conflicts`，不承诺整体原子，也不提供跨目标批量。
+
+显式指定目标时，`diff`、`sync` 和 `resolve` 要求目标已纳管且适用于当前机器；
+未纳管返回 `target.not_managed`，不适用返回 `target.out_of_scope`，并在写入前停止。
+`remove` 对未纳管目标返回同一语义的错误。不指定目标的全量 `diff`、`sync` 继续跳过这两类目标。
+
+全量 `sync` 在远端配置已初始化时还会清除远端已移除目标的本机同步基线，并在结果的
+`removed_baselines` 中列出被清理的目标；清理只修改本机状态，不提交远端，也不修改本机目标文件。
+显式同步已移除目标仍返回 `target.not_managed`，且不会清理状态。
+
+远端不保存删除标记或代次。`remove` 后立即重新收录同一目标时，其他机器如果尚未执行全量 `sync`，
+不会观察到这次移除，仍按旧基线比较，重新收录后的内容变化可能表现为冲突。需要这些机器重置状态时，
+应在移除后先让它们完成一次全量 `sync` 再重新收录，或在重新收录后于各机器显式处理比较结果。
+
+目标文件必须是普通文件。`my` 不跟随符号链接，也不读写 FIFO、设备等特殊文件；遇到时返回
+`target.file_unsupported`，并提示将目标文件替换为普通文件后重试。原子写入保留已有普通文件的权限，
+新文件使用 `0600`。
 
 新机器没有同步基线。`sync` 对远端存在而本机缺失的文件或字段直接下发；
 本机已有的内容不会被覆盖，双方都有但不同仍需 `resolve`。
+成功收录或同步后，本机基线记录当时的远端提交，供 `target list` 显示。
 因此首次同步应在启动 Codex、mise 等会生成默认配置的应用之前执行，之后按正常三方比较同步。
 
 Codex 认证目标把完整 `auth.json` 保存为 age 密文。只有显式 `capture codex-auth`

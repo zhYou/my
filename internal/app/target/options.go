@@ -30,12 +30,21 @@ func (o SyncOptions) Validate(definitions []Definition) error {
 	return validateSelection(o.Targets, definitions, true)
 }
 
-// Validate 校验目标、单位归属和显式来源。
+// Validate 校验目标、单位或全量选择、归属和显式来源。
 func (o ResolveOptions) Validate(definitions []Definition) error {
 	if err := validateSelection([]ID{o.Target}, definitions, false); err != nil {
 		return err
 	}
-	if o.Unit.Validate() != nil || o.From != ResolveLocal && o.From != ResolveRemote {
+	if o.From != ResolveLocal && o.From != ResolveRemote {
+		return invalidInput()
+	}
+	if o.All {
+		if o.Unit != "" {
+			return invalidInput()
+		}
+		return nil
+	}
+	if o.Unit.Validate() != nil {
 		return invalidInput()
 	}
 	for _, definition := range definitions {
@@ -64,6 +73,17 @@ func (o ResolveOptions) Validate(definitions []Definition) error {
 	return invalidInput()
 }
 
+// Validate 校验单个已知目标和唯二选一的机器范围；是否由 env 管理留给业务层判断。
+func (o UpdateOptions) Validate(definitions []Definition) error {
+	if o.Target.Validate() != nil {
+		return invalidInput()
+	}
+	if _, exists := definitionByID(o.Target, definitions); !exists {
+		return invalidInput()
+	}
+	return o.Scope.validateShape()
+}
+
 // Validate 校验非空、无重复的目标选择。
 func (o RemoveOptions) Validate(definitions []Definition) error {
 	return validateSelection(o.Targets, definitions, false)
@@ -73,17 +93,22 @@ func validateSelection(ids []ID, definitions []Definition, allowEmpty bool) erro
 	if len(ids) == 0 && !allowEmpty {
 		return invalidInput()
 	}
-	known := make(map[ID]Definition, len(definitions))
-	for _, definition := range definitions {
-		known[definition.ID] = definition
-	}
 	seen := map[ID]bool{}
 	for _, id := range ids {
-		definition, exists := known[id]
+		definition, exists := definitionByID(id, definitions)
 		if id.Validate() != nil || !exists || seen[id] || definition.RemoteAuthoritative {
 			return invalidInput()
 		}
 		seen[id] = true
 	}
 	return nil
+}
+
+func definitionByID(id ID, definitions []Definition) (Definition, bool) {
+	for _, definition := range definitions {
+		if definition.ID == id {
+			return definition, true
+		}
+	}
+	return Definition{}, false
 }

@@ -467,6 +467,9 @@ other = "ID\tSTATUS\tOS\tARCH\tKIND\tNOTE"
 ["machine.record_result"]
 other = "Machine: {{.ID}}\nKind: {{.Kind}}\nOS: {{.OS}}\nArchitecture: {{.Arch}}\nNote: {{.Note}}\nRegistered: {{.RegisteredAt}}\nStatus: {{.Status}}\nCommit: {{.Commit}}"
 
+["machine.update_result"]
+other = "Machine: {{.ID}}\nKind: {{.Kind}}\nOS: {{.OS}}\nArchitecture: {{.Arch}}\nNote: {{.Note}}\nRegistered: {{.RegisteredAt}}\nStatus: {{.Status}}\nCommit: {{.Commit}}\nChanged: {{.Changed}}"
+
 ["machine.current_result"]
 other = "Local binding: {{.ID}} — {{.Repository}} ({{.Branch}})"
 
@@ -496,6 +499,12 @@ other = "Restore an existing machine identity on this device."
 
 ["cli.machine_retire"]
 other = "Retire a record and clear a matching local binding."
+
+["cli.machine_update"]
+other = "Correct a machine record's kind or note without changing its identity."
+
+["cli.machine_update_example"]
+other = "{{.Name}} machine update workstation --kind server --note 'Synthetic corrected example'"
 
 ["cli.machine_kind"]
 other = "Machine kind: laptop, desktop, server or vm."
@@ -602,11 +611,26 @@ other = "Capture local configuration targets"
 ["cli.target_diff"]
 other = "Show configuration changes and conflicts without writing"
 
+["cli.target_list"]
+other = "List built-in targets and synchronization baselines"
+
+["cli.target_list_all"]
+other = "Include targets absent from both the repository and this machine"
+
+["cli.target_update"]
+other = "Change the machine scope of a managed target"
+
+["cli.target_all_machines"]
+other = "Apply the target to all active machines"
+
 ["cli.target_sync"]
 other = "Synchronize managed configuration"
 
 ["cli.target_resolve"]
-other = "Resolve one configuration conflict"
+other = "Resolve one target conflict explicitly"
+
+["cli.target_resolve_all"]
+other = "Resolve every conflict of one target"
 
 ["cli.target_remove"]
 other = "Stop managing configuration targets"
@@ -653,17 +677,26 @@ other = "Targets captured at {{.Commit}}; changed={{.Changed}}."
 ["target.sync_result"]
 other = "Targets synchronized at {{.Commit}}; changed={{.Changed}}."
 
+["target.sync_removed"]
+other = "Removed orphan baselines: {{.Targets}}."
+
 ["target.resolve_result"]
-other = "Target conflict resolved at {{.Commit}}."
+other = "Target {{.Target}} resolved {{.Resolved}} conflicts at {{.Commit}}; remaining={{.Remaining}}; units={{.Units}}."
 
 ["target.remove_result"]
 other = "Target removal committed at {{.Commit}}."
+
+["target.update_result"]
+other = "Target: {{.Target}}\nScope: {{.Scope}}\nCommit: {{.Commit}}\nChanged: {{.Changed}}"
 
 ["target.no_changes"]
 other = "No configuration changes."
 
 ["target.diff_line"]
 other = "{{.Target}}\t{{.Unit}}\t{{.Action}}"
+
+["target.list_header"]
+other = "TARGET\tSTATUS\tSCOPE\tBASELINE\tUNITS"
 
 ["shellenv.set_result"]
 other = "Environment variable {{.Name}} saved; secret={{.Secret}}; changed={{.Changed}}."
@@ -676,6 +709,33 @@ other = "Invalid target selection, unit, source or machine scope."
 
 ["target.state_invalid"]
 other = "Target state or content is invalid."
+
+["target.file_unsupported"]
+other = "The target file is a symlink or special file; my does not follow or write it."
+
+["target.not_managed"]
+other = "Target {{.Target}} is not managed in the data repository."
+
+["target.out_of_scope"]
+other = "Target {{.Target}} is not in scope for machine {{.Machine}}."
+
+["target.remote_authoritative"]
+other = "Target {{.Target}} is managed through env; its machine scope is set per variable."
+
+["target.recover_remote_authoritative"]
+other = "Use env set NAME --machine <id> to change a variable's scope; target update does not modify env-managed targets."
+
+["target.no_conflicts"]
+other = "Target {{.Target}} has no conflicts to resolve."
+
+["target.resolve_partial"]
+other = "Resolved {{.Resolved}} conflicts for target {{.Target}}; {{.Remaining}} remain{{if .RemainingUnits}}: {{.RemainingUnits}}{{end}}."
+
+["target.recover_no_conflicts"]
+other = "Run target diff {{.Target}} to inspect pending changes; use target sync when no conflicts remain."
+
+["target.recover_resolve_partial"]
+other = "Inspect target diff {{.Target}}; rerun target resolve {{.Target}} --all --from {{.From}} for remaining conflicts, or target sync {{.Target}} when none remain; already resolved units are skipped."
 
 ["target.legacy"]
 other = "A legacy target layout requires explicit cleanup."
@@ -691,6 +751,15 @@ other = "An available age identity is required for this secret operation."
 
 ["target.recover"]
 other = "Inspect target diff and the confirmed effects before retrying. Data commit: {{.Commit}}. For auth, keep the pending state and retry target sync; use target resolve to choose a side explicitly."
+
+["target.recover_file_unsupported"]
+other = "Replace the target file with a regular file, then retry target diff, target sync or target capture; my never follows symlinks or writes special files."
+
+["target.recover_not_managed"]
+other = "Run target capture {{.Target}} on a machine that owns the content, or omit the target to keep skipping unmanaged targets."
+
+["target.recover_out_of_scope"]
+other = "Include {{.Machine}} in the target's machines declaration, or run the command from a machine already in scope."
 
 ["target.operation_event"]
 other = "Target phase {{.Operation}} finished."
@@ -731,11 +800,17 @@ other = "{{.Name}} target capture mise codex-settings\n{{.Name}} target capture 
 ["cli.target_diff_example"]
 other = "{{.Name}} target diff --json"
 
+["cli.target_list_example"]
+other = "{{.Name}} target list\n{{.Name}} target list --all"
+
+["cli.target_update_example"]
+other = "{{.Name}} target update topgrade --machine laptop\n{{.Name}} target update topgrade --all-machines"
+
 ["cli.target_sync_example"]
 other = "{{.Name}} target sync"
 
 ["cli.target_resolve_example"]
-other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote"
+other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote\n{{.Name}} target resolve topgrade --all --from remote"
 
 ["cli.target_remove_example"]
 other = "{{.Name}} target remove topgrade"

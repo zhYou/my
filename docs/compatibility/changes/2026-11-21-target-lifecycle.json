@@ -1,0 +1,16 @@
+{
+  "id": "2026-11-21-target-lifecycle",
+  "compatibility": "breaking",
+  "summary": "新增 target list、target update 和 resolve --all，显式目标选择改为稳定失败，全量 sync 清理孤立基线，symlink 目标返回专用诊断。",
+  "paths": [
+    "/schema/commands/contract-cli/commands/contract-cli target/commands/contract-cli target list",
+    "/schema/commands/contract-cli/commands/contract-cli target/commands/contract-cli target update",
+    "/schema/commands/contract-cli/commands/contract-cli target/commands/contract-cli target resolve",
+    "/schema/commands/contract-cli/commands/contract-cli target/commands/contract-cli target capture",
+    "/schema/commands/contract-cli/commands/contract-cli target/commands/contract-cli target sync",
+    "/schema/commands/contract-cli/commands/contract-cli target/commands/contract-cli target remove"
+  ],
+  "previous_version": "v0.6.2",
+  "target_version": "v0.7.0",
+  "migration": "新增 target list [--all] 查看纳管状态、范围、本机同步提交和远端单位数；新增 target update <target>，用 --machine 或 --all-machines 修正已纳管目标的范围并保留内容；resolve 新增 --all 一次解决一个目标的全部冲突，--unit 与 --all 互斥且必须二选一，未指定时在参数校验阶段失败。target update 对未纳管的 shell-env 和 shell-env-secret 返回 target.not_managed，对已纳管目标返回 target.remote_authoritative，变量范围须通过 env set --machine 调整；resolve 结果以 snapshot、changed、resolved 和 remaining 为稳定字段。显式指定目标时，diff、sync 和 resolve 对未纳管目标返回 target.not_managed，对不适用当前机器的目标返回 target.out_of_scope；此前这些目标会被静默跳过并返回成功，自动化调用方须改为处理稳定错误码。不指定目标的全量 diff 和 sync 继续跳过这两类目标。全量 sync 在远端配置已初始化时清理远端已移除目标的本机基线，并在结果的可选 removed_baselines 中报告；显式同步已移除目标仍返回 target.not_managed 且不清理状态。目标文件为符号链接或特殊文件时返回 target.file_unsupported 并提示改为普通文件；既有文件权限在原子写入后保留，新文件使用 0600。远端 target.toml 和 values.toml 格式不变，本机基线仅新增可选最后成功同步提交，旧状态缺少该字段时按空值读取。"
+}

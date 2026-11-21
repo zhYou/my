@@ -466,6 +466,9 @@ other = "机器ID\t状态\t系统\t架构\t类型\t备注"
 ["machine.record_result"]
 other = "机器：{{.ID}}\n类型：{{.Kind}}\n系统：{{.OS}}\n架构：{{.Arch}}\n备注：{{.Note}}\n登记时间：{{.RegisteredAt}}\n状态：{{.Status}}\n提交：{{.Commit}}"
 
+["machine.update_result"]
+other = "机器：{{.ID}}\n类型：{{.Kind}}\n系统：{{.OS}}\n架构：{{.Arch}}\n备注：{{.Note}}\n登记时间：{{.RegisteredAt}}\n状态：{{.Status}}\n提交：{{.Commit}}\n已变更：{{.Changed}}"
+
 ["machine.current_result"]
 other = "本机绑定：{{.ID}}，{{.Repository}}（{{.Branch}}）"
 
@@ -495,6 +498,12 @@ other = "在当前设备恢复已有机器身份。"
 
 ["cli.machine_retire"]
 other = "退役机器记录并清除匹配的本机绑定。"
+
+["cli.machine_update"]
+other = "修正机器记录的类型或备注，不改变身份。"
+
+["cli.machine_update_example"]
+other = "{{.Name}} machine update workstation --kind server --note 'Synthetic corrected example'"
 
 ["cli.machine_kind"]
 other = "机器类型：laptop、desktop、server 或 vm。"
@@ -601,11 +610,26 @@ other = "收录本机配置目标"
 ["cli.target_diff"]
 other = "只读显示配置变化与冲突"
 
+["cli.target_list"]
+other = "列出内建目标及同步基线"
+
+["cli.target_list_all"]
+other = "包含远端和本机都不存在的内建目标"
+
+["cli.target_update"]
+other = "修改已纳管目标的机器范围"
+
+["cli.target_all_machines"]
+other = "将目标应用到全部 active 机器"
+
 ["cli.target_sync"]
 other = "同步纳管配置"
 
 ["cli.target_resolve"]
-other = "解决一个配置冲突"
+other = "显式解决一个目标冲突"
+
+["cli.target_resolve_all"]
+other = "解决一个目标的全部冲突"
 
 ["cli.target_remove"]
 other = "取消纳管配置目标"
@@ -652,17 +676,26 @@ other = "配置已收录到 {{.Commit}}；changed={{.Changed}}。"
 ["target.sync_result"]
 other = "配置已同步到 {{.Commit}}；changed={{.Changed}}。"
 
+["target.sync_removed"]
+other = "已清理孤立基线：{{.Targets}}。"
+
 ["target.resolve_result"]
-other = "配置冲突已在 {{.Commit}} 解决。"
+other = "目标 {{.Target}} 已在 {{.Commit}} 解决 {{.Resolved}} 项冲突；remaining={{.Remaining}}；units={{.Units}}。"
 
 ["target.remove_result"]
 other = "取消纳管已提交到 {{.Commit}}。"
+
+["target.update_result"]
+other = "目标：{{.Target}}\n范围：{{.Scope}}\n提交：{{.Commit}}\n已变更：{{.Changed}}"
 
 ["target.no_changes"]
 other = "没有配置变化。"
 
 ["target.diff_line"]
 other = "{{.Target}}\t{{.Unit}}\t{{.Action}}"
+
+["target.list_header"]
+other = "目标\t状态\t范围\t基线\t单位"
 
 ["shellenv.set_result"]
 other = "环境变量 {{.Name}} 已保存；secret={{.Secret}}；changed={{.Changed}}。"
@@ -675,6 +708,33 @@ other = "目标选择、单位、来源或机器范围无效。"
 
 ["target.state_invalid"]
 other = "目标状态或内容无效。"
+
+["target.file_unsupported"]
+other = "目标文件是符号链接或特殊文件；my 不会跟随或写入该文件。"
+
+["target.not_managed"]
+other = "目标 {{.Target}} 尚未纳入数据仓管理。"
+
+["target.out_of_scope"]
+other = "目标 {{.Target}} 不在机器 {{.Machine}} 的适用范围内。"
+
+["target.remote_authoritative"]
+other = "目标 {{.Target}} 由 env 管理，机器范围按变量设置。"
+
+["target.recover_remote_authoritative"]
+other = "使用 env set NAME --machine <id> 调整变量范围；target update 不会修改由 env 管理的目标。"
+
+["target.no_conflicts"]
+other = "目标 {{.Target}} 没有需要解决的冲突。"
+
+["target.resolve_partial"]
+other = "目标 {{.Target}} 已解决 {{.Resolved}} 项冲突{{if .RemainingUnits}}；仍有 {{.Remaining}} 项待解决：{{.RemainingUnits}}{{else}}；没有剩余冲突{{end}}。"
+
+["target.recover_no_conflicts"]
+other = "运行 target diff {{.Target}} 检查待处理变化；没有冲突后使用 target sync。"
+
+["target.recover_resolve_partial"]
+other = "检查 target diff {{.Target}}；仍有冲突时重新运行 target resolve {{.Target}} --all --from {{.From}}，没有冲突时运行 target sync {{.Target}}；已解决单位会被跳过。"
 
 ["target.legacy"]
 other = "目标存在旧布局，需要显式清理。"
@@ -690,6 +750,15 @@ other = "此秘密操作需要可用的 age identity。"
 
 ["target.recover"]
 other = "重试前检查 target diff 和已确认副作用。数据版本：{{.Commit}}。认证操作保留 pending 状态后重试 target sync；需要选择来源时使用 target resolve。"
+
+["target.recover_file_unsupported"]
+other = "将目标文件替换为普通文件后重试 target diff、target sync 或 target capture；my 不会跟随符号链接，也不会写入特殊文件。"
+
+["target.recover_not_managed"]
+other = "在拥有该内容的机器上运行 target capture {{.Target}}，或省略该目标以继续跳过未纳管目标。"
+
+["target.recover_out_of_scope"]
+other = "在数据仓中把 {{.Machine}} 加入该目标的 machines 声明，或在适用范围内的机器上执行命令。"
 
 ["target.operation_event"]
 other = "目标阶段 {{.Operation}} 已结束。"
@@ -730,11 +799,17 @@ other = "{{.Name}} target capture mise codex-settings\n{{.Name}} target capture 
 ["cli.target_diff_example"]
 other = "{{.Name}} target diff --json"
 
+["cli.target_list_example"]
+other = "{{.Name}} target list\n{{.Name}} target list --all"
+
+["cli.target_update_example"]
+other = "{{.Name}} target update topgrade --machine laptop\n{{.Name}} target update topgrade --all-machines"
+
 ["cli.target_sync_example"]
 other = "{{.Name}} target sync"
 
 ["cli.target_resolve_example"]
-other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote"
+other = "{{.Name}} target resolve topgrade --unit file:topgrade.toml --from remote\n{{.Name}} target resolve topgrade --all --from remote"
 
 ["cli.target_remove_example"]
 other = "{{.Name}} target remove topgrade"

@@ -54,10 +54,13 @@ func machineSchema(kind string) json.RawMessage {
 		properties["machine"] = record
 		required = append(required, "machine")
 	}
-	if kind == schemaChange {
+	if kind == schemaChange || kind == schemaUpdate {
 		properties["changed"] = map[string]any{schemaTypeKey: "boolean"}
+		required = append(required, "changed")
+	}
+	if kind == schemaChange {
 		properties["bound"] = map[string]any{schemaTypeKey: "boolean"}
-		required = append(required, "changed", "bound")
+		required = append(required, "bound")
 	}
 	raw, err := json.Marshal(
 		map[string]any{

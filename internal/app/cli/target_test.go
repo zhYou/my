@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,6 +31,19 @@ func TestTargetCommandsAreDiscoverable(t *testing.T) {
 	require.Zero(t, code, stderr)
 	require.Contains(t, out, `"unit"`)
 	require.Contains(t, out, `"from"`)
+
+	code, out, stderr = invoke(t, "schema", "target", "list")
+	require.Zero(t, code, stderr)
+	require.Contains(t, out, `"all"`)
+	require.Contains(t, out, `"baseline_commit"`)
+	require.Contains(t, out, `"status"`)
+
+	code, out, stderr = invoke(t, "schema", "target", "update")
+	require.Zero(t, code, stderr)
+	require.Contains(t, out, `"machine"`)
+	require.Contains(t, out, `"all-machines"`)
+	require.Contains(t, out, `"scope"`)
+	require.Contains(t, out, `"changed"`)
 }
 
 func TestActivateRejectsJSONWithoutReadingCache(t *testing.T) {
@@ -49,6 +63,10 @@ func TestTargetAndEnvironmentValidationPrecedesConfiguration(t *testing.T) {
 		{"resolve-source", []string{"target", "resolve", "codex-settings", "--unit", "field:features.network_proxy", "--from", "invalid", "--json"}, "", "target.validate"},
 		{"resolve-unit", []string{"target", "resolve", "codex-settings", "--unit", "file:../bad", "--from", "remote", "--json"}, "", "target.validate"},
 		{"unknown-target", []string{"target", "diff", "unknown-target", "--json"}, "", "target.validate"},
+		{"update-no-scope", []string{"target", "update", "topgrade", "--json"}, "", "target.validate"},
+		{"update-both-scopes", []string{"target", "update", "topgrade", "--machine", "laptop", "--all-machines", "--json"}, "", "target.validate"},
+		{"update-duplicate-machine", []string{"target", "update", "topgrade", "--machine", "laptop", "--machine", "laptop", "--json"}, "", "target.validate"},
+		{"update-unknown-target", []string{"target", "update", "unknown-target", "--all-machines", "--json"}, "", "target.validate"},
 		{"machine-syntax", []string{"target", "capture", "mise", "--machine", "INVALID", "--json"}, "", "target.validate"},
 		{"dangerous-variable", []string{"env", "set", "PATH", "--json"}, "synthetic-value", "shellenv.validate"},
 		{"invalid-variable-value", []string{"env", "set", "EDITOR", "--json"}, "line\nfeed", "shellenv.validate"},
@@ -255,6 +273,618 @@ func TestTargetAndEnvironmentCommandsCompleteHTTPWorkflow(t *testing.T) {
 			require.NotContains(t, listed, "synthetic-env-value")
 			call("env", "remove", "EDITOR")
 			verifyDiagnosticFiles(t, home)
+		})
+	}
+}
+
+func TestTargetListWorkflow(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{{"data", "init"}, {"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"}} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			path := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("verbose = true\n"), 0o600))
+			call := func(args ...string) string {
+				code, out, stderr := workflowCall(t, f, home, nil, append(args, "--json", "--lang", lang)...)
+				require.Zero(t, code, stderr)
+				require.True(t, json.Valid([]byte(out)))
+				return out
+			}
+			captured := call("target", "capture", "topgrade")
+			var capture struct {
+				Snapshot struct {
+					Commit string `json:"commit"`
+				} `json:"snapshot"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(captured), &capture))
+			require.NotEmpty(t, capture.Snapshot.Commit)
+
+			clashPath := filepath.Join(home, ".config", "clash-verge", "zeus-global-extend.js")
+			require.NoError(t, os.MkdirAll(filepath.Dir(clashPath), 0o700))
+			require.NoError(t, os.WriteFile(clashPath, []byte("console.log('local')\n"), 0o600))
+			config := "[data]\nrepository='owner/data'\n[telemetry]\nexporter='file'\n" +
+				"[secrets]\nidentity_file='" + filepath.Join(home, "missing-identity") + "'\n"
+			require.NoError(t, os.WriteFile(filepath.Join(home, "config.toml"), []byte(config), 0o600))
+
+			listed := call("target", "list")
+			require.Contains(t, listed, `"target":"topgrade"`)
+			require.Contains(t, listed, `"status":"managed"`)
+			require.Contains(t, listed, `"scope":["*"]`)
+			require.Contains(t, listed, `"baseline_commit":"`+capture.Snapshot.Commit+`"`)
+			require.Contains(t, listed, `"units":1`)
+			require.Contains(t, listed, `"target":"clash-global"`)
+			require.Contains(t, listed, `"status":"local"`)
+			require.NotContains(t, listed, `"status":"absent"`)
+			require.NotContains(t, listed, `"target":"codex-settings"`)
+
+			all := call("target", "list", "--all")
+			require.Contains(t, all, `"target":"codex-settings"`)
+			require.Contains(t, all, `"status":"absent"`)
+			require.Contains(t, all, `"scope":[]`)
+
+			code, out, stderr := workflowCall(t, f, home, nil, "target", "list", "--lang", lang)
+			require.Zero(t, code, stderr)
+			require.Contains(t, out, "topgrade\tmanaged\t*\t"+capture.Snapshot.Commit+"\t1")
+			require.Contains(t, out, "clash-global\tlocal\t-\t-\t0")
+			require.NotContains(t, out, "codex-settings")
+		})
+	}
+}
+
+func TestTargetSyncReportsPrunedOrphanBaseline(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			localPath := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(localPath), 0o700))
+			require.NoError(t, os.WriteFile(localPath, []byte("verbose = true\n"), 0o600))
+			call := func(args ...string) string {
+				t.Helper()
+				code, out, stderr := workflowCall(t, f, home, nil, append(args, "--json", "--lang", lang)...)
+				require.Zero(t, code, stderr)
+				require.True(t, json.Valid([]byte(out)))
+				return out
+			}
+			captureBaseline := func() string {
+				t.Helper()
+				captured := call("target", "capture", "topgrade")
+				var capture struct {
+					Snapshot struct {
+						Commit string `json:"commit"`
+					} `json:"snapshot"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(captured), &capture))
+				require.NotEmpty(t, capture.Snapshot.Commit)
+				return capture.Snapshot.Commit
+			}
+			listBaseline := func() string {
+				t.Helper()
+				listed := call("target", "list")
+				var result struct {
+					Targets []struct {
+						Target         string `json:"target"`
+						Status         string `json:"status"`
+						BaselineCommit string `json:"baseline_commit"`
+					} `json:"targets"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(listed), &result))
+				require.Len(t, result.Targets, 1)
+				require.Equal(t, "topgrade", result.Targets[0].Target)
+				require.Equal(t, "local", result.Targets[0].Status)
+				return result.Targets[0].BaselineCommit
+			}
+			pruneRemote := func(expectedCommit string) {
+				t.Helper()
+				f.removeRemote(
+					"configs/targets/topgrade/target.toml",
+					"configs/targets/topgrade/data/topgrade.toml",
+				)
+				require.Equal(t, expectedCommit, listBaseline())
+			}
+
+			baselineCommit := captureBaseline()
+			pruneRemote(baselineCommit)
+			commits := f.commits
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"sync",
+				"topgrade",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Equal(t, commits, f.commits)
+			require.Equal(t, baselineCommit, listBaseline())
+
+			code, out, stderr = workflowCall(t, f, home, nil, "target", "sync", "--lang", lang)
+			require.Zero(t, code, stderr)
+			require.Contains(t, out, "changed=true")
+			if lang == "en" {
+				require.Contains(t, out, "Removed orphan baselines: topgrade.")
+			} else {
+				require.Contains(t, out, "已清理孤立基线：topgrade。")
+			}
+			require.Empty(t, listBaseline())
+			require.Equal(t, commits, f.commits)
+			local, err := os.ReadFile(localPath) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "verbose = true\n", string(local))
+
+			baselineCommit = captureBaseline()
+			pruneRemote(baselineCommit)
+			commits = f.commits
+			synced := call("target", "sync")
+			var result struct {
+				Changed          bool     `json:"changed"`
+				RemovedBaselines []string `json:"removed_baselines"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(synced), &result))
+			require.True(t, result.Changed)
+			require.Equal(t, []string{"topgrade"}, result.RemovedBaselines)
+			require.Empty(t, listBaseline())
+			require.Equal(t, commits, f.commits)
+			local, err = os.ReadFile(localPath) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "verbose = true\n", string(local))
+		})
+	}
+}
+
+func TestTargetResolveAllWorkflow(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			path := filepath.Join(home, ".config", "mise", "config.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("[tools]\ngo = \"base\"\nnode = \"base\"\n"), 0o600))
+			code, _, stderr := workflowCall(t, f, home, nil, "target", "capture", "mise", "--json")
+			require.Zero(t, code, stderr)
+			require.NoError(t, os.WriteFile(path, []byte("[tools]\ngo = \"local\"\nnode = \"local\"\n"), 0o600))
+
+			f.mu.Lock()
+			remote := append([]byte(nil), f.versions[f.head]["configs/targets/mise/data/values.toml"]...)
+			f.mu.Unlock()
+			modified := bytes.ReplaceAll(remote, []byte(`'base'`), []byte(`'remote'`))
+			require.NotEqual(t, string(remote), string(modified))
+			f.replaceRemote("configs/targets/mise/data/values.toml", modified)
+
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"resolve",
+				"mise",
+				"--all",
+				"--from",
+				"remote",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Zero(t, code, stderr)
+			var result struct {
+				Resolved  []string `json:"resolved"`
+				Remaining []struct {
+					Unit string `json:"unit"`
+				} `json:"remaining"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(out), &result))
+			require.Equal(t, []string{"field:tools.go", "field:tools.node"}, result.Resolved)
+			require.NotNil(t, result.Remaining)
+			require.Empty(t, result.Remaining)
+			data, err := os.ReadFile(path) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Contains(t, string(data), "go = 'remote'")
+			require.Contains(t, string(data), "node = 'remote'")
+
+			topgradePath := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.WriteFile(topgradePath, []byte("verbose = true\n"), 0o600))
+			code, _, stderr = workflowCall(t, f, home, nil, "target", "capture", "topgrade", "--json")
+			require.Zero(t, code, stderr)
+			require.NoError(t, os.WriteFile(topgradePath, []byte("verbose = false\n"), 0o600))
+			f.replaceRemote("configs/targets/topgrade/data/topgrade.toml", []byte("verbose = 2\n"))
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"resolve",
+				"topgrade",
+				"--all",
+				"--from",
+				"remote",
+				"--lang",
+				lang,
+			)
+			require.Zero(t, code, stderr)
+			require.Contains(t, out, "remaining=0")
+			require.Contains(t, out, "file:topgrade.toml")
+			topgradeData, err := os.ReadFile(topgradePath) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "verbose = 2\n", string(topgradeData))
+
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"resolve",
+				"mise",
+				"--all",
+				"--from",
+				"remote",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.no_conflicts"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_no_conflicts"`)
+			if lang == "en" {
+				require.Contains(t, stderr, "no conflicts")
+			} else {
+				require.Contains(t, stderr, "没有需要解决的冲突")
+			}
+		})
+	}
+}
+
+func TestTargetExplicitSelectionFailsForUnmanagedAndOutOfScope(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			localPath := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(localPath), 0o700))
+			require.NoError(t, os.WriteFile(localPath, []byte("verbose = true\n"), 0o600))
+			readLocal := func() string {
+				t.Helper()
+				data, err := os.ReadFile(localPath) // #nosec G304 -- 测试临时文件。
+				require.NoError(t, err)
+				return string(data)
+			}
+
+			commits := f.commits
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"sync",
+				"topgrade",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_not_managed"`)
+			if lang == "en" {
+				require.Contains(t, stderr, "is not managed")
+			} else {
+				require.Contains(t, stderr, "尚未纳入数据仓管理")
+			}
+			require.Equal(t, "verbose = true\n", readLocal())
+			require.Equal(t, commits, f.commits)
+
+			code, _, stderr = workflowCall(t, f, home, nil, "target", "capture", "topgrade", "--json")
+			require.Zero(t, code, stderr)
+			f.replaceRemote(
+				"configs/targets/topgrade/target.toml",
+				[]byte("schema_version = 1\ntarget = \"topgrade\"\nmachines = [\"laptop\"]\n"),
+			)
+			commits = f.commits
+			for _, args := range [][]string{
+				{"target", "diff", "topgrade"},
+				{"target", "sync", "topgrade"},
+				{"target", "resolve", "topgrade", "--unit", "file:topgrade.toml", "--from", "remote"},
+			} {
+				code, out, stderr := workflowCall(
+					t,
+					f,
+					home,
+					nil,
+					append(args, "--json", "--lang", lang)...,
+				)
+				require.Equal(t, 1, code, stderr)
+				require.Empty(t, out)
+				require.Contains(t, stderr, `"code":"target.out_of_scope"`)
+				require.Contains(t, stderr, `"recovery":{"code":"target.recover_out_of_scope"`)
+				if lang == "en" {
+					require.Contains(t, stderr, "is not in scope")
+				} else {
+					require.Contains(t, stderr, "不在机器")
+				}
+				require.Equal(t, "verbose = true\n", readLocal())
+				require.Equal(t, commits, f.commits)
+			}
+
+			for _, args := range [][]string{{"target", "diff"}, {"target", "sync"}} {
+				code, out, stderr := workflowCall(
+					t,
+					f,
+					home,
+					nil,
+					append(args, "--json", "--lang", lang)...,
+				)
+				require.Zero(t, code, stderr)
+				require.True(t, json.Valid([]byte(out)))
+				require.Equal(t, "verbose = true\n", readLocal())
+				require.Equal(t, commits, f.commits)
+			}
+
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"remove",
+				"mise",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_not_managed"`)
+			require.Equal(t, commits, f.commits)
+		})
+	}
+}
+
+func TestTargetUpdateWorkflow(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{{"data", "init"}, {"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"}} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			path := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("verbose = true\n"), 0o600))
+			call := func(args ...string) string {
+				code, out, stderr := workflowCall(t, f, home, nil, append(args, "--json", "--lang", lang)...)
+				require.Zero(t, code, stderr)
+				require.True(t, json.Valid([]byte(out)))
+				return out
+			}
+			type updateResult struct {
+				Snapshot struct {
+					Commit string `json:"commit"`
+				} `json:"snapshot"`
+				Target  string   `json:"target"`
+				Scope   []string `json:"scope"`
+				Changed bool     `json:"changed"`
+			}
+			parseUpdate := func(out string) updateResult {
+				t.Helper()
+				var result updateResult
+				require.NoError(t, json.Unmarshal([]byte(out), &result))
+				return result
+			}
+			call("target", "capture", "topgrade")
+			dataPath := "configs/targets/topgrade/data/topgrade.toml"
+			f.mu.Lock()
+			beforeData := append([]byte(nil), f.versions[f.head][dataPath]...)
+			f.mu.Unlock()
+			require.NotEmpty(t, beforeData)
+
+			updated := parseUpdate(call("target", "update", "topgrade", "--machine", "fixture"))
+			require.Equal(t, "topgrade", updated.Target)
+			require.Equal(t, []string{"fixture"}, updated.Scope)
+			require.True(t, updated.Changed)
+			require.NotEmpty(t, updated.Snapshot.Commit)
+
+			listed := call("target", "list")
+			require.Contains(t, listed, `"target":"topgrade"`)
+			require.Contains(t, listed, `"scope":["fixture"]`)
+
+			commits := f.commits
+			repeated := parseUpdate(call("target", "update", "topgrade", "--machine", "fixture"))
+			require.False(t, repeated.Changed)
+			require.Equal(t, updated.Snapshot.Commit, repeated.Snapshot.Commit)
+			require.Equal(t, commits, f.commits)
+
+			restored := parseUpdate(call("target", "update", "topgrade", "--all-machines"))
+			require.True(t, restored.Changed)
+			require.Equal(t, []string{"*"}, restored.Scope)
+
+			f.mu.Lock()
+			afterData := append([]byte(nil), f.versions[f.head][dataPath]...)
+			f.mu.Unlock()
+			require.Equal(t, beforeData, afterData)
+
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"update",
+				"topgrade",
+				"--machine",
+				"fixture",
+				"--lang",
+				lang,
+			)
+			require.Zero(t, code, stderr)
+			require.Contains(t, out, "topgrade")
+			require.Contains(t, out, "fixture")
+			require.Contains(t, out, "true")
+		})
+	}
+}
+
+func TestTargetUpdateRejectsEnvironmentManagedTargets(t *testing.T) {
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			code, _, stderr := workflowInput(
+				t,
+				f,
+				home,
+				nil,
+				"synthetic-env-value",
+				"env",
+				"set",
+				"EDITOR",
+				"--json",
+			)
+			require.Zero(t, code, stderr)
+
+			commits := f.commits
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"update",
+				"shell-env",
+				"--machine",
+				"fixture",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.remote_authoritative"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_remote_authoritative"`)
+			if lang == "en" {
+				require.Contains(t, stderr, "managed through env")
+			} else {
+				require.Contains(t, stderr, "由 env 管理")
+			}
+			require.Equal(t, commits, f.commits)
+
+			code, out, stderr = workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"update",
+				"shell-env-secret",
+				"--machine",
+				"fixture",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.not_managed"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_not_managed"`)
+			require.Equal(t, commits, f.commits)
+		})
+	}
+}
+
+func TestTargetSyncReportsUnsupportedFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 符号链接创建需要额外权限")
+	}
+	for _, lang := range []string{"en", "zh-CN"} {
+		t.Run(lang, func(t *testing.T) {
+			f := newFixtureGitHub(t)
+			home := workflowHome(t)
+			for _, args := range [][]string{
+				{"data", "init"},
+				{"machine", "register", "fixture", "--kind", "vm", "--note", "fixture"},
+			} {
+				code, _, stderr := workflowCall(t, f, home, nil, append(args, "--json")...)
+				require.Zero(t, code, stderr)
+			}
+			path := filepath.Join(home, ".config", "topgrade.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("verbose = true\n"), 0o600))
+			code, _, stderr := workflowCall(t, f, home, nil, "target", "capture", "topgrade", "--json")
+			require.Zero(t, code, stderr)
+			outside := filepath.Join(home, "outside-target.toml")
+			require.NoError(t, os.WriteFile(outside, []byte("synthetic-outside-content\n"), 0o600))
+			require.NoError(t, os.Remove(path))
+			require.NoError(t, os.Symlink(outside, path))
+
+			code, out, stderr := workflowCall(
+				t,
+				f,
+				home,
+				nil,
+				"target",
+				"sync",
+				"--json",
+				"--lang",
+				lang,
+			)
+			require.Equal(t, 1, code)
+			require.Empty(t, out)
+			require.Contains(t, stderr, `"code":"target.file_unsupported"`)
+			require.Contains(t, stderr, `"recovery":{"code":"target.recover_file_unsupported"`)
+			require.NotContains(t, stderr, outside)
+			require.NotContains(t, stderr, "synthetic-outside-content")
+			if lang == "en" {
+				require.Contains(t, stderr, "regular file")
+			} else {
+				require.Contains(t, stderr, "普通文件")
+			}
+			data, err := os.ReadFile(outside) // #nosec G304 -- 测试临时文件。
+			require.NoError(t, err)
+			require.Equal(t, "synthetic-outside-content\n", string(data))
 		})
 	}
 }
