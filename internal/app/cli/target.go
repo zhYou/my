@@ -33,6 +33,7 @@ func newTargetCommand(call *invocation) *cobra.Command {
 		newTargetCaptureCommand(call),
 		newTargetDiffCommand(call),
 		newTargetListCommand(call),
+		newTargetUpdateCommand(call),
 		newTargetSyncCommand(call),
 		newTargetResolveCommand(call),
 		newTargetRemoveCommand(call),
@@ -232,6 +233,55 @@ func newTargetListCommand(call *invocation) *cobra.Command {
 	)
 	call.bindFlag(cmd.Flags().Lookup(flagAll), message("cli.target_list_all"))
 	registerOrPanic[target.ListResult](call, cmd)
+	return cmd
+}
+
+func newTargetUpdateCommand(call *invocation) *cobra.Command {
+	input := target.UpdateOptions{}
+	cmd := &cobra.Command{
+		Use:         "update <target> --machine <id>... | --all-machines",
+		Annotations: map[string]string{annotationNeedsData: annotationEnabled},
+		Args: func(command *cobra.Command, args []string) error {
+			if err := cobra.ExactArgs(1)(command, args); err != nil {
+				return err
+			}
+			input.Target = target.ID(args[0])
+			return input.Validate(target.DefaultDefinitions())
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			service, _, err := call.targetService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := service.Update(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return businessOutput(cmd, call, result, "target.update_result", map[string]any{
+				"Target":     result.Target,
+				"Scope":      strings.Join(result.Scope, ","),
+				paramCommit:  result.Snapshot.Commit,
+				paramChanged: result.Changed,
+			})
+		},
+	}
+	cmd.Flags().StringSliceVar(&input.Scope.IDs, flagMachine, nil, "将目标限制到机器 ID")
+	cmd.Flags().BoolVar(&input.Scope.All, flagAllMachines, false, "将目标应用到全部 active 机器")
+	cmd.MarkFlagsOneRequired(flagMachine, flagAllMachines)
+	cmd.MarkFlagsMutuallyExclusive(flagMachine, flagAllMachines)
+	call.bindCommand(
+		cmd,
+		commandTexts{
+			short: message("cli.target_update"),
+			example: textMessage{
+				id:     "cli.target_update_example",
+				params: map[string]any{paramName: call.options.Name},
+			},
+		},
+	)
+	call.bindFlag(cmd.Flags().Lookup(flagMachine), message("cli.target_machine"))
+	call.bindFlag(cmd.Flags().Lookup(flagAllMachines), message("cli.target_all_machines"))
+	registerOrPanic[target.UpdateResult](call, cmd)
 	return cmd
 }
 
