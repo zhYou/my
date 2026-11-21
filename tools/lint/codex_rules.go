@@ -46,7 +46,7 @@ func checkCodexRules(root string) error {
 	directory := filepath.Join(root, filepath.FromSlash(codexRulesDirectory))
 	entries, err := os.ReadDir(directory)
 	if err != nil {
-		return fmt.Errorf("读取 %s：%w", codexRulesDirectory, err)
+		return fmt.Errorf(readPathError, codexRulesDirectory, err)
 	}
 	found := false
 	var problems []error
@@ -57,11 +57,7 @@ func checkCodexRules(root string) error {
 		found = true
 		path := filepath.Join(directory, entry.Name())
 		if err := checkRegularFile(path); err != nil {
-			if errors.Is(err, errNotRegularFile) {
-				problems = append(problems, fmt.Errorf(notRegularError, entry.Name()))
-			} else {
-				problems = append(problems, fmt.Errorf("检查 %s：%w", entry.Name(), err))
-			}
+			problems = append(problems, err)
 			continue
 		}
 		if err := checkCodexRuleFile(path); err != nil {
@@ -90,20 +86,11 @@ func checkCodexRuleFile(path string) error {
 	count := 0
 	var problems []error
 	for i := 0; i < len(tokens); {
-		if tokens[i].kind != ruleIdentifier || tokens[i].text != prefixRuleCall {
-			problems = append(problems, fmt.Errorf("%s:%d 顶层只能包含 prefix_rule 调用", path, tokens[i].line))
-			return errors.Join(problems...)
-		}
-		if i+1 >= len(tokens) || tokens[i+1].text != "(" {
-			problems = append(problems, fmt.Errorf("%s:%d prefix_rule 缺少左括号", path, tokens[i].line))
-			return errors.Join(problems...)
-		}
-		end, err := matchingRuleDelimiter(path, tokens, i+1)
+		end, arguments, err := checkRuleCall(path, tokens, i)
 		if err != nil {
 			problems = append(problems, err)
 			return errors.Join(problems...)
 		}
-		arguments := parseRuleArguments(path, tokens[i].line, tokens[i+2:end])
 		problems = append(problems, arguments.problems...)
 		for _, value := range arguments.justifications {
 			count++
@@ -117,6 +104,22 @@ func checkCodexRuleFile(path string) error {
 		problems = append(problems, fmt.Errorf("%s 缺少 justification", path))
 	}
 	return errors.Join(problems...)
+}
+
+// checkRuleCall 校验一个 prefix_rule 调用，返回调用结束位置和参数解析结果；
+// 顶层结构错误直接返回。
+func checkRuleCall(path string, tokens []ruleToken, start int) (int, ruleArguments, error) {
+	if tokens[start].kind != ruleIdentifier || tokens[start].text != prefixRuleCall {
+		return 0, ruleArguments{}, fmt.Errorf("%s:%d 顶层只能包含 prefix_rule 调用", path, tokens[start].line)
+	}
+	if start+1 >= len(tokens) || !isRulePunctuation(tokens[start+1], "(") {
+		return 0, ruleArguments{}, fmt.Errorf("%s:%d prefix_rule 缺少左括号", path, tokens[start].line)
+	}
+	end, err := matchingRuleDelimiter(path, tokens, start+1)
+	if err != nil {
+		return 0, ruleArguments{}, err
+	}
+	return end, parseRuleArguments(path, tokens[start].line, tokens[start+2:end]), nil
 }
 
 func lexCodexRule(path, source string) ([]ruleToken, error) {
@@ -264,15 +267,36 @@ func unquoteRuleString(raw string) (string, error) {
 	return value.String(), nil
 }
 
+var ruleDelimiterPairs = map[string]string{")": "(", "]": "[", "}": "{"}
+
+// isRulePunctuation 判断 token 是否为指定的结构标点；字符串内容永远不参与结构判断。
+func isRulePunctuation(token ruleToken, text string) bool {
+	return token.kind == rulePunctuation && token.text == text
+}
+
+// ruleDelimiterDelta 返回结构标点对括号深度的变化；字符串和其他标点始终为 0。
+func ruleDelimiterDelta(token ruleToken) int {
+	if token.kind != rulePunctuation {
+		return 0
+	}
+	switch token.text {
+	case "(", "[", "{":
+		return 1
+	case ")", "]", "}":
+		return -1
+	default:
+		return 0
+	}
+}
+
 func matchingRuleDelimiter(path string, tokens []ruleToken, start int) (int, error) {
-	pairs := map[string]string{")": "(", "]": "[", "}": "{"}
 	var stack []ruleToken
 	for i := start; i < len(tokens); i++ {
-		switch tokens[i].text {
-		case "(", "[", "{":
+		switch ruleDelimiterDelta(tokens[i]) {
+		case 1:
 			stack = append(stack, tokens[i])
-		case ")", "]", "}":
-			if len(stack) == 0 || stack[len(stack)-1].text != pairs[tokens[i].text] {
+		case -1:
+			if len(stack) == 0 || stack[len(stack)-1].text != ruleDelimiterPairs[tokens[i].text] {
 				return 0, fmt.Errorf("%s:%d 括号不匹配", path, tokens[i].line)
 			}
 			stack = stack[:len(stack)-1]
@@ -298,7 +322,7 @@ func parseRuleArguments(path string, callLine int, tokens []ruleToken) ruleArgum
 	var problems []error
 	seen := make(map[string]struct{})
 	for i := 0; i < len(tokens); {
-		if tokens[i].text == "," {
+		if isRulePunctuation(tokens[i], ",") {
 			i++
 			continue
 		}
@@ -308,7 +332,7 @@ func parseRuleArguments(path string, callLine int, tokens []ruleToken) ruleArgum
 		}
 		field := tokens[i]
 		i++
-		if i >= len(tokens) || tokens[i].text != "=" {
+		if i >= len(tokens) || !isRulePunctuation(tokens[i], "=") {
 			problems = append(problems, fmt.Errorf("%s:%d %s 缺少等号", path, field.line, field.text))
 			return ruleArguments{justifications: justifications, problems: problems}
 		}
@@ -316,28 +340,21 @@ func parseRuleArguments(path string, callLine int, tokens []ruleToken) ruleArgum
 		valueStart := i
 		depth := 0
 		for i < len(tokens) {
-			switch tokens[i].text {
-			case "(", "[", "{":
-				depth++
-			case ")", "]", "}":
-				depth--
-			case ",":
-				if depth == 0 {
-					goto valueDone
-				}
+			if isRulePunctuation(tokens[i], ",") && depth == 0 {
+				break
 			}
+			depth += ruleDelimiterDelta(tokens[i])
 			i++
 		}
-	valueDone:
 		value := tokens[valueStart:i]
-		if len(value) == 0 {
-			problems = append(problems, fmt.Errorf("%s:%d %s 缺少值", path, field.line, field.text))
-			continue
-		}
 		if _, ok := seen[field.text]; ok {
 			problems = append(problems, fmt.Errorf("%s:%d 重复的规则字段 %s", path, field.line, field.text))
 		} else {
 			seen[field.text] = struct{}{}
+		}
+		if len(value) == 0 {
+			problems = append(problems, fmt.Errorf("%s:%d %s 缺少值", path, field.line, field.text))
+			continue
 		}
 		switch field.text {
 		case patternField:
@@ -355,7 +372,7 @@ func parseRuleArguments(path string, callLine int, tokens []ruleToken) ruleArgum
 		default:
 			problems = append(problems, fmt.Errorf("%s:%d 未知的规则字段 %s", path, field.line, field.text))
 		}
-		if i < len(tokens) && tokens[i].text == "," {
+		if i < len(tokens) && isRulePunctuation(tokens[i], ",") {
 			i++
 		}
 	}
@@ -366,7 +383,7 @@ func parseRuleArguments(path string, callLine int, tokens []ruleToken) ruleArgum
 }
 
 func inspectRulePattern(path string, field ruleToken, value []ruleToken) []error {
-	if len(value) < 2 || value[0].text != "[" || value[len(value)-1].text != "]" {
+	if len(value) < 2 || !isRulePunctuation(value[0], "[") || !isRulePunctuation(value[len(value)-1], "]") {
 		return []error{fmt.Errorf("%s:%d pattern 必须是列表", path, field.line)}
 	}
 	elements := splitRuleElements(value[1 : len(value)-1])
@@ -378,7 +395,8 @@ func inspectRulePattern(path string, field ruleToken, value []ruleToken) []error
 		if len(element) == 1 && element[0].kind == ruleString {
 			continue
 		}
-		if len(element) >= 2 && element[0].text == "[" && element[len(element)-1].text == "]" {
+		if len(element) >= 2 && isRulePunctuation(element[0], "[") &&
+			isRulePunctuation(element[len(element)-1], "]") {
 			group := splitRuleElements(element[1 : len(element)-1])
 			if len(group) > 0 && ruleElementsAreStrings(group) {
 				continue
@@ -403,13 +421,8 @@ func splitRuleElements(tokens []ruleToken) [][]ruleToken {
 	var current []ruleToken
 	depth := 0
 	for _, token := range tokens {
-		switch token.text {
-		case "(", "[", "{":
-			depth++
-		case ")", "]", "}":
-			depth--
-		}
-		if token.text == "," && depth == 0 {
+		depth += ruleDelimiterDelta(token)
+		if isRulePunctuation(token, ",") && depth == 0 {
 			elements = append(elements, current)
 			current = nil
 			continue

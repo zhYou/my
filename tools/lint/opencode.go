@@ -81,10 +81,7 @@ func checkOpenCodeConfig(root string) error {
 	}
 	path := filepath.Join(root, filepath.FromSlash(openCodeConfigPath))
 	if err := checkRegularFile(path); err != nil {
-		if errors.Is(err, errNotRegularFile) {
-			return fmt.Errorf(notRegularError, path)
-		}
-		return fmt.Errorf("检查 %s: %w", path, err)
+		return err
 	}
 	config, err := loadOpenCodeConfig(path)
 	if err != nil {

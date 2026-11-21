@@ -23,7 +23,9 @@ func TestEntryRegistryDrivesUsageAndDispatch(t *testing.T) {
 			ran = true
 			return nil
 		}},
-		{name: "second", run: func() error { return errors.New("检查失败") }},
+		{name: "second", run: func() error {
+			return errors.New("检查失败")
+		}},
 	}
 
 	require.NoError(t, checks.run([]string{"first"}))
@@ -39,8 +41,9 @@ func TestEntryRegistryDrivesUsageAndDispatch(t *testing.T) {
 // 开发入口使用 codex-rules 并执行真实检查。
 func TestEntryDispatchesCodexRules(t *testing.T) {
 	t.Chdir(filepath.Join("..", ".."))
+	require.Contains(t, lintChecks.usage(), "codex-rules")
 	require.NoError(t, run([]string{"codex-rules"}))
-	require.Contains(t, run(nil).Error(), "用法：lint <i18n|config|opencode|codex-rules|doc|style|versions|test>")
+	require.EqualError(t, run(nil), lintChecks.usage())
 }
 
 // 开发入口必须执行真实检查，并向调用者返回配置错误。
